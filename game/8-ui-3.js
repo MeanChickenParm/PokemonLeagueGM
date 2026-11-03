@@ -1,11 +1,12 @@
 const UPDATES = [
-  { id: 195, date: 'November 3, 2026', time: '5:40 PM ET', title: 'Historical and retired ranches, ban records', items: [
+  { id: 195, date: 'November 3, 2026', time: '5:55 PM ET', title: 'Historical and retired ranches, ban records', items: [
     "The team ranch's display shelf is now two panels. The historical ranch holds the title-winning rosters; retired Pokémon (retired with a trainer, not registered, or unused in the active ranch) have their own retired ranch below it.",
     "Each title roster in the historical ranch is collapsible: tap a season to open or close its roster. They're listed newest first and start closed.",
     "Ranch text, the Glossary and the Retired Pokémon screen now say retired ranch where they mean retired Pokémon.",
     "New Records board under Pokémon: Most times banned. It counts each time a League vote bans a species (a ban kept in later votes counts once), shows the seasons it was banned for and flags what's banned now. Legendaries are included.",
     "History has a new Banlists section: every vote in the League, newest first, with what was banned, kept and lifted (and by how many teams), and the banlist in force for each season.",
     "The ban log now keeps up to 600 entries instead of 60, so the history doesn't lose old votes.",
+    "Fixed text changing size in the Banlists history on phones. It's now one block per vote (banned, kept, lifted and the banlist in force) instead of a wide table, and the page no longer lets the browser enlarge text on its own.",
     "The Banlist ballot now varies: instead of the season's exact top five, it's five drawn at random from the top 20 performers (still at most two legendaries, and one per evolutionary family). The vote screen shows each one's place in the top 20, and AI teams still lean toward banning the higher-ranked ones.",
     "Banlist limits loosened: there's no longer a limit of two new bans a season, so every Pokémon on the ballot that gets a majority is banned, and a League can hold up to five bans at a time instead of three. When there isn't room for them all, the most votes go first.",
   ] },

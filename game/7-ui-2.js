@@ -462,11 +462,15 @@ function banHistory() {
   const seasons = Object.keys(by).map(Number).sort((a, b) => b - a);
   const inForce = new Set(), forceAt = {};
   for (const sn of seasons.slice().reverse()) { for (const e of by[sn]) { if (e.act === 'ban' || e.act === 'keep') inForce.add(e.sp); else inForce.delete(e.sp); } forceAt[sn] = [...inForce]; }
-  const list = (sn, act, f) => by[sn].filter(e => e.act === act).map(f).join(', ') || '<span class="muted">—</span>';
+  const items = (sn, act, f) => by[sn].filter(e => e.act === act).map(e => `<span class="bh-i">${f(e)}</span>`).join(' ');
+  const line = (label, html) => html ? `<div><span class="bh-l">${label}</span>${html}</div>` : '';
   return `<section class="panel"><div class="ph"><h2>Banlists${nLeagues() > 1 ? ' · ' + S.lgName : ''}</h2><span class="muted">${Object.keys(banCounts()).length} Pokémon banned in all</span></div>
-  <div class="scroll"><table class="tbl"><thead><tr><th>For season</th><th>Banned</th><th>Kept</th><th>Lifted</th><th>Banlist</th></tr></thead><tbody>
-  ${seasons.map(sn => `<tr><td class="num">${sn + 1}</td><td>${list(sn, 'ban', e => `<b>${e.sp}</b> <span class="muted small">${e.yes}/${e.n}</span>`)}</td><td>${list(sn, 'keep', e => `${e.sp} <span class="muted small">${e.keep}/${e.n}</span>`)}</td><td>${list(sn, 'lift', e => `${e.sp} <span class="muted small">${e.limit ? 'time up' : `${e.keep}/${e.n} kept`}</span>`)}</td><td>${forceAt[sn].length ? forceAt[sn].map(sp => `${monMini(sp)} ${sp}`).join(', ') : '<span class="muted">none</span>'}</td></tr>`).join('')}
-  </tbody></table></div><p class="fine">Vote counts are the teams for out of the teams voting. A ban lifts on its own after ${BAN_MAX_SEASONS} seasons.</p></section>`;
+  <div class="banhist">${seasons.map(sn => `<div class="bh-row"><div class="bh-s">Season ${sn + 1}</div>
+    ${line('Banned', items(sn, 'ban', e => `<b>${e.sp}</b> <span class="muted small">${e.yes}/${e.n}</span>`))}
+    ${line('Kept', items(sn, 'keep', e => `${e.sp} <span class="muted small">${e.keep}/${e.n}</span>`))}
+    ${line('Lifted', items(sn, 'lift', e => `${e.sp} <span class="muted small">${e.limit ? 'time up' : `${e.keep}/${e.n} kept`}</span>`))}
+    ${line('Banlist', forceAt[sn].length ? forceAt[sn].map(sp => `<span class="bh-i">${monMini(sp)}${sp}</span>`).join(' ') : '<span class="muted">none</span>')}</div>`).join('')}</div>
+  <p class="fine">Vote counts are the teams for out of the teams voting. A ban lifts on its own after ${BAN_MAX_SEASONS} seasons.</p></section>`;
 }
 
 // ---------- awards ----------

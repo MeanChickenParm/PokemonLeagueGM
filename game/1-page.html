@@ -24,6 +24,7 @@
   --red: #EE5149; --red-ink: #FFFFFF; --gold: #E2B44C; --gold-soft: #3A3121; --win: #48C07D; --loss: #F06B6B; --amber: #E8AE3E; color-scheme: dark; }
 
 html, body { background: var(--bg); color: var(--ink); }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 body { font-family: var(--font-body); font-size: 15px; line-height: 1.5; }
 body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--band); }
 button { font: inherit; color: inherit; }
@@ -190,6 +191,13 @@ p { margin: 0; }
 /* tables */
 .scroll { overflow-x: auto; }
 .tbl { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+/* v195: Banlists history, one block per vote (a wide table made phone text resize) */
+.banhist { display: flex; flex-direction: column; }
+.banhist .bh-row { padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 0.86rem; line-height: 1.5; }
+.banhist .bh-row:last-child { border-bottom: 0; }
+.banhist .bh-s { font-weight: 700; }
+.banhist .bh-l { color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; margin-right: 6px; }
+.banhist .bh-i { white-space: nowrap; margin-right: 8px; }
 .tbl th { text-align: left; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
 .tbl td { padding: 7px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; vertical-align: middle; }
 .tbl.compact td { padding: 6px 4px; }
