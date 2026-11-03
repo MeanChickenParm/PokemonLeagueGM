@@ -354,6 +354,7 @@ function header() {
   let status = '', btn = '';
   if (S.phase === 'draft') { status = `Season ${S.season + 1} · ${S.draft && S.draft.founding ? 'Founding draft' : 'Draft'}`; btn = view !== 'draft' ? `<button class="btn primary" data-act="nav" data-v="draft">Go to the draft</button>` : ''; }
   if (S.phase === 'reassign') { status = `Season ${S.season + 1} · League reassignment`; btn = view !== 'reassign' ? `<button class="btn primary" data-act="nav" data-v="reassign">Reassign trainers</button>` : ''; }
+  if (S.phase === 'banvote') { status = `Season ${S.season + 1} · Banlist vote`; btn = view !== 'banvote' ? `<button class="btn primary" data-act="nav" data-v="banvote">Vote on the banlist</button>` : ''; }
   if (S.phase === 'reward') { status = `Season ${S.season + 1} · Champion's reward`; btn = view !== 'reward' ? `<button class="btn primary" data-act="nav" data-v="reward">Choose the Paradox Pokémon</button>` : ''; }
   if (S.phase === 'ranch') { status = `Season ${S.season + 1} · Team ranch`; btn = view !== 'ranch' ? `<button class="btn primary" data-act="nav" data-v="ranch">Go to the ranch</button>` : ''; }
   if (S.phase === 'register') { status = `Season ${S.season + 1} · Registration`; btn = view !== 'register' ? `<button class="btn primary" data-act="nav" data-v="register">Register teams</button>` : ''; }
@@ -373,6 +374,7 @@ function navGroups() {
   const office = [['office', 'Office']];
   if (S.phase === 'draft') office.push(['draft', 'Draft']);
   if (S.phase === 'reassign') office.push(['reassign', 'League reassignment']);
+  if (S.phase === 'banvote') office.push(['banvote', 'Banlist vote']);
   if (S.phase === 'register') office.push(['register', 'Registration']);
   if (S.phase === 'reward') office.push(['reward', "Champion's reward"]);
   if (S.phase === 'offseason') { office.push(['recap', 'Season recap']); if (S.offers.length) office.push(['offers', 'League offers']); }
@@ -871,12 +873,14 @@ function viewOffice() {
   else if (S.phase === 'offseason') main = `<section class="panel callout"><h2>Season ${S.season} is in the books</h2><p>${orgName(S.history[S.history.length - 1].cup)} won the Team Cup and ${tname(S.champion)} is Champion. Read the recap before the draft.</p><button class="btn primary" data-act="nav" data-v="recap">Read the season recap</button></section>`;
   else if (S.phase === 'gifts') main = `<section class="panel callout"><h2>Farewell gifts</h2><p>The draft is done. Teams that lost a trainer to a post hand over their farewell gifts.</p><button class="btn primary" data-act="nav" data-v="gifts">See the farewell gifts</button></section>`;
   else if (S.phase === 'reassign') main = `<section class="panel callout"><h2>League reassignment</h2><p>The draft is done. Teams can now move their trainers between Leagues before the Champion's reward and registration.</p><button class="btn primary" data-act="nav" data-v="reassign">Reassign trainers</button></section>`;
+  else if (S.phase === 'banvote') main = `<section class="panel callout"><h2>Banlist vote</h2><p>The teams vote on banning last season's top performers before the Champion's reward and the ranch.</p><button class="btn primary" data-act="nav" data-v="banvote">Vote on the banlist</button></section>`;
   else if (S.phase === 'ranch') main = `<section class="panel callout"><h2>Team ranch</h2><p>Hand Pokémon from your ranch to your trainers before registration${(S.ranchPicks || []).some(p => p.org === S.userOrg) ? ', and choose what to keep from a retiring trainer' : ''}.</p><button class="btn primary" data-act="nav" data-v="ranch">Go to the ranch</button></section>`;
   else if (S.phase === 'draft') main = `<section class="panel callout"><h2>Draft day</h2><p>The four teams are picking.</p><button class="btn primary" data-act="nav" data-v="draft">Go to the draft</button></section>`;
   return `<div class="grid-office">
     <div class="col">${main}</div>
     <div class="col side">
       ${cupCard()}
+      ${banCard()}
       ${tourneyCard()}
       <section class="panel"><div class="ph"><h3>Latest news</h3><button class="link" data-act="nav" data-v="news">All news</button></div>${newsList(S.news.slice(0, 7))}</section>
     </div></div>`;

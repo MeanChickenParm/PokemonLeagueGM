@@ -527,6 +527,45 @@ function worldHistory() {
   return `<section class="panel"><div class="ph"><h2>World Championship</h2></div><div class="scroll"><table class="tbl"><thead><tr><th>Season</th><th>World Champion</th><th>League</th><th>Runner-up</th><th>League</th></tr></thead><tbody>
     ${wh.map(x => `<tr><td class="num">${x.season}</td><td>${tname(x.winner, x.winnerOrg || null)}</td><td>${leagueName(x.winnerLg)}</td><td>${tname(x.runner, x.runnerOrg || null)}</td><td>${leagueName(x.runnerLg)}</td></tr>`).join('')}</tbody></table></div></section>`;
 }
+// ---------- League banlist (v194) ----------
+const banPct = (a, b) => b ? Math.round(a / b * 100) : 0;
+function banTeamsTxt(x) { return x.voters.map(k => `${orgMark(k)} ${ORGS[k].short}`).join(' '); }
+function viewBanVote() {
+  const V = S.banVote; if (S.phase !== 'banvote' || !V) return viewOffice();
+  const k = S.userOrg;
+  const toggle = (i, sp, kind, on, yes, no) => `<span class="ban-tog"><button class="btn small${on ? ' primary' : ''}" data-act="banset" data-l="${i}" data-sp="${esc(sp)}" data-k="${kind}" data-v="1" aria-pressed="${on}">${yes}</button><button class="btn small${!on ? ' primary' : ''}" data-act="banset" data-l="${i}" data-sp="${esc(sp)}" data-k="${kind}" data-v="0" aria-pressed="${!on}">${no}</button></span>`;
+  const secs = V.lgs.map(x => {
+    const i = x.lg, n = x.voters.length, need = Math.floor(n / 2) + 1, mine = x.voters.includes(k);
+    const bans = bansIn(i);
+    const reviews = x.reviews.map(sp => { const b = bans.find(z => z.sp === sp); if (!b) return '';
+      const lift = !!V.lift[banKey(i, sp)], age = S.season - b.season, limit = age >= BAN_MAX_SEASONS;
+      return `<tr><td>${monFace(sp, false, 28)} <b>${sp}</b>${b.members.length > 1 ? ` <span class="muted small">with ${b.members.filter(s => s !== sp).join(', ')}</span>` : ''}</td><td class="small">${age} season${age === 1 ? '' : 's'}</td><td>${limit ? '<span class="muted small">Lifts on its own this offseason</span>' : mine ? toggle(i, sp, 'lift', !lift, 'Keep', 'Lift') : '<span class="muted small">Other teams vote</span>'}</td></tr>`; }).join('');
+    const cands = x.cands.map(c => {
+      const on = !!V.ban[banKey(i, c.sp)], uses = mine && teamUses(k, i, c.members);
+      return `<tr><td>${monFace(c.sp, false, 28)} <b>${c.sp}</b>${c.leg ? ' <span class="tag legend">Legendary</span>' : ''}${uses ? ' <span class="tag gold" title="One of your trainers in this League uses it">Yours</span>' : ''}<div>${chips(SP[c.sp].types)}${c.members.length > 1 ? ` <span class="muted small">also bans ${c.members.filter(s => s !== c.sp).join(', ')}</span>` : ''}</div></td>
+        <td class="num">${c.users}</td><td class="num">${c.b}</td><td class="num">${(c.ko / c.b).toFixed(2)}</td><td class="num">${banPct(c.w, c.b)}%</td>
+        <td>${mine ? toggle(i, c.sp, 'ban', on, 'Ban', 'Allow') : '<span class="muted small">Other teams vote</span>'}</td></tr>`; }).join('');
+    return `<section class="panel"><div class="ph"><h3>${nLeagues() > 1 ? leagueName(i) : 'The ballot'}</h3><span class="muted small">${n} teams vote · ${need} needed</span></div>
+      <p class="small muted">Voting: ${banTeamsTxt(x)}${mine ? '' : '. You have no challengers here, so you don\'t vote.'}</p>
+      ${reviews ? `<div class="eyebrow">Banned now: keep or lift?</div><div class="scroll"><table class="tbl compact"><thead><tr><th>Pokémon</th><th>Banned for</th><th>Your vote</th></tr></thead><tbody>${reviews}</tbody></table></div>` : ''}
+      ${cands ? `<div class="eyebrow">Season ${S.season}'s top performers</div><div class="scroll"><table class="tbl compact"><thead><tr><th>Pokémon</th><th class="num" title="Trainers who used it">Users</th><th class="num">Battles</th><th class="num" title="Knockouts per battle">KO/B</th><th class="num">Win %</th><th>Your vote</th></tr></thead><tbody>${cands}</tbody></table></div>` : '<p class="muted small">Nothing new is on the ballot.</p>'}
+    </section>`;
+  }).join('');
+  return `<section class="panel callout"><div class="eyebrow">Season ${S.season + 1} · after ${nLeagues() > 1 ? 'League moves' : 'the draft'}</div><h2>Banlist vote</h2>
+    <p>Each League's teams vote on banning its top performers for the next season. A ban needs a majority of the teams with challengers in that League. Up to ${BAN_MAX_NEW} new bans pass each season (the most votes first), and a League holds at most ${BAN_CAP} at a time. Every ban comes back to the vote each offseason and lifts on its own after ${BAN_MAX_SEASONS} seasons.</p>
+    <p class="muted small">A ban covers the Pokémon, what it evolves from and what it evolves into, for everyone in that League: challengers, Gym Leaders, the Elite Four and the Champion. Your trainers' banned Pokémon go to your ranch, where a teammate in another League can take them, or they wait there and go back to their trainer once it's allowed. Legendaries can wait in the ranch too, and a season one can't be used anywhere on your team doesn't count toward its time with you. Gym Leaders, the Elite Four and the Champion get a replacement.</p></section>
+    ${secs}
+    <section class="panel"><div class="confirm-row"><button class="btn primary" data-act="banconfirm">Cast your votes</button><span class="muted small">Everyone else votes when you do.</span></div></section>`;
+}
+// office side card: what's banned now, League by League
+function banCard() {
+  if (!featOn('banlist')) return '';
+  const rows = Array.from({ length: nLeagues() }, (_, i) => ({ i, bans: bansIn(i) })).filter(x => x.bans.length);
+  if (!rows.length) return '';
+  return `<section class="panel"><div class="ph"><h3>Banlist</h3><span class="muted">Season ${curSeason()}</span></div>
+    ${rows.map(x => `<p class="small">${nLeagues() > 1 ? `<b>${lgShort(x.i)}</b> · ` : ''}${x.bans.map(b => `${monFace(b.sp, false, 22)} ${b.sp}`).join(', ')}</p>`).join('')}
+    <p class="fine">Banned for everyone in that League. Teams vote again each offseason.</p></section>`;
+}
 // ---------- League reassignment (after the draft, several Leagues only) ----------
 function viewReassign() {
   if (S.phase !== 'reassign') return viewOffice();
@@ -541,7 +580,7 @@ function viewReassign() {
     return mates.length ? mates.map(o => `<button class="btn small" data-act="lgmove" data-id="${t.id}" data-v="${i}" data-w="${o.id}">Swap with ${o.name}</button>`).join(' ') : '<span class="muted small">No open spot</span>';
   };
   const champs = Array.from({ length: NL }, (_, i) => inLeague(i, () => T(S.champion)));
-  const summary = Array.from({ length: NL }, (_, i) => `<span><b>${leagueName(i)}</b> · ${lgRoster(k, i).length}/${ROSTER} of yours · ${champs[i] ? tname(champs[i].id) + ' ' + specChips(champs[i]) : '—'}</span>`).join('');
+  const summary = Array.from({ length: NL }, (_, i) => `<span><b>${leagueName(i)}</b> · ${lgRoster(k, i).length}/${ROSTER} of yours · ${champs[i] ? tname(champs[i].id) + ' ' + specChips(champs[i]) : '—'}${bansIn(i).length ? ` · <span class="warn">Banned: ${bansIn(i).map(b => b.sp).join(', ')}</span>` : ''}</span>`).join('');
   const slamNote = t => slamChaser(t) ? ` <span class="tag acc-slam" title="Leagues won toward the Grand Slam">Slam ${champLeaguesOf(t).size}/${NL}</span>` : '';
   const unwon = (t, i) => slamChaser(t) && !champLeaguesOf(t).has(i) ? ' <span class="tag gold" title="A League this trainer hasn\'t won yet">Unwon</span>' : '';
   const cards = mine.map(t => `<div class="ra-card"><div class="ra-h">${tname(t.id)} ${ovrPill(t)} <span class="small">${specChips(t)}</span>${slamNote(t)}</div>
@@ -635,7 +674,7 @@ function ranchMonBtn(m, on, act, sub) {
 }
 // v191: special conditions shown wherever a ranch Pokémon is listed (resting list, rest picker)
 const specialMonTags = m => { const sp = SP[m.sp] || {}; return `${sp.legend && !sp.ub && !sp.baby ? ' <span class="tag legend">Legendary</span>' : ''}${sp.paradox ? ' <span class="tag paradox">Paradox</span>' : ''}${babyTag(sp)}${m.shiny ? ' <span class="tag shiny">✦ Shiny</span>' : ''}${m.delta ? ' <span class="tag delta" title="Delta Pokémon: an unusual ' + m.delta + ' type">Δ Delta</span>' : ''}${m.alpha ? ' <span class="tag alpha">Alpha</span>' : ''}${condTags(m)}`; };
-const ranchSrc = r => r ? (r.how === 'reward' ? `Champion's reward · ${r.fromName}` : r.how === 'farewell' ? `Farewell gift from ${r.fromName}` : r.how === 'surplus' ? `Passed on by ${r.fromName}` : r.fromName ? `Kept from ${r.fromName}` : 'From the ranch') : '';
+const ranchSrc = r => r ? (r.how === 'banned' ? `Banned in the ${r.lgName || 'League'} · ${r.fromName}` : r.how === 'reward' ? `Champion's reward · ${r.fromName}` : r.how === 'farewell' ? `Farewell gift from ${r.fromName}` : r.how === 'surplus' ? `Passed on by ${r.fromName}` : r.fromName ? `Kept from ${r.fromName}` : 'From the ranch') : '';
 function ranchPickPanel(p, i, n) {
   const t = T(p.from); if (!t) return '';
   const mons = t.team.filter(m => p.uids.includes(m.uid));
@@ -651,19 +690,20 @@ function viewRanch() {
   const live = S.phase === 'ranch';
   const picks = (S.ranchPicks || []).map((p, i) => ({ p, i })).filter(x => x.p.org === k);
   // v192: a rested Pokémon can always go back to its own trainer, even after their handoff
-  const selM = ranchSel != null ? R.active.find(m => m.uid === ranchSel) : null, homeT = selM && selM.ranch && selM.ranch.how === 'rest' ? T(selM.ranch.from) : null;
-  const takers = live ? ranchTakers(k).concat(homeT && homeT.org === k && homeT.role === 'challenger' && (S.ranchGiven || {})[homeT.id] ? [homeT] : []) : [];
+  const selM = ranchSel != null ? R.active.find(m => m.uid === ranchSel) : null, homeT = selM && selM.ranch && ['rest', 'banned'].includes(selM.ranch.how) ? T(selM.ranch.from) : null;
+  // v194: only trainers who can take the selected Pokémon (not into a League where it's banned; one legendary each)
+  const takers = live ? ranchTakers(k).concat(homeT && homeT.org === k && homeT.role === 'challenger' && (S.ranchGiven || {})[homeT.id] ? [homeT] : []).filter(t => !selM || ranchCanTake(t, selM)) : [];
   if (ranchSel != null && !R.active.some(m => m.uid === ranchSel)) ranchSel = null;
   if (ranchTo != null && !takers.some(t => t.id === ranchTo)) ranchTo = null;
   const given = (S.ranchLog || []).filter(x => x.org === k && x.season === S.season + 1);
   const head = `<section class="panel callout"><div class="eyebrow">${ORGS[k].name}${live ? ` · Season ${S.season + 1}` : ''}</div><h2>Team ranch</h2>
-    <p>Your ranch keeps Pokémon for the team. The <b>active ranch</b> holds Pokémon you can hand to your trainers in any League: the Champion's reward and farewell gifts land here, and when one of your trainers retires you keep one of their Pokémon here. Each offseason, after the Champion's reward, each of your challengers can receive one. It's registered on top of the usual three in its first season. The rest of a retiring trainer's team goes to the <b>historical ranch</b>, on display for good, and so does the roster of every one of your trainers who wins the title. After a season, each of your challengers can also send one Pokémon to <b>rest</b> at the ranch: it sits out the next season, then comes back with better IVs.</p>
+    <p>Your ranch keeps Pokémon for the team. The <b>active ranch</b> holds Pokémon you can hand to your trainers in any League: the Champion's reward and farewell gifts land here, and when one of your trainers retires you keep one of their Pokémon here. Each offseason, after the Champion's reward, each of your challengers can receive one. It's registered on top of the usual three in its first season. The rest of a retiring trainer's team goes to the <b>historical ranch</b>, on display for good, and so does the roster of every one of your trainers who wins the title. After a season, each of your challengers can also send one Pokémon to <b>rest</b> at the ranch: it sits out the next season, then comes back with better IVs.${featOn('banlist') ? ' Pokémon banned in a trainer\'s League wait here too, even legendaries, and go back to their trainer as soon as they\'re allowed.' : ''}</p>
     ${live ? '' : '<p class="muted small">You can hand Pokémon out each offseason, after the draft and the Champion\'s reward.</p>'}</section>`;
   const pickHtml = live && picks.length ? ranchPickPanel(picks[0].p, picks[0].i, picks.length) : (picks.length ? `<section class="panel"><p class="muted">${picks.length} retirement${picks.length > 1 ? 's' : ''} to settle in the offseason.</p></section>` : '');
   const active = `<section class="panel"><div class="ph"><h3>Active ranch</h3><span class="muted">${R.active.length} Pokémon</span></div>
-    ${R.active.length ? `<div class="regs">${R.active.map(m => ranchMonBtn(m, ranchSel === m.uid, 'ranchsel', `${ranchSrc(m.ranch)} · ${m.nat} · IVs ${ivGrade(m)}${ranchLastChance(m) ? ' · <span class="warn">Last offseason here</span>' : ''}`)).join('')}</div>
-    <p class="muted small">A Pokémon nobody takes in ${RANCH_STEPS} offseasons goes on display in the historical ranch. A season spent resting doesn't count, and Paradox Pokémon get ${RANCH_STEPS_PARADOX}.</p>` : '<p class="muted">Empty. The Champion\'s reward, farewell gifts and your retiring trainers\' Pokémon come here.</p>'}
-    ${live && R.active.length ? (takers.length ? `<div class="eyebrow">Send it to</div><div class="release">${takers.map(t => `<button class="rel${ranchTo === t.id ? ' on' : ''}" data-act="ranchto" data-id="${t.id}">${dn(t)} ${lgTag(t)}<span class="muted">${specName(t)} · OVR ${ovr(t)}</span></button>`).join('')}</div>
+    ${R.active.length ? `<div class="regs">${R.active.map(m => ranchMonBtn(m, ranchSel === m.uid, 'ranchsel', `${ranchSrc(m.ranch)} · ${m.nat} · IVs ${ivGrade(m)}${ranchLastChance(m) ? ' · <span class="warn">Last offseason here</span>' : ''}${m.ranch && m.ranch.how === 'banned' && m.leg ? ` · with ${m.ranch.fromName} until Season ${m.leg.until}` : ''}${m.ranch && m.ranch.how === 'banned' && !org(k).roster.some(id => ranchCanTake(T(id), m)) ? ' · <span class="muted">Nobody on your team can take it yet</span>' : ''}`)).join('')}</div>
+    <p class="muted small">A Pokémon nobody takes in ${RANCH_STEPS} offseasons goes on display in the historical ranch. A season spent resting doesn't count, and Paradox Pokémon get ${RANCH_STEPS_PARADOX}.${featOn('banlist') ? ' A banned Pokémon nobody on the team can take doesn\'t count the season either; a banned legendary leaves when its time with its trainer runs out.' : ''}</p>` : '<p class="muted">Empty. The Champion\'s reward, farewell gifts and your retiring trainers\' Pokémon come here.</p>'}
+    ${live && R.active.length ? (selM && !takers.length && ranchTakers(k).length ? `<p class="muted">None of your trainers can take ${selM.sp} right now.</p>` : takers.length ? `<div class="eyebrow">Send it to</div><div class="release">${takers.map(t => `<button class="rel${ranchTo === t.id ? ' on' : ''}" data-act="ranchto" data-id="${t.id}">${dn(t)} ${lgTag(t)}<span class="muted">${specName(t)} · OVR ${ovr(t)}</span></button>`).join('')}</div>
       <div class="confirm-row"><button class="btn primary" data-act="ranchgo" ${ranchSel != null && ranchTo != null ? '' : 'disabled'}>${ranchSel != null && ranchTo != null ? `Send ${R.active.find(m => m.uid === ranchSel).sp} to ${T(ranchTo).name}` : 'Pick a Pokémon and a trainer'}</button></div>` : '<p class="muted">Each of your trainers has had their handoff this offseason.</p>') : ''}
     ${R.active.length ? `<div class="confirm-row"><button class="btn small" data-act="ranchshelf" ${ranchSel != null ? '' : 'disabled'}>Move to the historical ranch</button></div>` : ''}
     ${given.length ? `<ul class="changes">${given.map(x => `<li><b>${x.sp}</b> went to ${tname(x.to)}</li>`).join('')}</ul>` : ''}</section>`;
@@ -966,7 +1006,8 @@ const GLOSS_TERMS = {
     ['Legendary partner', "A legendary or mythical Pokémon stays with a trainer for 3–5 seasons, then moves on in the offseason. It waits in the League where it was first found, keeping its lifetime record, and the next trainer to find or be given it gets that same Pokémon at their own level. It never goes back to a trainer it has already been with. Baby legendaries count from their catch. Ultra Beasts and Paradox Pokémon aren't included."],
     ['Baby legendary / Rare find', 'Pokémon like Cosmog or Meltan that grow into legendaries. Only one exists in the world at a time.'],
     ['Paradox', "Ancient and Future Pokémon. The Champion's team adds one to its ranch each season, and the League gives one when a trainer leaves a team for the Elite Four. They aren't one of a kind: two trainers can have the same one."],
-    ['Team ranch', "Every team keeps a ranch. The active ranch holds Pokémon the team can hand to its trainers in any League: the Champion's reward and farewell gifts land there, and when a team's trainer retires, the team keeps one of their Pokémon. The rest go to the historical ranch, on display for good, along with the roster of each of the team's trainers who wins the title. Each offseason, after the Champion's reward, each challenger can receive one, registered on top of the usual three in its first season. Each challenger can also rest one Pokémon there after a season: it sits out the next season and comes back with better IVs. A Pokémon nobody takes in three offseasons goes on display in the historical ranch (six for Paradox Pokémon; a season spent resting doesn't count), and legendaries never go to a ranch. When simming, extras that can't be registered are passed on to the active ranch for a teammate instead of released."],
+    ['Banlist', "Each offseason, after League moves, the teams with challengers in a League vote on banning its five top performers of the season (by knockouts and wins per battle; at most two legendaries on the ballot). A majority bans it for the next season, up to two new bans a season and three at a time. Bans cover the Pokémon's whole evolution path and apply to everyone in that League, including Gym Leaders, the Elite Four and the Champion, who get replacements. Each ban comes back to the vote every offseason and lifts on its own after three seasons. A team's banned Pokémon wait in its ranch, legendaries included: a teammate in another League can take one, and it goes back to its trainer once it's allowed. A season a banned legendary can't be used anywhere on the team doesn't count toward its time with its trainer. Can be turned off in Advanced options when creating a league."],
+    ['Team ranch', "Every team keeps a ranch. The active ranch holds Pokémon the team can hand to its trainers in any League: the Champion's reward and farewell gifts land there, and when a team's trainer retires, the team keeps one of their Pokémon. The rest go to the historical ranch, on display for good, along with the roster of each of the team's trainers who wins the title. Each offseason, after the Champion's reward, each challenger can receive one, registered on top of the usual three in its first season. Each challenger can also rest one Pokémon there after a season: it sits out the next season and comes back with better IVs. A Pokémon nobody takes in three offseasons goes on display in the historical ranch (six for Paradox Pokémon; a season spent resting doesn't count), and legendaries only go to a ranch when they're banned in their trainer's League. When simming, extras that can't be registered are passed on to the active ranch for a teammate instead of released."],
     ['Ultra Beast', 'Comes through an Ultra Wormhole. One chance to catch it.'],
     ['Wildcard', "A specialist's one strong Pokémon outside their type, kept for coverage."],
   ],

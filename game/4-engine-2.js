@@ -20,7 +20,8 @@ const lineOf = sp => LINE[sp] || sp;
 function pooledLegend(sp) { const b = lineOf(sp); return legendPool().filter(m => lineOf(m.sp) === b).sort((x, y) => ((y.st && y.st.b) || 0) - ((x.st && x.st.b) || 0))[0] || null; }
 const wasPartner = (t, m) => !!(t && m && (m.partners || []).some(p => p.id === t.id));
 // a legendary never chooses the same trainer twice
-const legendBlocked = (t, sp) => isLegendLine(sp) && wasPartner(t, pooledLegend(sp));
+// v194: or it's banned in the trainer's League
+const legendBlocked = (t, sp) => (isLegendLine(sp) && wasPartner(t, pooledLegend(sp))) || bannedIn(sp, lgOf(t));
 // v184: one legendary at a time. A trainer who already holds a legendary (or has one on its way to them) is passed over by
 // any legendary that chooses, and can take part in a contested event (encounter, storm, roamer, rare find) but not win it.
 function legendFull(t) {
@@ -88,7 +89,7 @@ function backfillElite(t, gone) {
   const onTeam = new Set(); for (const x of Object.values(S.trainers)) for (const m of x.team || []) onTeam.add(m.uid);
   while (t.team.length < slot.size) {
     const lines = new Set(t.team.map(m => LINE[m.sp]));
-    const fits = sp => SP[sp] && !lines.has(LINE[sp]) && !isLegendLine(sp) && !SP[sp].legend && !SP[sp].ub;
+    const fits = sp => SP[sp] && !lines.has(LINE[sp]) && !isLegendLine(sp) && !SP[sp].legend && !SP[sp].ub && !bannedIn(sp, S.lg || 0);
     const score = (sp, st, left) => (onSpec(t, sp) ? 1000 : 0) + Math.min(200, (st && st.b) || 0) + (left || 0) / 100 + SP[sp].bst / 1000;
     let back = null, how = '';
     const bench = (t.bench || []).filter(m => fits(m.sp));
@@ -238,12 +239,14 @@ function wildOffers(t) {
     const lvl = Math.max(L, Math.floor(Math.max(...t.team.map(m => m.lvl), L)));
     out[out.length - 1] = ensureMon({ sp: S.wormhole.sp, lvl, wormhole: true, form: 1 });
   }
-  return out;
+  // v194: nothing banned in the trainer's League turns up
+  return out.filter(o => !bannedIn(o.sp, lgOf(t)));
 }
 function addCatch(t, offer, releaseUid) {
   // two trainers can spot the same baby legendary in a week; only the first to catch it gets it
   if (SP[offer.sp].baby && !freeBabies().includes(LINE[offer.sp])) return null;
   if (offer.wormhole && ownedLegends().has(offer.sp)) return null;
+  if (bannedIn(offer.sp, lgOf(t))) return null;
   // two challengers can find the roamer in the same week; only the first to catch it gets it
   if (offer.roam && (!S.roamer || S.roamer.sp !== offer.sp || !greatFree(offer.sp))) return null;
   if (legendBlocked(t, offer.sp) || (isLegendLine(offer.sp) && legendFull(t))) return null;
@@ -688,7 +691,7 @@ function legendLuck() { const lo = Math.log(LEGEND_LUCK[0]), hi = Math.log(LEGEN
 // damage totals per trainer (an encounter from an older save starts its tally afresh)
 function legendState(L) { if (L && !L.dmg) { L.dmg = {}; L.tries = {}; L.total = 0; } return L; }
 const legendRank = L => Object.entries(legendState(L).dmg).map(([id, d]) => ({ id: +id, d, n: L.tries[id] || 0 })).sort((a, b) => b.d - a.d);
-const greatFree = sp => !ownedLegends().has(sp);
+const greatFree = sp => !ownedLegends().has(sp) && !bannedIn(sp, S.lg || 0);
 const everCaught = sp => !!(S.greatCaught && S.greatCaught[sp]);
 // the weather Groudon and Kyogre bring stays until they're caught (or the season ends)
 function legendWeather(ty) {
@@ -1299,12 +1302,12 @@ function runTourney() {
 function aiTourneyChoice(t) {
   const lines = new Set(t.team.map(m => LINE[m.sp]));
   const sc = sp => SP[sp].bst * (specFit(t, sp) === 2 ? 1.25 : onSpec(t, sp) ? 1.15 : t.specialty ? 0.9 : 1) + rand() * 40;
-  return tourneySpecies().filter(sp => !lines.has(LINE[sp])).sort((a, b) => sc(b) - sc(a))[0] || tourneySpecies()[0];
+  return tourneySpecies().filter(sp => !lines.has(LINE[sp]) && !bannedIn(sp, lgOf(t))).sort((a, b) => sc(b) - sc(a))[0] || tourneySpecies()[0];
 }
 // give the prize: sp must be allowed; with a full team, releaseUid makes room (AI: the weakest ordinary Pokémon)
 function tourneyPick(id, sp, releaseUid) {
   const t = T(id), T0 = S.tourney;
-  if (!t || !T0 || !T0.reward || T0.reward.id !== id || T0.reward.sp || !tourneySpOk(sp)) return null;
+  if (!t || !T0 || !T0.reward || T0.reward.id !== id || T0.reward.sp || !tourneySpOk(sp) || bannedIn(sp, lgOf(t))) return null;
   if (t.role === 'retired' || !t.team) { T0.reward.sp = '—'; S.tourneyOffer = null; return null; }
   if (t.team.length >= 6) {
     let out = releaseUid != null ? t.team.find(m => m.uid === releaseUid) : null;
@@ -1366,7 +1369,7 @@ function applyCfg() {
 // ---------- several Leagues ----------
 // Each League keeps its own gyms, Elite Four, Champion, circuit, events and history. The bound League's state sits
 // directly on S (so S.gyms is always "this League's gyms"); the others wait in S.leagues until bound.
-const LEAGUE_FIELDS = ['gyms', 'e4', 'champion', 'challengers', 'event', 'legend', 'legendSeason', 'legendGifts', 'legendOffers', 'greatCaught', 'rayquazaDue', 'wealdSeason', 'shadowWild', 'outbreak', 'outbreakLog', 'wormhole', 'metaMons', 'meta', 'league', 'history', 'eventLog', 'seatBattles', 'lastBattles', 'snagOffers', 'snagPick', 'tradeOffers', 'stats', 'towns', 'lgName', 'pkrsSeason', 'legendPool', 'roamer', 'roamSeason', 'storm', 'stormSeason', 'forcesStorm', 'landorusSeason', 'skyLog', 'roamPlan', 'stormPlan'];
+const LEAGUE_FIELDS = ['gyms', 'e4', 'champion', 'challengers', 'event', 'legend', 'legendSeason', 'legendGifts', 'legendOffers', 'greatCaught', 'rayquazaDue', 'wealdSeason', 'shadowWild', 'outbreak', 'outbreakLog', 'wormhole', 'metaMons', 'meta', 'league', 'history', 'eventLog', 'seatBattles', 'lastBattles', 'snagOffers', 'snagPick', 'tradeOffers', 'stats', 'towns', 'lgName', 'pkrsSeason', 'legendPool', 'roamer', 'roamSeason', 'storm', 'stormSeason', 'forcesStorm', 'landorusSeason', 'skyLog', 'roamPlan', 'stormPlan', 'bans', 'banBallot', 'banLog'];
 const nLeagues = () => (S && S.leagues ? S.leagues.length : 1);
 const lgOf = t => (t && t.lg) || 0;
 // the League that actually lists a trainer (circuit or post); falls back to their tag. Used before anything that
@@ -2195,6 +2198,7 @@ function leagueOffseason(standings, changes) {
   S.seatBattles = [];
   const deepest = L.entries.filter(e => e.stage < 5).sort((a, b) => b.stage - a.stage)[0];
   const meta = metaMons();
+  buildBanBallot();
   { const c = T(S.champion);
     if (c.org) {
       const k = c.org; c.champOrg = c.champOrg || k; c.homeOrg = k; leaveOrg(c);

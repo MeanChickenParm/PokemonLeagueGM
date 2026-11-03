@@ -1,4 +1,16 @@
 const UPDATES = [
+  { id: 194, date: 'November 3, 2026', time: '4:40 PM ET', title: 'League banlists', items: [
+    "New offseason step, the Banlist vote, after the draft and League moves and before the Champion's reward and the ranch. In each League, the teams with challengers there vote on banning the season's five top performers (by knockouts and wins per battle, across challengers, Gym Leaders, the Elite Four and the Champion; at most two legendaries on the ballot).",
+    "A ban needs a majority of the voting teams. Up to two new bans pass a season, the most votes first, and a League holds at most three. A ban covers the Pokémon, what it evolves from and what it evolves into: banning Sylveon bans Eevee too, but not Vaporeon.",
+    "Every ban comes back to the vote each offseason, keep or lift, and lifts on its own after three seasons. AI teams never vote to ban what their own trainers use there, go easier on their sponsor's favourite types, and vote to lift a ban when they have a banned Pokémon waiting or a trainer of its type there.",
+    "Bans apply to everyone in that League. Gym Leaders, Elite Four members and the Champion lose their banned Pokémon and get a replacement of their type, close in strength and favouring types that hit the season's meta. Independents let theirs go.",
+    "A team challenger's banned Pokémon goes to the team ranch. A teammate in another League can take it in the ranch step, and it goes back to its own trainer, without using a handoff, as soon as it's allowed there again (the ban lifts, or the trainer moves League).",
+    "Legendaries are the exception to the ranch rule: a banned legendary can wait in the ranch too. It keeps the clock it had with its trainer, and an offseason when nobody on the team can take it doesn't count toward that clock. If a teammate takes it, it registers in the usual three, not on top of them. If its time runs out while it waits, it moves on as usual.",
+    "A banned Pokémon nobody on the team can take doesn't age in the ranch. After four such offseasons a legendary moves on and anything else goes on display in the historical ranch.",
+    "Nothing banned in a League turns up there while it's banned: wild catches, legendary events, roamers, storms, Shadow snags, gym swaps, Elite Four and Champion teams and the Midseason Tournament prize all skip it.",
+    "The office has a Banlist card while anything is banned, the League reassignment screen lists each League's bans, and the ranch says where a banned Pokémon can go. New Glossary entry: Banlist.",
+    "League banlists can be turned off in Advanced options → World when creating a league. They're on in existing leagues, starting this offseason.",
+  ] },
   { id: 193, date: 'November 3, 2026', time: '3:54 PM ET', title: 'Midseason Tournament rules', items: [
     "Each season's Midseason Tournament is now played under one special rule, drawn at random when the season starts (never the same as the season before) and announced in the news after week 8. Until then the office card and the tournament page say a rule is coming.",
     "Inverse Battle: the type chart is flipped. Super-effective hits are not very effective, and resisted hits and immunities become super effective. Abilities like Levitate and Flash Fire still work as usual.",
@@ -474,6 +486,7 @@ function render() {
   if (view === 'ranch') v = viewRanch();
   if (view === 'ranchhist') v = viewRanchHistory();
   if (view === 'reassign') v = viewReassign();
+  if (view === 'banvote') v = viewBanVote();
   if (view === 'offers') v = viewOffers();
   if (view === 'gifts') v = viewGifts();
   if (view === 'tourney') v = viewTourney();
@@ -540,7 +553,7 @@ function go(v) { view = v; render(); window.scrollTo(0, 0); }
 function fixView() { if (/^t\d+$/.test(view)) { const t = T(+view.slice(1)); if (!t || !t.user) view = 'office'; } }
 
 // ---------- actions ----------
-function afterDraft() { if (S.phase === 'gifts') go('gifts'); else if (S.phase === 'reassign') go('reassign'); else if (S.phase === 'reward') go('reward'); else if (S.phase === 'ranch') go('ranch'); else if (S.phase === 'register') go('register'); else if (S.phase === 'season') { go('office'); toast(`Season ${S.season} is underway.`); } else render(); }
+function afterDraft() { if (S.phase === 'gifts') go('gifts'); else if (S.phase === 'reassign') go('reassign'); else if (S.phase === 'banvote') go('banvote'); else if (S.phase === 'reward') go('reward'); else if (S.phase === 'ranch') go('ranch'); else if (S.phase === 'register') go('register'); else if (S.phase === 'season') { go('office'); toast(`Season ${S.season} is underway.`); } else render(); }
 function planFor(t) { let p = S.plans[t.id] || 'auto'; if (p === 'challenge' && (t.role === 'champion' || t.badges.length >= 8 || gymClosed(t.badges.length))) p = 'auto'; if (p === 'raid' && (t.role !== 'challenger' || !eventFoe())) p = 'auto'; if (p === 'purify') p = 'auto'; if (p === 'seek' && (t.role !== 'challenger' || !S.legend || legendBlocked(t, S.legend.sp))) p = 'auto'; return p; }
 function playWeek() {
   if (S.phase !== 'season') return;
@@ -707,13 +720,15 @@ document.addEventListener('click', ev => {
     case 'draftpass': userDraft(null); save(); afterDraft(); break;
     case 'giftsconfirm': if ((S.pendingGifts || []).length) break; confirmGifts(); save(); afterDraft(); break;
     case 'reassignconfirm': confirmReassign(); save(); afterDraft(); break;
+    case 'banset': setBanVote(+el.dataset.l, el.dataset.sp, el.dataset.k, el.dataset.k === 'lift' ? el.dataset.v !== '1' : el.dataset.v === '1'); save(); render(); break;
+    case 'banconfirm': if (S.phase !== 'banvote') break; { confirmBanVote(); save(); const r = S.banResults, nb = r ? r.lgs.reduce((a, x) => a + x.rows.filter(y => y.passed).length, 0) : 0; afterDraft(); toast(nb ? `Votes are in: ${nb} new ban${nb === 1 ? '' : 's'}. See the news.` : 'Votes are in: no new bans.'); } break;
     case 'ranchkeep': ranchKeep = +el.dataset.u; render(); break;
     case 'ranchkeepgo': if (ranchKeep == null) break; { const m = answerRanchPick(+el.dataset.i, ranchKeep); ranchKeep = null; save(); render(); if (m) toast(`${m.sp} is in your ranch.`); } break;
     case 'ranchkeepnone': answerRanchPick(+el.dataset.i, null); ranchKeep = null; save(); render(); break;
     case 'ranchsel': ranchSel = ranchSel === +el.dataset.u ? null : +el.dataset.u; render(); break;
     case 'ranchto': ranchTo = +el.dataset.id; render(); break;
     case 'ranchgo': if (ranchSel == null || ranchTo == null || S.phase !== 'ranch') break; { const m = ranchHand(S.userOrg, ranchSel, ranchTo); ranchSel = null; ranchTo = null; save(); render(); if (m) toast(`${m.sp} is on its way.`); } break;
-    case 'ranchshelf': { const R = ranchOf(S.userOrg), m = R && R.active.find(x => x.uid === ranchSel); if (!m) break; R.active = R.active.filter(x => x !== m); toRetiredRanch(S.userOrg, ranchRecord(m, { season: curSeason(), from: m.ranch ? m.ranch.from : null, fromName: m.ranch ? m.ranch.fromName : '', why: 'moved to the historical ranch' })); ranchSel = null; save(); render(); toast(`${m.sp} moved to the historical ranch.`); } break;
+    case 'ranchshelf': { const lg = (() => { const R = ranchOf(S.userOrg), x = R && R.active.find(y => y.uid === ranchSel); return x && isLegendLine(x.sp) && x.partners; })(); const m = ranchShelf(S.userOrg, ranchSel); if (!m) break; ranchSel = null; save(); render(); toast(lg ? `${m.sp} moved on.` : `${m.sp} moved to the historical ranch.`); } break;
     case 'ranchrest': if (S.phase !== 'ranch') break; { const t = T(+el.dataset.id), m = t && t.org === S.userOrg ? restMon(t, +el.dataset.u) : null; save(); render(); if (m) toast(`${m.sp} is resting at the ranch.`); } break;
     case 'ranchunrest': if (S.phase !== 'ranch') break; { const t = T(+el.dataset.id), m = t && t.org === S.userOrg ? unrestMon(t) : null; save(); render(); if (m) toast(`${m.sp} stays on the team.`); } break;
     case 'ranchdone': if ((S.ranchPicks || []).some(p => p.org === S.userOrg)) break; confirmRanch(); save(); afterDraft(); break;
@@ -809,7 +824,7 @@ function adoptSave(v, keepView) {
     if (['leader', 'e4', 'champion'].includes(t.role) && !(t.posts || []).length) t.posts = [{ role: t.role, place: postPlace(t, t.role), from: t.joined || 1, to: null }];
     if (t.org && !(t.teams || []).length) t.teams = [{ org: t.org, from: t.joined || 1, to: null }];
   }
-  view = keepView || (S.phase === 'draft' ? 'draft' : S.phase === 'gifts' ? 'gifts' : S.phase === 'reassign' ? 'reassign' : S.phase === 'register' ? 'register' : S.phase === 'reward' ? 'reward' : S.phase === 'ranch' ? 'ranch' : 'office');
+  view = keepView || (S.phase === 'draft' ? 'draft' : S.phase === 'gifts' ? 'gifts' : S.phase === 'reassign' ? 'reassign' : S.phase === 'banvote' ? 'banvote' : S.phase === 'register' ? 'register' : S.phase === 'reward' ? 'reward' : S.phase === 'ranch' ? 'ranch' : 'office');
 }
 // Download save file: inside claude.ai the viewer's downloads capability offers the file (with a confirmation);
 // opened as a plain local file, an ordinary browser download does it

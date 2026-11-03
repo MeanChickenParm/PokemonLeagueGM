@@ -168,7 +168,8 @@ const FEATURES = [
     ['trades', 'Road trades', 'Challengers sometimes swap Pokémon when they meet.'],
     ['lucky', 'Lucky Pokémon', 'Traded Pokémon can arrive Lucky, with boosted IVs (needs road trades).'],
     ['legacy', 'Legacy trainers', "Notable retirees' children enter the draft years later."],
-    ['rotation', 'Gym rotation', 'Gym Leaders are shuffled among the towns each season.'] ] },
+    ['rotation', 'Gym rotation', 'Gym Leaders are shuffled among the towns each season.'],
+    ['banlist', 'League banlists', "Each offseason the teams in a League vote on banning its top performers for the next season. Banned Pokémon go to their team's ranch, and Gym Leaders, the Elite Four and the Champion get replacements."] ] },
 ];
 const featOn = k => !(S && S.cfg && S.cfg.off && S.cfg.off[k]);
 const WORMHOLE_WEEK = 12, WORMHOLE_CHANCE = 0.03, WORMHOLE_OPEN = 2; // per week from week 13; open for two weeks
@@ -544,7 +545,7 @@ function buildEliteTeam(type, L, size, mixed) {
   let pool = [];
   for (let tries = 0; tries < 4 && pool.length < size; tries++) {
     const set = new Set();
-    for (const b of BASES) { const f = formAt(b, L, type); const s = SP[f]; if (s.bst <= cap && (mixed || s.types.includes(type))) set.add(f); }
+    for (const b of BASES) { const f = formAt(b, L, type); const s = SP[f]; if (s.bst <= cap && (mixed || s.types.includes(type)) && !bannedIn(f, S.lg || 0)) set.add(f); }
     pool = [...set]; cap += 60;
   }
   pool.sort((a, b) => SP[b].bst - SP[a].bst);
