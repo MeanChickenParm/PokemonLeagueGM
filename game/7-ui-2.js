@@ -974,7 +974,7 @@ const GLOSS_TERMS = {
     ['Team Cup', 'The season-long team standings: badges, League wins, titles and posts earn points.'],
     ['World Championship', 'With several Leagues, their Champions meet after the season.'],
     ['Grand Slam', 'Champion of every League in a multi-League world. Former Champions chase it: other teams move them toward Leagues they haven\'t won, a dethroned one returns to the circuit in an unwon League when there\'s room, and a trainer with titles in 2+ Leagues gets 3 extra seasons before age can retire them.'],
-    ['Midseason Tournament', 'After week 12, every challenger in every League meets in one single-elimination bracket (Gym Leaders, the Elite Four and Champions sit it out). The strongest get any byes. The winner chooses an alpha of any Pokémon that isn\'t one of a kind or a Paradox Pokémon. Each season it\'s played under one special rule, announced after week 8: Inverse Battle, Legendaries banned, Flat levels, Trick Room, Items off or Bring 3.'],
+    ['Midseason Tournament', 'After week 12, every challenger in every League meets in one single-elimination bracket (Gym Leaders, the Elite Four and Champions sit it out). The strongest get any byes. The winner chooses an alpha of any Pokémon that isn\'t one of a kind or a Paradox Pokémon. Each season it\'s played under one special rule, announced after week 8: Inverse Battle, Legendaries banned, Flat levels, Trick Room, Items off, Bring 3, Scalemons, Flipped, 1v1 or Underdog Cup.'],
     ['Hall of Fame', 'Retired Champions.'],
     ['Hall of Shame', "Records nobody wants: worst win rates, longest losing streaks and the like."],
     ['Meta', 'The five best-performing species of the season. Gyms and new prospects adapt to counter them.'],

@@ -714,9 +714,17 @@ function installElite(t, role, slotIndex) {
 }
 
 // ================= BATTLE =================
+// v193: tournament rules that reshape base stats. Scalemons scales every stat but HP so the six add up to 600;
+// Flipped reverses them (HP and Speed, Attack and Sp. Def, Defense and Sp. Atk swap places)
+function tourneyStats(b) {
+  if (BATTLE_RULE === 'scalemons') { const rest = b.atk + b.def + b.spa + b.spd + b.spe, k = rest > 0 ? Math.max(0, 600 - b.hp) / rest : 1;
+    return { hp: b.hp, atk: b.atk * k, def: b.def * k, spa: b.spa * k, spd: b.spd * k, spe: b.spe * k }; }
+  if (BATTLE_RULE === 'flipped') return { hp: Math.max(1, b.spe), atk: b.spd, def: b.spa, spa: b.def, spd: b.atk, spe: b.hp };
+  return b;
+}
 function battler(m) {
   ensureMon(m);
-  const s = SP[m.sp], b = isGlitch(m.sp) ? glitchSpread() : bsOf(m.sp), base = s.bst / 6, glitchTop = isGlitch(m.sp) ? STAT_KEYS.reduce((x, k) => (b[k] > b[x] ? k : x), 'hp') : null, L = Math.max(2, Math.floor(m.lvl));
+  const s = SP[m.sp], b = tourneyStats(isGlitch(m.sp) ? glitchSpread() : bsOf(m.sp)), base = s.bst / 6, glitchTop = isGlitch(m.sp) ? STAT_KEYS.reduce((x, k) => (b[k] > b[x] ? k : x), 'hp') : null, L = Math.max(2, Math.floor(m.lvl));
   const nx = natureFx(m.nat), iv = k => 1 + (m.iv[k] - 15.5) / 155; // IVs move a stat by up to ±10%
   const stat = k => (Math.floor(2 * b[k] * L / 100) + 5) * iv(k) * nx[k];
   const hp = Math.round((Math.floor(2 * b.hp * L / 100) + L + 10) * iv('hp'));

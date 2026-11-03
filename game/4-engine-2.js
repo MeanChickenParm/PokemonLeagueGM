@@ -1209,6 +1209,10 @@ const TOURNEY_RULES = {
   trickroom: { name: 'Trick Room', desc: 'Slower Pokémon move first all tournament. Priority moves still go first.' },
   noitems: { name: 'Items off', desc: 'No held items: team against team.' },
   bring3: { name: 'Bring 3', desc: "Before each battle, both trainers see the other's team and bring the three Pokémon that match up best. Sharper trainers choose better." },
+  scalemons: { name: 'Scalemons', desc: "Every Pokémon's stats are scaled so their base stats add up to 600, with HP left as it is. Weak species hit like strong ones, so typing and moves decide it." },
+  flipped: { name: 'Flipped', desc: "Every Pokémon's base stats are reversed: HP swaps with Speed, Attack with Sp. Def, and Defense with Sp. Atk." },
+  onevone: { name: '1v1', desc: "Each trainer sees the other's team and sends out the one Pokémon that matches up best. Sharper trainers choose better." },
+  underdog: { name: 'Underdog Cup', desc: "Only each trainer's three lowest-level Pokémon battle. The bench decides it." },
 };
 const TOURNEY_RULE_WEEK = 8; // the drawn rule is announced after this week
 const tourneyRuleCfg = () => (S.cfg && S.cfg.tourneyRule) || 'rotate';
@@ -1224,9 +1228,9 @@ const tourneyRule = () => S.tourneyRule && S.tourneyRule.season === S.season ? S
 // whether the rule is public yet: a rule fixed in the options always is; a rotating one is from week 8
 const tourneyRuleKnown = () => tourneyRuleCfg() !== 'rotate' || S.week >= TOURNEY_RULE_WEEK || S.phase !== 'season';
 const tourneyBanned = m => { const s = SP[m.sp]; return !!(s && (s.legend || s.paradox || s.baby || babyLine(m.sp))); };
-// Bring 3: the three Pokémon that match up best against the other team (power, type matchups both ways)
-function bringThree(t, opp) {
-  if (t.team.length <= 3) return t.team;
+// Bring 3 (and 1v1): the Pokémon that match up best against the other team (power, type matchups both ways)
+function bringThree(t, opp, n = 3) {
+  if (t.team.length <= n) return t.team;
   const oppT = opp.map(monTypes), sharp = clamp(((t.r && t.r.str) || 50) / 100, 0, 1);
   const score = m => {
     const atk = [...new Set((m.moves || []).map(n => MOVES[n]).filter(x => x && !x.utility && x.pw > 0).map(x => x.type))];
@@ -1234,7 +1238,7 @@ function bringThree(t, opp) {
     const off = oppT.reduce((a, d) => a + bestMult(atk, d), 0) / oppT.length, def = oppT.reduce((a, d) => a + bestMult(d, monTypes(m)), 0) / oppT.length;
     return monPower(m) * Math.sqrt(off / def) * (1 + (rand() - 0.5) * (1 - sharp) * 0.4);
   };
-  const keep = new Set(t.team.map(m => ({ m, s: score(m) })).sort((x, y) => y.s - x.s).slice(0, 3).map(x => x.m));
+  const keep = new Set(t.team.map(m => ({ m, s: score(m) })).sort((x, y) => y.s - x.s).slice(0, n).map(x => x.m));
   return t.team.filter(m => keep.has(m));
 }
 function tourneyBattle(a, b, round) {
@@ -1244,7 +1248,9 @@ function tourneyBattle(a, b, round) {
     // the rule may field only part of each team for this battle; the full teams come back afterwards
     const full = [a.team, b.team];
     if (rule === 'nolegends') for (const t of [a, b]) { const f = t.team.filter(m => !tourneyBanned(m)); if (f.length) t.team = f; }
-    if (rule === 'bring3') { const pa = bringThree(a, full[1]), pb = bringThree(b, full[0]); a.team = pa; b.team = pb; }
+    if (rule === 'bring3' || rule === 'onevone') { const n = rule === 'bring3' ? 3 : 1, pa = bringThree(a, full[1], n), pb = bringThree(b, full[0], n); a.team = pa; b.team = pb; }
+    // Underdog Cup: the three lowest-level Pokémon, in team order
+    if (rule === 'underdog') for (const t of [a, b]) if (t.team.length > 3) { const low = new Set(t.team.slice().sort((x, y) => x.lvl - y.lvl || monPower(x) - monPower(y)).slice(0, 3)); t.team = t.team.filter(m => low.has(m)); }
     let r;
     BATTLE_RULE = rule;
     try { r = battle(a, b, 'tourney', `Midseason Tournament ${round} · ${dn(a)} vs ${dn(b)}`, { equal: rule === 'flat' ? 50 : 0, ruleNote: R ? `Tournament rule: ${R.name}. ${R.desc}` : null }); }

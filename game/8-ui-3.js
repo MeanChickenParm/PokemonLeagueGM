@@ -1,5 +1,5 @@
 const UPDATES = [
-  { id: 193, date: 'November 3, 2026', time: '1:14 PM ET', title: 'Midseason Tournament rules', items: [
+  { id: 193, date: 'November 3, 2026', time: '2:18 PM ET', title: 'Midseason Tournament rules', items: [
     "Each season's Midseason Tournament is now played under one special rule, drawn at random when the season starts (never the same as the season before) and announced in the news after week 8. Until then the office card and the tournament page say a rule is coming.",
     "Inverse Battle: the type chart is flipped. Super-effective hits are not very effective, and resisted hits and immunities become super effective. Abilities like Levitate and Flash Fire still work as usual.",
     "Legendaries banned: legendaries, mythicals, Ultra Beasts, Paradox Pokémon and baby legendaries sit out, and trainers fight with the rest of their team.",
@@ -7,6 +7,10 @@ const UPDATES = [
     "Trick Room: slower Pokémon move first all tournament. Priority moves still go first, and a Quick Claw can still jump the queue.",
     "Items off: no held items in the tournament. Only drawn when held items are on in the league.",
     "Bring 3: before each battle, both trainers see the other's team and bring the three Pokémon that match up best, by power and type matchups both ways. Sharper trainers choose better. Your trainers choose for themselves.",
+    "Scalemons: every Pokémon's stats are scaled so its base stats add up to 600, with HP left as it is. Weak species hit like strong ones, so typing and moves decide it.",
+    "Flipped: every Pokémon's base stats are reversed. HP swaps with Speed, Attack with Sp. Def, and Defense with Sp. Atk, so a Shuckle becomes a speed demon.",
+    "1v1: each trainer sees the other's team and sends out the one Pokémon that matches up best. Ace against ace.",
+    "Underdog Cup: only each trainer's three lowest-level Pokémon battle, so the bench decides it.",
     "Rules only change the tournament's own battles. Teams, levels and items are exactly as they were afterwards. Each tournament replay opens with the rule, the bracket page shows it, and Past winners has a new Rule column.",
     "Advanced options → Rules has a new Midseason Tournament rule setting for new leagues: Rotating (the default), any one rule every season, or Standard for plain battles. Existing leagues rotate, starting with the next tournament that hasn't reached week 8 yet.",
     "To-do list: a doubles format for the tournament is tabled for later.",
