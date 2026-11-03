@@ -10283,7 +10283,8 @@ function addToRanch(k, m, info) {
   const R = ranchOf(k); if (!R || !m || !ranchable(m.sp)) return false;
   ensureMon(m);
   m.item = null; delete m.bond; m.gift = null; m.cap = null; m.ss = null; m.form = 0;
-  m.ranch = Object.assign({ season: curSeason() }, info);
+  // v192: steps counts the offseason ranch steps it has been available for; one added during a step counts that one
+  m.ranch = Object.assign({ season: curSeason(), steps: S.ranchStepOn ? 1 : 0 }, info);
   R.active.push(m);
   return true;
 }
@@ -10357,14 +10358,23 @@ function ranchHand(k, ranchUid, toId) {
   inLeague(lgOf(to), () => news(home ? `${dn(to)}'s ${m.sp} is back from a season of rest at the ${orgName(k)} ranch.` : `${orgName(k)} sent ${m.sp} from its ranch to ${dn(to)}${info.how === 'farewell' && info.fromName ? `, a farewell gift from ${info.fromName}` : (info.how === 'retired' || info.how === 'surplus') && info.fromName ? `. It last battled for ${info.fromName}` : ''}.`, k === S.userOrg ? 'you' : 'move', to.id));
   return m;
 }
-// a team's own choices: the trainers who need it most (lowest OVR) get first pick of what suits them best
+// a team's own choices: the trainers who need it most (lowest OVR) get first pick of what suits them best.
+// v192: a Pokémon in its last offseason in the ranch counts for more, so a good one is used before it goes on display.
+const RANCH_LAST_BONUS = 120;
+const ranchGreat = m => isSpecial(m) || !!SP[m.sp].paradox || (m.ranch && m.ranch.how === 'reward') || linePeak(m.sp) >= 500 || ivTotal(m) >= 150;
+const ranchPickValue = (m, t) => ranchValue(m, t) + (ranchLastChance(m) ? RANCH_LAST_BONUS : 0);
 function ranchAuto(k) {
   const R = ranchOf(k); if (!R || !R.active.length) return;
   for (const m of R.active.filter(x => x.ranch && x.ranch.how === 'rest')) { const t = ranchTakers(k).find(x => x.id === m.ranch.from); if (t) ranchHand(k, m.uid, t.id); }
+  // great Pokémon about to leave the ranch go first, each to the weakest trainer who can use it
+  for (const m of R.active.filter(x => ranchLastChance(x) && ranchGreat(x)).sort((a, b) => (isSpecial(b) ? 1000 : 0) + ranchValue(b) - (isSpecial(a) ? 1000 : 0) - ranchValue(a))) {
+    const t = ranchTakers(k).filter(x => !x.team.some(y => LINE[y.sp] === LINE[m.sp]) && !(m.ranch.how === 'surplus' && m.ranch.from === x.id)).sort((a, b) => ovr(a) - ovr(b))[0];
+    if (t) ranchHand(k, m.uid, t.id);
+  }
   for (const t of ranchTakers(k).sort((a, b) => ovr(a) - ovr(b))) {
     if (!R.active.length) break;
     const lines = new Set(t.team.map(m => LINE[m.sp]));
-    const m = R.active.filter(x => !lines.has(LINE[x.sp]) && !(x.ranch && x.ranch.how === 'surplus' && x.ranch.from === t.id)).sort((a, b) => ranchValue(b, t) - ranchValue(a, t))[0];
+    const m = R.active.filter(x => !lines.has(LINE[x.sp]) && !(x.ranch && x.ranch.how === 'surplus' && x.ranch.from === t.id)).sort((a, b) => ranchPickValue(b, t) - ranchPickValue(a, t))[0];
     if (m) ranchHand(k, m.uid, t.id);
   }
 }
@@ -10432,10 +10442,28 @@ function aiStock(k) {
     }
   }
 }
+// v192: a Pokémon nobody takes in RANCH_STEPS offseason ranch steps goes on display in the historical ranch.
+// A season spent resting doesn't count: a rested Pokémon only starts counting once it's back in the active ranch.
+const RANCH_STEPS = 2;
+const ranchLastChance = m => !!(m && m.ranch && (m.ranch.steps || 0) >= RANCH_STEPS);
+function ageRanch(k) {
+  const R = ranchOf(k); if (!R || !R.active.length) return;
+  const gone = [];
+  for (const m of R.active) {
+    m.ranch.steps = (m.ranch.steps || 0) + 1;
+    if (m.ranch.steps > RANCH_STEPS) gone.push(m);
+  }
+  if (!gone.length) return;
+  R.active = R.active.filter(m => !gone.includes(m));
+  for (const m of gone) toRetiredRanch(k, ranchRecord(m, { season: S.season, from: m.ranch.from ?? null, fromName: m.ranch.fromName || '', why: `unused in the ranch for ${RANCH_STEPS} offseasons` }));
+  if (k === S.userOrg) news(`${gone.length === 1 ? gone[0].sp + ' was' : gone.length + ' Pokémon were'} unused in your ranch for ${RANCH_STEPS} offseasons and went on display in the historical ranch${gone.length > 1 ? ': ' + gone.map(m => m.sp).join(', ') : ''}.`, 'you');
+}
 // offseason step after the Champion's reward: rested Pokémon come back, AI teams rest and hand out; the player gets the
 // Ranch screen whenever they have a challenger on the roster
 function beginRanch() {
   S.ranchGiven = {}; S.ranchRested = {};
+  S.ranchStepOn = false; for (const k of ORG_KEYS) ageRanch(k);
+  S.ranchStepOn = true;
   for (const k of ORG_KEYS) returnRested(k);
   for (const k of ORG_KEYS) if (k !== S.userOrg) { aiRest(k); aiStock(k); ranchAuto(k); }
   const mine = (S.ranchPicks || []).filter(p => p.org === S.userOrg).length;
@@ -10453,6 +10481,7 @@ const isGift = m => m.gift === S.season + 1 || m.gift === S.season && S.phase ==
 function regular(t) { return t.team.filter(m => !isGift(m)); }
 function bestThree(t) { const v = m => (isSpecial(m) ? 10000 : 0) + SP[m.sp].bst * (1 + (onSpec(t, m.sp) ? 0.1 : 0)); return regular(t).slice().sort((a, b) => v(b) - v(a)).slice(0, START_TEAM).map(m => m.uid); }
 function beginRegistration() {
+  S.ranchStepOn = false;
   const mine = userTrainers().filter(t => t.role === 'challenger' && regular(t).length > START_TEAM);
   if (!mine.length) return startSeason();
   S.phase = 'register';
@@ -10771,7 +10800,7 @@ function foundingDraft(userOrg) {
   setupDraft(ROSTER * nLeagues());
 }
 
-if (typeof module !== 'undefined') module.exports = { restMon, unrestMon, returnRested, aiRest, canRest, ranchChampionRoster, ranchOf, ranchHand, ranchAuto, beginRanch, confirmRanch, answerRanchPick, autoRanchPick, ranchTakers, addToRanch, settleRanchPick, ranchable, runTourney, tourneyPick, aiTourneyChoice, tourneySpecies, tourneySpOk, settleTourneyOffer, seedOrder, TOURNEY_WEEK, applyDex, dexImport, checkDexEntry, dexNorm, dexBaseStats, get dexLib() { return dexLib; }, set dexLib(v) { dexLib = v; }, BASE_STATS, SPECIES_AB, STARTERS, LINE, EVOLVED, GREAT_LEGENDS, makeMon, ROAMERS, STORMS, paradoxRewardPool, settleStorm, stormRank, ABILITIES, SPECIES_AB, abilityOf, rollAbSlot, ITEMS, TYPE_ITEMS, itemScore, autoEquip, eliteItems, gymItemOffer, takeItemOffer, setItem, bagAdd, heldItem, crossroads, reinvent, dryStreak, isGrandSlam, champLeaguesOf, checkGrandSlams, useLeague, inLeague, eachLeague, nLeagues, lgOf, lgRoster, openLeague, moveTrainer, leagueFit, aiLeagueMoves, worldChampionship, cupStandings, leagueName, startLegend, legendBattle, legendWeek, villainLegend, legendOffseason, joinLegend, answerLegend, weald, wantsLegend, recordGreat, GREAT_LEGENDS, REWARD_LEGENDS, FEATURES, featOn, legacyChance, scheduleLegacy, makeLegacy, legacyLine, metaMons, counterTypesFor, metaCounters, AWARDS, seasonAwards, seasonScore, VILLAIN_TEAMS, startVillainEvent, villainWeek, endVillainEvent, eventActive, eventFoe, eventTeam, gymClosed, raidBattle, answerSnag, offerSnag, snag, purify, purifyWeek, makeShadow, openHeart, wantsRaid, circuitLevel, bondBlocked, BOND_ROLES, checkBonds, bondMon, bondName, BOND_ATK, pokerusWeek, pkrsContact, infectPkrs, monGrowth, LUCKY_CHANCE, PKRS_WEEKS, titleOf, titleNameTaken, famName, famBase, chooseFamous, checkCustom, checkPackName, setCustomLib, parsePackText, prepImport, builtinSource, packExportText, uniquePackName, BUILTIN_SOURCES, ensureCustom, useCustom, customSpecies, newCustomKey, get customLib() { return customLib; }, MALE, FEMALE, FAMOUS_PACKS, BASE_FAMOUS, packOn, famousAvailable, TRADE_EVOS, findTrade, doTrade, roadTrades, answerTrade, MEGA, megaFor, hasMega, megaHolder, assignMegaStone, earnMega, rotateGyms, fitGymTeam, isSpecial, monTypes, makeDelta, DELTA_CHANCE, gymLost, adaptGym, activeOutbreak, maybeOutbreak, offerRejoin, rejoinChoice, simOneSeason, autoStep, fixHallOfFame, repairLevels, repairLeagues, homeLeague, backfillLeagueTags, isLegendLine, legendBlocked, pooledLegend, claimLegend, legendDepartures, adoptLegends, curSeason,  eliteSlot, TRAITS, traitOf, h2hOf, isRival, roadBattles, FAMOUS_TAG_LIST, FAMOUS_BY_NAME, ULTRA_BEASTS, BABY_LEGENDS, ownedLegends, freeBabies, PARADOX, DUAL_CLASSES, specTypes, specFit, applyCfg, ALL_ORG_KEYS, get ORG_KEYS() { return ORG_KEYS; }, get ROSTER() { return ROSTER; }, careerSpan, ageRetireChance, leadStyle, LEAD_STYLES, confirmGift, legacyOf, legacyPoints, coverOptions, MOVES, idealMoves, refreshMoves, estimate, battler, natureFx, NATURES, ensureMon, learnedCov, frTier, formTier, retireChance, trainerRec, blankStat, FAMOUS, confirmReward, confirmReassign, beginReassign, beginGifts, confirmGifts, giftTeammates, confirmGift, autoGift, canMoveNow, LEGENDS, champOrg, confirmRegistration, independents, ORGS, orgStandings, userTrainers, userRelease, draftCurrent, draftAvail, PACE, dn, CLASSES, setupDraft, get S() { return S; }, set S(v) { S = v; }, newWorld, simWeek, runLeague, userDraft, acceptOffer, aiAction, aiCatch, wildOffers, ovr, T, challengers, SP, BASES, battle };
+if (typeof module !== 'undefined') module.exports = { ranchLastChance, RANCH_STEPS, restMon, unrestMon, returnRested, aiRest, canRest, ranchChampionRoster, ranchOf, ranchHand, ranchAuto, beginRanch, confirmRanch, answerRanchPick, autoRanchPick, ranchTakers, addToRanch, settleRanchPick, ranchable, runTourney, tourneyPick, aiTourneyChoice, tourneySpecies, tourneySpOk, settleTourneyOffer, seedOrder, TOURNEY_WEEK, applyDex, dexImport, checkDexEntry, dexNorm, dexBaseStats, get dexLib() { return dexLib; }, set dexLib(v) { dexLib = v; }, BASE_STATS, SPECIES_AB, STARTERS, LINE, EVOLVED, GREAT_LEGENDS, makeMon, ROAMERS, STORMS, paradoxRewardPool, settleStorm, stormRank, ABILITIES, SPECIES_AB, abilityOf, rollAbSlot, ITEMS, TYPE_ITEMS, itemScore, autoEquip, eliteItems, gymItemOffer, takeItemOffer, setItem, bagAdd, heldItem, crossroads, reinvent, dryStreak, isGrandSlam, champLeaguesOf, checkGrandSlams, useLeague, inLeague, eachLeague, nLeagues, lgOf, lgRoster, openLeague, moveTrainer, leagueFit, aiLeagueMoves, worldChampionship, cupStandings, leagueName, startLegend, legendBattle, legendWeek, villainLegend, legendOffseason, joinLegend, answerLegend, weald, wantsLegend, recordGreat, GREAT_LEGENDS, REWARD_LEGENDS, FEATURES, featOn, legacyChance, scheduleLegacy, makeLegacy, legacyLine, metaMons, counterTypesFor, metaCounters, AWARDS, seasonAwards, seasonScore, VILLAIN_TEAMS, startVillainEvent, villainWeek, endVillainEvent, eventActive, eventFoe, eventTeam, gymClosed, raidBattle, answerSnag, offerSnag, snag, purify, purifyWeek, makeShadow, openHeart, wantsRaid, circuitLevel, bondBlocked, BOND_ROLES, checkBonds, bondMon, bondName, BOND_ATK, pokerusWeek, pkrsContact, infectPkrs, monGrowth, LUCKY_CHANCE, PKRS_WEEKS, titleOf, titleNameTaken, famName, famBase, chooseFamous, checkCustom, checkPackName, setCustomLib, parsePackText, prepImport, builtinSource, packExportText, uniquePackName, BUILTIN_SOURCES, ensureCustom, useCustom, customSpecies, newCustomKey, get customLib() { return customLib; }, MALE, FEMALE, FAMOUS_PACKS, BASE_FAMOUS, packOn, famousAvailable, TRADE_EVOS, findTrade, doTrade, roadTrades, answerTrade, MEGA, megaFor, hasMega, megaHolder, assignMegaStone, earnMega, rotateGyms, fitGymTeam, isSpecial, monTypes, makeDelta, DELTA_CHANCE, gymLost, adaptGym, activeOutbreak, maybeOutbreak, offerRejoin, rejoinChoice, simOneSeason, autoStep, fixHallOfFame, repairLevels, repairLeagues, homeLeague, backfillLeagueTags, isLegendLine, legendBlocked, pooledLegend, claimLegend, legendDepartures, adoptLegends, curSeason,  eliteSlot, TRAITS, traitOf, h2hOf, isRival, roadBattles, FAMOUS_TAG_LIST, FAMOUS_BY_NAME, ULTRA_BEASTS, BABY_LEGENDS, ownedLegends, freeBabies, PARADOX, DUAL_CLASSES, specTypes, specFit, applyCfg, ALL_ORG_KEYS, get ORG_KEYS() { return ORG_KEYS; }, get ROSTER() { return ROSTER; }, careerSpan, ageRetireChance, leadStyle, LEAD_STYLES, confirmGift, legacyOf, legacyPoints, coverOptions, MOVES, idealMoves, refreshMoves, estimate, battler, natureFx, NATURES, ensureMon, learnedCov, frTier, formTier, retireChance, trainerRec, blankStat, FAMOUS, confirmReward, confirmReassign, beginReassign, beginGifts, confirmGifts, giftTeammates, confirmGift, autoGift, canMoveNow, LEGENDS, champOrg, confirmRegistration, independents, ORGS, orgStandings, userTrainers, userRelease, draftCurrent, draftAvail, PACE, dn, CLASSES, setupDraft, get S() { return S; }, set S(v) { S = v; }, newWorld, simWeek, runLeague, userDraft, acceptOffer, aiAction, aiCatch, wildOffers, ovr, T, challengers, SP, BASES, battle };
 </script>
 <script>
 // ================= HALCYON LEAGUE UI =================
@@ -12827,7 +12856,8 @@ function viewRanch() {
     ${live ? '' : '<p class="muted small">You can hand Pokémon out each offseason, after the draft and the Champion\'s reward.</p>'}</section>`;
   const pickHtml = live && picks.length ? ranchPickPanel(picks[0].p, picks[0].i, picks.length) : (picks.length ? `<section class="panel"><p class="muted">${picks.length} retirement${picks.length > 1 ? 's' : ''} to settle in the offseason.</p></section>` : '');
   const active = `<section class="panel"><div class="ph"><h3>Active ranch</h3><span class="muted">${R.active.length} Pokémon</span></div>
-    ${R.active.length ? `<div class="regs">${R.active.map(m => ranchMonBtn(m, ranchSel === m.uid, 'ranchsel', `${ranchSrc(m.ranch)} · ${m.nat} · IVs ${ivGrade(m)}`)).join('')}</div>` : '<p class="muted">Empty. The Champion\'s reward, farewell gifts and your retiring trainers\' Pokémon come here.</p>'}
+    ${R.active.length ? `<div class="regs">${R.active.map(m => ranchMonBtn(m, ranchSel === m.uid, 'ranchsel', `${ranchSrc(m.ranch)} · ${m.nat} · IVs ${ivGrade(m)}${ranchLastChance(m) ? ' · <span class="warn">Last offseason here</span>' : ''}`)).join('')}</div>
+    <p class="muted small">A Pokémon nobody takes in ${RANCH_STEPS} offseasons goes on display in the historical ranch. A season spent resting doesn't count.</p>` : '<p class="muted">Empty. The Champion\'s reward, farewell gifts and your retiring trainers\' Pokémon come here.</p>'}
     ${live && R.active.length ? (takers.length ? `<div class="eyebrow">Send it to</div><div class="release">${takers.map(t => `<button class="rel${ranchTo === t.id ? ' on' : ''}" data-act="ranchto" data-id="${t.id}">${dn(t)} ${lgTag(t)}<span class="muted">${specName(t)} · OVR ${ovr(t)}</span></button>`).join('')}</div>
       <div class="confirm-row"><button class="btn primary" data-act="ranchgo" ${ranchSel != null && ranchTo != null ? '' : 'disabled'}>${ranchSel != null && ranchTo != null ? `Send ${R.active.find(m => m.uid === ranchSel).sp} to ${T(ranchTo).name}` : 'Pick a Pokémon and a trainer'}</button></div>` : '<p class="muted">Each of your trainers has had their handoff this offseason.</p>') : ''}
     ${R.active.length ? `<div class="confirm-row"><button class="btn small" data-act="ranchshelf" ${ranchSel != null ? '' : 'disabled'}>Move to the historical ranch</button></div>` : ''}
@@ -12964,6 +12994,8 @@ function monBody() {
     ${S.dex && S.dex[m.sp] && S.dex[m.sp].b ? `<p class="fine">Every ${m.sp} in the league: ${wl(S.dex[m.sp])} (${pct(S.dex[m.sp])}) all time.</p>` : ''}`;
 }
 // ---------- sim multiple seasons ----------
+// v192: a league whose save text is past about 6 MB uncompressed (roughly 1.5 MB stored) gets the storage note
+const simSaveBig = () => { try { return JSON.stringify(S).length > 6e6; } catch (e) { return false; } };
 const SIM_CHOICES = [1, 2, 3, 5, 10, 25];
 let simTimer = null;
 function simManyBody() {
@@ -12981,11 +13013,12 @@ function simManyBody() {
   const n = m.n || 5;
   return `<div class="mh"><h2>Sim multiple seasons</h2><button class="btn icon" data-act="close" aria-label="Close">×</button></div>
     <p>Plays whole seasons, drafts and offseasons in one go, then stops at the start of a season so you can take over. While it runs, your team is managed the way the AI teams are:</p>
-    <ul class="mini-list"><li>Your trainers make their own weekly calls and catches.</li><li>Drafts take the best available prospect; a full roster only swaps its weakest trainer for a clearly better one.</li><li>Champion's rewards, registration and farewell gifts use the best fit.</li></ul>
+    <ul class="mini-list"><li>Your trainers make their own weekly calls and catches.</li><li>Drafts take the best available prospect; a full roster only swaps its weakest trainer for a clearly better one.</li><li>Champion's rewards, registration and farewell gifts use the best fit.</li><li>In the ranch step, each trainer rests their best extra Pokémon, passes the others on to the ranch, and takes one from it. Good Pokémon in their last offseason there are handed out first.</li></ul>
     <div class="eyebrow">Seasons</div><div class="segs setup-segs sim-n">${SIM_CHOICES.map(k => `<button class="seg${n === k ? ' on' : ''}" data-act="simmanyn" data-v="${k}" aria-pressed="${n === k}">${k}</button>`).join('')}</div>
     <div class="eyebrow" style="margin-top:12px">If the League invites one of your trainers to a gym or Elite Four seat</div>
     <div class="segs setup-segs">${[[false, 'Decline and keep them'], [true, 'Accept the invitation']].map(([v, l]) => `<button class="seg${!!m.accept === v ? ' on' : ''}" data-act="simmanyacc" data-v="${v ? 1 : 0}" aria-pressed="${!!m.accept === v}">${l}</button>`).join('')}</div>
     ${S.phase !== 'season' || S.week > 0 ? `<p class="muted small">${S.phase === 'season' ? `Season ${S.season} is in week ${S.week + 1}, so it finishes first and counts as the first season.` : `The current ${S.phase === 'offseason' ? 'offseason' : S.phase} finishes first.`}</p>` : ''}
+    ${n >= 10 || simSaveBig() ? `<p class="warn small">Planning to sim far ahead? Saves grow every season, and browsers only keep a few megabytes per site${simSaveBig() ? ' (this league is already large)' : ''}. If the save gets too big for this browser, the game tells you and stops saving here. Use Download save file in the menu now and then, so a long league is never lost.</p>` : ''}
     <p class="muted small">You can't undo it. Copy your save from the menu first if you might want this point back.</p>
     <div class="confirm-row"><button class="btn primary" data-act="simmanygo">Sim ${n} season${n === 1 ? '' : 's'}</button><button class="btn" data-act="close">Cancel</button></div>`;
 }
@@ -13079,7 +13112,7 @@ const GLOSS_TERMS = {
     ['Legendary partner', "A legendary or mythical Pokémon stays with a trainer for 3–5 seasons, then moves on in the offseason. It waits in the League where it was first found, keeping its lifetime record, and the next trainer to find or be given it gets that same Pokémon at their own level. It never goes back to a trainer it has already been with. Baby legendaries count from their catch. Ultra Beasts and Paradox Pokémon aren't included."],
     ['Baby legendary / Rare find', 'Pokémon like Cosmog or Meltan that grow into legendaries. Only one exists in the world at a time.'],
     ['Paradox', "Ancient and Future Pokémon. The Champion's team adds one to its ranch each season, and the League gives one when a trainer leaves a team for the Elite Four. They aren't one of a kind: two trainers can have the same one."],
-    ['Team ranch', "Every team keeps a ranch. The active ranch holds Pokémon the team can hand to its trainers in any League: the Champion's reward and farewell gifts land there, and when a team's trainer retires, the team keeps one of their Pokémon. The rest go to the historical ranch, on display for good, along with the roster of each of the team's trainers who wins the title. Each offseason, after the Champion's reward, each challenger can receive one, registered on top of the usual three in its first season. Each challenger can also rest one Pokémon there after a season: it sits out the next season and comes back with better IVs. Pokémon never age out, and legendaries never go to a ranch."],
+    ['Team ranch', "Every team keeps a ranch. The active ranch holds Pokémon the team can hand to its trainers in any League: the Champion's reward and farewell gifts land there, and when a team's trainer retires, the team keeps one of their Pokémon. The rest go to the historical ranch, on display for good, along with the roster of each of the team's trainers who wins the title. Each offseason, after the Champion's reward, each challenger can receive one, registered on top of the usual three in its first season. Each challenger can also rest one Pokémon there after a season: it sits out the next season and comes back with better IVs. A Pokémon nobody takes in two offseasons goes on display in the historical ranch (a season spent resting doesn't count), and legendaries never go to a ranch. When simming, extras that can't be registered are passed on to the active ranch for a teammate instead of released."],
     ['Ultra Beast', 'Comes through an Ultra Wormhole. One chance to catch it.'],
     ['Wildcard', "A specialist's one strong Pokémon outside their type, kept for coverage."],
   ],
@@ -13222,6 +13255,9 @@ const UPDATES = [
     "With the ranch stocked, AI challengers now usually get a Pokémon from it each offseason, weakest trainers first. A trainer is never handed back a Pokémon they just passed on.",
     "Simming through the ranch step now runs your team the same way: each of your challengers rests their best extra, passes the others on to your ranch, and takes one Pokémon from it.",
     "Ranches have no size limit. The historical ranch used to keep only the latest 80 Pokémon; now it keeps them all (the screen lists the latest 60).",
+    "A Pokémon nobody takes from the active ranch in two offseasons goes on display in the historical ranch, which keeps saves from growing without end. A season spent resting doesn't count: a rested Pokémon's two offseasons start once it's back. Ranch Pokémon in their last offseason are marked Last offseason here.",
+    "AI teams, and your team when simming, hand out ranch Pokémon in their last offseason first, and a great one (special, Paradox, a Champion's reward, a strong line or high IVs) goes to the weakest trainer who can use it before anything else is handed out.",
+    "Sim multiple seasons lists how the ranch step is handled for your team, and when you sim 10 or more seasons or your league is already large, it reminds you that browsers only keep a few megabytes per site and to download your save file now and then.",
     "When you register your trainers yourself, the Pokémon you don't register go on display in your historical ranch instead of just being released. The same goes for every team.",
   ] },
   { id: 191, date: 'November 3, 2026', time: '10:40 AM ET', title: 'Special tags on resting Pokémon', items: [

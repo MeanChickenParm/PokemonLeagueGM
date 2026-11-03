@@ -5,6 +5,9 @@ const UPDATES = [
     "With the ranch stocked, AI challengers now usually get a Pokémon from it each offseason, weakest trainers first. A trainer is never handed back a Pokémon they just passed on.",
     "Simming through the ranch step now runs your team the same way: each of your challengers rests their best extra, passes the others on to your ranch, and takes one Pokémon from it.",
     "Ranches have no size limit. The historical ranch used to keep only the latest 80 Pokémon; now it keeps them all (the screen lists the latest 60).",
+    "A Pokémon nobody takes from the active ranch in two offseasons goes on display in the historical ranch, which keeps saves from growing without end. A season spent resting doesn't count: a rested Pokémon's two offseasons start once it's back. Ranch Pokémon in their last offseason are marked Last offseason here.",
+    "AI teams, and your team when simming, hand out ranch Pokémon in their last offseason first, and a great one (special, Paradox, a Champion's reward, a strong line or high IVs) goes to the weakest trainer who can use it before anything else is handed out.",
+    "Sim multiple seasons lists how the ranch step is handled for your team, and when you sim 10 or more seasons or your league is already large, it reminds you that browsers only keep a few megabytes per site and to download your save file now and then.",
     "When you register your trainers yourself, the Pokémon you don't register go on display in your historical ranch instead of just being released. The same goes for every team.",
   ] },
   { id: 191, date: 'November 3, 2026', time: '10:40 AM ET', title: 'Special tags on resting Pokémon', items: [

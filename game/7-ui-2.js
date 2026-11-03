@@ -659,7 +659,8 @@ function viewRanch() {
     ${live ? '' : '<p class="muted small">You can hand Pokémon out each offseason, after the draft and the Champion\'s reward.</p>'}</section>`;
   const pickHtml = live && picks.length ? ranchPickPanel(picks[0].p, picks[0].i, picks.length) : (picks.length ? `<section class="panel"><p class="muted">${picks.length} retirement${picks.length > 1 ? 's' : ''} to settle in the offseason.</p></section>` : '');
   const active = `<section class="panel"><div class="ph"><h3>Active ranch</h3><span class="muted">${R.active.length} Pokémon</span></div>
-    ${R.active.length ? `<div class="regs">${R.active.map(m => ranchMonBtn(m, ranchSel === m.uid, 'ranchsel', `${ranchSrc(m.ranch)} · ${m.nat} · IVs ${ivGrade(m)}`)).join('')}</div>` : '<p class="muted">Empty. The Champion\'s reward, farewell gifts and your retiring trainers\' Pokémon come here.</p>'}
+    ${R.active.length ? `<div class="regs">${R.active.map(m => ranchMonBtn(m, ranchSel === m.uid, 'ranchsel', `${ranchSrc(m.ranch)} · ${m.nat} · IVs ${ivGrade(m)}${ranchLastChance(m) ? ' · <span class="warn">Last offseason here</span>' : ''}`)).join('')}</div>
+    <p class="muted small">A Pokémon nobody takes in ${RANCH_STEPS} offseasons goes on display in the historical ranch. A season spent resting doesn't count.</p>` : '<p class="muted">Empty. The Champion\'s reward, farewell gifts and your retiring trainers\' Pokémon come here.</p>'}
     ${live && R.active.length ? (takers.length ? `<div class="eyebrow">Send it to</div><div class="release">${takers.map(t => `<button class="rel${ranchTo === t.id ? ' on' : ''}" data-act="ranchto" data-id="${t.id}">${dn(t)} ${lgTag(t)}<span class="muted">${specName(t)} · OVR ${ovr(t)}</span></button>`).join('')}</div>
       <div class="confirm-row"><button class="btn primary" data-act="ranchgo" ${ranchSel != null && ranchTo != null ? '' : 'disabled'}>${ranchSel != null && ranchTo != null ? `Send ${R.active.find(m => m.uid === ranchSel).sp} to ${T(ranchTo).name}` : 'Pick a Pokémon and a trainer'}</button></div>` : '<p class="muted">Each of your trainers has had their handoff this offseason.</p>') : ''}
     ${R.active.length ? `<div class="confirm-row"><button class="btn small" data-act="ranchshelf" ${ranchSel != null ? '' : 'disabled'}>Move to the historical ranch</button></div>` : ''}
@@ -796,6 +797,8 @@ function monBody() {
     ${S.dex && S.dex[m.sp] && S.dex[m.sp].b ? `<p class="fine">Every ${m.sp} in the league: ${wl(S.dex[m.sp])} (${pct(S.dex[m.sp])}) all time.</p>` : ''}`;
 }
 // ---------- sim multiple seasons ----------
+// v192: a league whose save text is past about 6 MB uncompressed (roughly 1.5 MB stored) gets the storage note
+const simSaveBig = () => { try { return JSON.stringify(S).length > 6e6; } catch (e) { return false; } };
 const SIM_CHOICES = [1, 2, 3, 5, 10, 25];
 let simTimer = null;
 function simManyBody() {
@@ -813,11 +816,12 @@ function simManyBody() {
   const n = m.n || 5;
   return `<div class="mh"><h2>Sim multiple seasons</h2><button class="btn icon" data-act="close" aria-label="Close">×</button></div>
     <p>Plays whole seasons, drafts and offseasons in one go, then stops at the start of a season so you can take over. While it runs, your team is managed the way the AI teams are:</p>
-    <ul class="mini-list"><li>Your trainers make their own weekly calls and catches.</li><li>Drafts take the best available prospect; a full roster only swaps its weakest trainer for a clearly better one.</li><li>Champion's rewards, registration and farewell gifts use the best fit.</li></ul>
+    <ul class="mini-list"><li>Your trainers make their own weekly calls and catches.</li><li>Drafts take the best available prospect; a full roster only swaps its weakest trainer for a clearly better one.</li><li>Champion's rewards, registration and farewell gifts use the best fit.</li><li>In the ranch step, each trainer rests their best extra Pokémon, passes the others on to the ranch, and takes one from it. Good Pokémon in their last offseason there are handed out first.</li></ul>
     <div class="eyebrow">Seasons</div><div class="segs setup-segs sim-n">${SIM_CHOICES.map(k => `<button class="seg${n === k ? ' on' : ''}" data-act="simmanyn" data-v="${k}" aria-pressed="${n === k}">${k}</button>`).join('')}</div>
     <div class="eyebrow" style="margin-top:12px">If the League invites one of your trainers to a gym or Elite Four seat</div>
     <div class="segs setup-segs">${[[false, 'Decline and keep them'], [true, 'Accept the invitation']].map(([v, l]) => `<button class="seg${!!m.accept === v ? ' on' : ''}" data-act="simmanyacc" data-v="${v ? 1 : 0}" aria-pressed="${!!m.accept === v}">${l}</button>`).join('')}</div>
     ${S.phase !== 'season' || S.week > 0 ? `<p class="muted small">${S.phase === 'season' ? `Season ${S.season} is in week ${S.week + 1}, so it finishes first and counts as the first season.` : `The current ${S.phase === 'offseason' ? 'offseason' : S.phase} finishes first.`}</p>` : ''}
+    ${n >= 10 || simSaveBig() ? `<p class="warn small">Planning to sim far ahead? Saves grow every season, and browsers only keep a few megabytes per site${simSaveBig() ? ' (this league is already large)' : ''}. If the save gets too big for this browser, the game tells you and stops saving here. Use Download save file in the menu now and then, so a long league is never lost.</p>` : ''}
     <p class="muted small">You can't undo it. Copy your save from the menu first if you might want this point back.</p>
     <div class="confirm-row"><button class="btn primary" data-act="simmanygo">Sim ${n} season${n === 1 ? '' : 's'}</button><button class="btn" data-act="close">Cancel</button></div>`;
 }
@@ -911,7 +915,7 @@ const GLOSS_TERMS = {
     ['Legendary partner', "A legendary or mythical Pokémon stays with a trainer for 3–5 seasons, then moves on in the offseason. It waits in the League where it was first found, keeping its lifetime record, and the next trainer to find or be given it gets that same Pokémon at their own level. It never goes back to a trainer it has already been with. Baby legendaries count from their catch. Ultra Beasts and Paradox Pokémon aren't included."],
     ['Baby legendary / Rare find', 'Pokémon like Cosmog or Meltan that grow into legendaries. Only one exists in the world at a time.'],
     ['Paradox', "Ancient and Future Pokémon. The Champion's team adds one to its ranch each season, and the League gives one when a trainer leaves a team for the Elite Four. They aren't one of a kind: two trainers can have the same one."],
-    ['Team ranch', "Every team keeps a ranch. The active ranch holds Pokémon the team can hand to its trainers in any League: the Champion's reward and farewell gifts land there, and when a team's trainer retires, the team keeps one of their Pokémon. The rest go to the historical ranch, on display for good, along with the roster of each of the team's trainers who wins the title. Each offseason, after the Champion's reward, each challenger can receive one, registered on top of the usual three in its first season. Each challenger can also rest one Pokémon there after a season: it sits out the next season and comes back with better IVs. Pokémon never age out, and legendaries never go to a ranch."],
+    ['Team ranch', "Every team keeps a ranch. The active ranch holds Pokémon the team can hand to its trainers in any League: the Champion's reward and farewell gifts land there, and when a team's trainer retires, the team keeps one of their Pokémon. The rest go to the historical ranch, on display for good, along with the roster of each of the team's trainers who wins the title. Each offseason, after the Champion's reward, each challenger can receive one, registered on top of the usual three in its first season. Each challenger can also rest one Pokémon there after a season: it sits out the next season and comes back with better IVs. A Pokémon nobody takes in two offseasons goes on display in the historical ranch (a season spent resting doesn't count), and legendaries never go to a ranch. When simming, extras that can't be registered are passed on to the active ranch for a teammate instead of released."],
     ['Ultra Beast', 'Comes through an Ultra Wormhole. One chance to catch it.'],
     ['Wildcard', "A specialist's one strong Pokémon outside their type, kept for coverage."],
   ],
