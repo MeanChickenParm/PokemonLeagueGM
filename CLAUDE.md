@@ -47,5 +47,5 @@ The user should never need to upload the game.
 ## Never build from
 - `archive/`
 - The published artifact "Pokémon League GM" (frozen at v181)
-- The old `game/` folder or `Pokémon League GM.html` in the claude.ai Project (frozen at v189; superseded by this repo)
+- Any copy of the game in the claude.ai Project (the old ones were deleted on Nov 3, 2026; this repo replaced them)
 - Files from an earlier chat's workspace
