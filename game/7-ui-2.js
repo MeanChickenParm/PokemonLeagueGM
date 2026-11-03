@@ -694,9 +694,16 @@ const retRank = r => (r.st.ko || 0) * 1000 + (r.st.w || 0) * 10 + (r.lvl || 0) /
 const ranchTopRetired = ret => ret.slice().sort((a, b) => retRank(b) - retRank(a)).slice(0, RANCH_TOP);
 const retTags = r => `${r.shiny ? ' <span class="tag shiny">✦</span>' : ''}${r.alpha ? ' <span class="tag alpha">Alpha</span>' : ''}${r.delta ? ' <span class="tag delta">Δ</span>' : ''}${r.paradox ? ' <span class="tag paradox">Paradox</span>' : ''}`;
 const retWho = r => r.from != null && T(r.from) ? tname(r.from) : (r.fromName || '—');
+// v192: each retired Pokémon opens its page: the full card when its last trainer still has it among their former
+// Pokémon, otherwise a page built from the ranch record (species, level, record and why it's there)
+function retLink(r) {
+  const t = r.from != null ? T(r.from) : null;
+  const i = t && t.alumni ? t.alumni.findIndex(a => a.uid === r.uid) : -1;
+  return i >= 0 ? `<button class="tlink" data-act="alum" data-t="${t.id}" data-i="${i}">${r.sp}</button>` : `<button class="tlink" data-act="ranchrec" data-u="${r.uid}" data-s="${r.season}">${r.sp}</button>`;
+}
 function ranchHistTable(rows, sortable) {
   const th = (k, l, num) => sortable ? `<th${num ? ' class="num"' : ''}><button class="sort${rhSort.k === k ? ' on' : ''}" data-act="rhsort" data-k="${k}">${l}${rhSort.k === k ? (rhSort.dir < 0 ? ' ↓' : ' ↑') : ''}</button></th>` : `<th>${l}</th>`;
-  return `<div class="scroll"><table class="tbl compact"><thead><tr>${th('sp', 'Pokémon')}${th('lvl', 'Lv', 1)}${th('from', 'Last with')}${th('season', 'Retired', 1)}${sortable ? th('why', 'Why') : ''}${th('w', 'Record', 1)}${th('ko', 'KOs', 1)}</tr></thead><tbody>${rows.map(r => `<tr><td>${monFace(r.sp, r.shiny, 24)} <b>${r.sp}</b>${retTags(r)}</td><td class="num">${r.lvl}</td><td>${retWho(r)}</td><td class="num">${r.season}</td>${sortable ? `<td class="small muted">${r.why || ''}</td>` : ''}<td class="num">${r.st.w}–${r.st.l}</td><td class="num">${r.st.ko}</td></tr>`).join('')}</tbody></table></div>`;
+  return `<div class="scroll"><table class="tbl compact"><thead><tr>${th('sp', 'Pokémon')}${th('lvl', 'Lv', 1)}${th('from', 'Last with')}${th('season', 'Retired', 1)}${sortable ? th('why', 'Why') : ''}${th('w', 'Record', 1)}${th('ko', 'KOs', 1)}</tr></thead><tbody>${rows.map(r => `<tr><td>${monFace(r.sp, r.shiny, 24)} ${retLink(r)}${retTags(r)}</td><td class="num">${r.lvl}</td><td>${retWho(r)}</td><td class="num">${r.season}</td>${sortable ? `<td class="small muted">${r.why || ''}</td>` : ''}<td class="num">${r.st.w}–${r.st.l}</td><td class="num">${r.st.ko}</td></tr>`).join('')}</tbody></table></div>`;
 }
 let rhSort = { k: 'ko', dir: -1 }, rhShow = 100;
 function viewRanchHistory() {
@@ -709,6 +716,20 @@ function viewRanchHistory() {
     <section class="panel">${rows.length ? ranchHistTable(rows.slice(0, rhShow), true) + (rows.length > rhShow ? `<div class="confirm-row"><button class="btn" data-act="rhmore">Show ${Math.min(100, rows.length - rhShow)} more</button><span class="muted small">Showing ${rhShow} of ${rows.length}</span></div>` : '') : '<p class="muted">Nobody has retired from your team yet.</p>'}</section>`;
 }
 
+// a retired Pokémon whose full card is gone: what the historical ranch kept
+function ranchRecBody() {
+  const R = ranchOf(S.userOrg), r = R && R.retired.find(x => x.uid === modal.rec.u && x.season === modal.rec.s);
+  if (!r) return `<div class="mh"><h2>Pokémon</h2><button class="btn icon" data-act="close" aria-label="Close">×</button></div><p class="muted">This Pokémon is no longer in the historical ranch.</p>`;
+  const s = SP[r.sp], st = r.st || {}, t = r.from != null ? T(r.from) : null;
+  return `<div class="mh"><h2>${r.sp}</h2><button class="btn icon" data-act="close" aria-label="Close">×</button></div>
+    <div class="moncard"><div class="monpic">${monFace(r.sp, r.shiny, IMG_PX, 'big')}</div>
+      <div><div>${s ? chips(monTypes(r)) : ''}${retTags(r)}</div>
+        <p>Lv ${r.lvl}${r.nat ? ` · ${r.nat} nature` : ''}</p>
+        <p class="muted">In ${ORGS[S.userOrg].name}'s historical ranch since Season ${r.season}${r.why ? `: ${r.why}` : ''}.</p></div></div>
+    <section class="panel"><div class="ph"><h3>Last with ${t ? tname(t.id) : (r.fromName || 'the team')}</h3></div>
+      <div class="stats"><div><b>${st.b || 0}</b><small>Battles</small></div><div><b>${st.w || 0}–${st.l || 0}</b><small>Win–loss</small></div><div><b>${st.ko || 0}</b><small>Knockouts</small></div></div></section>
+    <p class="fine">The full stat card isn't kept for this one: trainers keep cards for the Pokémon that made a mark and their most recent others.</p>`;
+}
 // ---------- draft ----------
 function viewDraft() {
   const d = S.draft; if (!d) return viewOffice();
@@ -795,6 +816,7 @@ function legendPartners(m, here) {
   return `<section class="panel"><div class="ph"><h3>Partners</h3><span class="muted">${m.partners.length} trainer${m.partners.length > 1 ? 's' : ''}</span></div><p class="small">${where}</p><ul class="changes">${rows}</ul></section>`;
 }
 function monBody() {
+  if (modal.rec) return ranchRecBody();
   const t0 = T(modal.t);
   let t = t0;
   let m = modal.alum != null ? t0.alumni[modal.alum] : t0.team.find(x => x.uid === modal.u);

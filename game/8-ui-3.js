@@ -8,6 +8,7 @@ const UPDATES = [
     "A Pokémon nobody takes from the active ranch in two offseasons goes on display in the historical ranch, which keeps saves from growing without end. A season spent resting doesn't count: a rested Pokémon's two offseasons start once it's back. Ranch Pokémon in their last offseason are marked Last offseason here.",
     "AI teams, and your team when simming, hand out ranch Pokémon in their last offseason first, and a great one (special, Paradox, a Champion's reward, a strong line or high IVs) goes to the weakest trainer who can use it before anything else is handed out.",
     "The ranch screen's Retired Pokémon list now shows your top 10 by knockouts, then wins. See all opens a new Retired Pokémon screen with the whole historical ranch: sort by any column, see why each one is there, and show 100 more at a time.",
+    "Every Pokémon on the Retired Pokémon lists opens its page. Where its last trainer still keeps its full stat card, you see that card; otherwise you see what the ranch kept: level, nature, record and why it's there.",
     "Sim multiple seasons lists how the ranch step is handled for your team, and when you sim 10 or more seasons or your league is already large, it reminds you that browsers only keep a few megabytes per site and to download your save file now and then.",
     "When you register your trainers yourself, the Pokémon you don't register go on display in your historical ranch instead of just being released. The same goes for every team.",
   ] },
@@ -711,6 +712,7 @@ document.addEventListener('click', ev => {
     case 'nf': newsFilter = el.dataset.v; render(); break;
     case 'mon': modal = { kind: 'mon', t: +el.dataset.t, u: +el.dataset.u, back: recBack() }; renderModal(); break;
     case 'alum': modal = { kind: 'mon', t: +el.dataset.t, alum: +el.dataset.i, back: recBack() }; renderModal(); break;
+    case 'ranchrec': modal = { kind: 'mon', rec: { u: +el.dataset.u, s: +el.dataset.s }, back: recBack() }; renderModal(); break;
     case 'dexsort': { const k = el.dataset.k; dexSort = dexSort.k === k ? { k, dir: -dexSort.dir } : { k, dir: k === 'sp' ? 1 : -1 }; render(); break; }
     case 'dexkind': dexKind = el.dataset.v; render(); break;
     case 'dextrait': dexTrait = el.dataset.v; render(); break;
