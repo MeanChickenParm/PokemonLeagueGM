@@ -4,7 +4,7 @@ This repo is the only master copy of the game. Every chat works the same way: cl
 
 ## Layout
 - `game/`: the source, in nine pieces plus `build.py`. Edit these.
-- `Pokémon League GM.html` (root): the built game, rebuilt from `game/` on every push. Never edit it by hand.
+- `Pokémon League GM.html` and `index.html` (root): the built game (two identical copies), rebuilt from `game/` on every push. Never edit them by hand. `index.html` is the live GitHub Pages site; `.nojekyll` tells Pages to serve files as they are.
 - `archive/`: old files kept for reference only. Never build from them.
 - `dist/` (not committed): build output.
 
@@ -40,7 +40,7 @@ The user should never need to upload the game.
 
 ## End of every chat
 1. `git pull` first. If someone pushed a newer version in the meantime, merge their changes in and give this chat's work the next version number; never overwrite theirs.
-2. Rebuild, copy `dist/Pokémon League GM.html` to the repo root, and commit `game/` plus the root HTML with a message naming the version (e.g. `v191: Team ranch fixes`).
+2. Rebuild, copy `dist/Pokémon League GM.html` to the repo root **as both `Pokémon League GM.html` and `index.html`**, and commit `game/` plus both root files with a message naming the version (e.g. `v191: Team ranch fixes`). `index.html` is what GitHub Pages serves at https://meanchickenparm.github.io/PokemonLeagueGM/, so it must always match.
 3. Push to `main`.
 4. Send the user `Pokémon League GM.html` and `pokemon-league-gm-v<N>-itch.zip` (from `dist/`). The zip holds `index.html` and `pokemon-data.js` side by side at its root.
 
