@@ -1,4 +1,9 @@
 const UPDATES = [
+  { id: 195, date: 'November 3, 2026', time: '5:15 PM ET', title: 'Historical and retired ranches', items: [
+    "The team ranch's display shelf is now two panels. The historical ranch holds the title-winning rosters; retired Pokémon (retired with a trainer, not registered, or unused in the active ranch) have their own retired ranch below it.",
+    "Each title roster in the historical ranch is collapsible: tap a season to open or close its roster. They're listed newest first and start closed.",
+    "Ranch text, the Glossary and the Retired Pokémon screen now say retired ranch where they mean retired Pokémon.",
+  ] },
   { id: 194, date: 'November 3, 2026', time: '4:40 PM ET', title: 'League banlists', items: [
     "New offseason step, the Banlist vote, after the draft and League moves and before the Champion's reward and the ranch. In each League, the teams with challengers there vote on banning the season's five top performers (by knockouts and wins per battle, across challengers, Gym Leaders, the Elite Four and the Champion; at most two legendaries on the ballot).",
     "A ban needs a majority of the voting teams. Up to two new bans pass a season, the most votes first, and a League holds at most three. A ban covers the Pokémon, what it evolves from and what it evolves into: banning Sylveon bans Eevee too, but not Vaporeon.",

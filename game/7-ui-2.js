@@ -681,7 +681,7 @@ function ranchPickPanel(p, i, n) {
   if (ranchKeep != null && !mons.some(m => m.uid === ranchKeep)) ranchKeep = null;
   return `<section class="panel offer"><div class="eyebrow">Retirement${n > 1 ? ` · 1 of ${n}` : ''}</div>
     <h2>${p.fromName} retired. Which Pokémon stays in your ranch?</h2>
-    <p>Choose one to keep in your active ranch, where you can hand it to any of your trainers. The rest go to the historical ranch, on display for good.</p>
+    <p>Choose one to keep in your active ranch, where you can hand it to any of your trainers. The rest go to the retired ranch, on display for good.</p>
     <div class="regs">${mons.map(m => ranchMonBtn(m, ranchKeep === m.uid, 'ranchkeep', `Lv ${Math.floor(m.lvl)} · ${m.nat} · IVs ${ivGrade(m)} · ${wl(stOf(m))}, ${stOf(m).ko} KOs`)).join('')}</div>
     <div class="confirm-row"><button class="btn primary" data-act="ranchkeepgo" data-i="${i}" ${ranchKeep != null ? '' : 'disabled'}>${ranchKeep != null ? `Keep ${mons.find(m => m.uid === ranchKeep).sp}` : 'Pick a Pokémon to keep'}</button><button class="btn" data-act="ranchkeepnone" data-i="${i}">Keep none</button></div></section>`;
 }
@@ -697,15 +697,15 @@ function viewRanch() {
   if (ranchTo != null && !takers.some(t => t.id === ranchTo)) ranchTo = null;
   const given = (S.ranchLog || []).filter(x => x.org === k && x.season === S.season + 1);
   const head = `<section class="panel callout"><div class="eyebrow">${ORGS[k].name}${live ? ` · Season ${S.season + 1}` : ''}</div><h2>Team ranch</h2>
-    <p>Your ranch keeps Pokémon for the team. The <b>active ranch</b> holds Pokémon you can hand to your trainers in any League: the Champion's reward and farewell gifts land here, and when one of your trainers retires you keep one of their Pokémon here. Each offseason, after the Champion's reward, each of your challengers can receive one. It's registered on top of the usual three in its first season. The rest of a retiring trainer's team goes to the <b>historical ranch</b>, on display for good, and so does the roster of every one of your trainers who wins the title. After a season, each of your challengers can also send one Pokémon to <b>rest</b> at the ranch: it sits out the next season, then comes back with better IVs.${featOn('banlist') ? ' Pokémon banned in a trainer\'s League wait here too, even legendaries, and go back to their trainer as soon as they\'re allowed.' : ''}</p>
+    <p>Your ranch keeps Pokémon for the team. The <b>active ranch</b> holds Pokémon you can hand to your trainers in any League: the Champion's reward and farewell gifts land here, and when one of your trainers retires you keep one of their Pokémon here. Each offseason, after the Champion's reward, each of your challengers can receive one. It's registered on top of the usual three in its first season. The rest of a retiring trainer's team goes to the <b>retired ranch</b>, on display for good. The roster of every one of your trainers who wins the title goes to the <b>historical ranch</b>. After a season, each of your challengers can also send one Pokémon to <b>rest</b> at the ranch: it sits out the next season, then comes back with better IVs.${featOn('banlist') ? ' Pokémon banned in a trainer\'s League wait here too, even legendaries, and go back to their trainer as soon as they\'re allowed.' : ''}</p>
     ${live ? '' : '<p class="muted small">You can hand Pokémon out each offseason, after the draft and the Champion\'s reward.</p>'}</section>`;
   const pickHtml = live && picks.length ? ranchPickPanel(picks[0].p, picks[0].i, picks.length) : (picks.length ? `<section class="panel"><p class="muted">${picks.length} retirement${picks.length > 1 ? 's' : ''} to settle in the offseason.</p></section>` : '');
   const active = `<section class="panel"><div class="ph"><h3>Active ranch</h3><span class="muted">${R.active.length} Pokémon</span></div>
     ${R.active.length ? `<div class="regs">${R.active.map(m => ranchMonBtn(m, ranchSel === m.uid, 'ranchsel', `${ranchSrc(m.ranch)} · ${m.nat} · IVs ${ivGrade(m)}${ranchLastChance(m) ? ' · <span class="warn">Last offseason here</span>' : ''}${m.ranch && m.ranch.how === 'banned' && m.leg ? ` · with ${m.ranch.fromName} until Season ${m.leg.until}` : ''}${m.ranch && m.ranch.how === 'banned' && !org(k).roster.some(id => ranchCanTake(T(id), m)) ? ' · <span class="muted">Nobody on your team can take it yet</span>' : ''}`)).join('')}</div>
-    <p class="muted small">A Pokémon nobody takes in ${RANCH_STEPS} offseasons goes on display in the historical ranch. A season spent resting doesn't count, and Paradox Pokémon get ${RANCH_STEPS_PARADOX}.${featOn('banlist') ? ' A banned Pokémon nobody on the team can take doesn\'t count the season either; a banned legendary leaves when its time with its trainer runs out.' : ''}</p>` : '<p class="muted">Empty. The Champion\'s reward, farewell gifts and your retiring trainers\' Pokémon come here.</p>'}
+    <p class="muted small">A Pokémon nobody takes in ${RANCH_STEPS} offseasons goes on display in the retired ranch. A season spent resting doesn't count, and Paradox Pokémon get ${RANCH_STEPS_PARADOX}.${featOn('banlist') ? ' A banned Pokémon nobody on the team can take doesn\'t count the season either; a banned legendary leaves when its time with its trainer runs out.' : ''}</p>` : '<p class="muted">Empty. The Champion\'s reward, farewell gifts and your retiring trainers\' Pokémon come here.</p>'}
     ${live && R.active.length ? (selM && !takers.length && ranchTakers(k).length ? `<p class="muted">None of your trainers can take ${selM.sp} right now.</p>` : takers.length ? `<div class="eyebrow">Send it to</div><div class="release">${takers.map(t => `<button class="rel${ranchTo === t.id ? ' on' : ''}" data-act="ranchto" data-id="${t.id}">${dn(t)} ${lgTag(t)}<span class="muted">${specName(t)} · OVR ${ovr(t)}</span></button>`).join('')}</div>
       <div class="confirm-row"><button class="btn primary" data-act="ranchgo" ${ranchSel != null && ranchTo != null ? '' : 'disabled'}>${ranchSel != null && ranchTo != null ? `Send ${R.active.find(m => m.uid === ranchSel).sp} to ${T(ranchTo).name}` : 'Pick a Pokémon and a trainer'}</button></div>` : '<p class="muted">Each of your trainers has had their handoff this offseason.</p>') : ''}
-    ${R.active.length ? `<div class="confirm-row"><button class="btn small" data-act="ranchshelf" ${ranchSel != null ? '' : 'disabled'}>Move to the historical ranch</button></div>` : ''}
+    ${R.active.length ? `<div class="confirm-row"><button class="btn small" data-act="ranchshelf" ${ranchSel != null ? '' : 'disabled'}>Move to the retired ranch</button></div>` : ''}
     ${given.length ? `<ul class="changes">${given.map(x => `<li><b>${x.sp}</b> went to ${tname(x.to)}</li>`).join('')}</ul>` : ''}</section>`;
   const rested = S.ranchRested || {}, resting = R.resting || [];
   const restRows = live ? org(k).roster.map(T).filter(t => t && t.role === 'challenger').map(t => {
@@ -720,16 +720,17 @@ function viewRanch() {
     ${live ? restRows : (resting.length ? '' : '<p class="muted">Nothing is resting. You can rest a Pokémon in the offseason ranch step.</p>')}</section>`;
   const ret = R.retired, champs = (R.champs || []).filter(c => c.won);
   const monBit = m => `<span class="itemchip">${m.sp}${m.shiny ? ' ✦' : ''}${m.alpha ? ' (alpha)' : ''}${m.delta ? ' (Δ)' : ''} <span class="muted">Lv ${m.lvl}${m.ko ? ` · ${m.ko} KOs` : ''}</span></span>`;
-  const retired = `<section class="panel"><div class="ph"><h3>Historical ranch</h3><span class="muted">${champs.length} title roster${champs.length === 1 ? '' : 's'} · ${ret.length} Pokémon</span></div>
-    <div class="eyebrow">Championship rosters</div>
-    ${champs.length ? `<ul class="changes">${champs.map(c => `<li><b>Season ${c.season}</b>${nLeagues() > 1 ? ` <span class="tag lg">${(c.lgName || leagueName(c.lg)).replace(/ League$/, '')}</span>` : ''} · <b>${c.name}</b> <span class="muted">won the title</span><div class="it-bag">${c.mons.map(monBit).join('')}</div></li>`).join('')}</ul>` : '<p class="muted">None of your trainers has won the title yet.</p>'}
-    <div class="eyebrow">Retired Pokémon</div>
+  // v195: the historical ranch holds title rosters, each one collapsible; retired Pokémon have their own retired ranch
+  const hist = `<section class="panel"><div class="ph"><h3>Historical ranch</h3><span class="muted">${champs.length} title roster${champs.length === 1 ? '' : 's'}</span></div>
+    ${champs.length ? `<p class="muted small">The roster of each of your trainers who won the title. Tap a season to open it.</p><div class="histlist">${champs.slice().sort((a, b) => b.season - a.season).map(c => `<details class="hist"><summary><b>Season ${c.season}</b>${nLeagues() > 1 ? ` <span class="tag lg">${(c.lgName || leagueName(c.lg)).replace(/ League$/, '')}</span>` : ''} · <b>${c.name}</b> <span class="muted">won the title · ${c.mons.length} Pokémon</span></summary><div class="it-bag">${c.mons.map(monBit).join('')}</div></details>`).join('')}</div>` : '<p class="muted">None of your trainers has won the title yet.</p>'}</section>`;
+  const retired = `<section class="panel"><div class="ph"><h3>Retired ranch</h3><span class="muted">${ret.length} Pokémon</span></div>
     ${ret.length ? `<p class="muted small">Your top ${Math.min(RANCH_TOP, ret.length)} by knockouts, then wins.</p>${ranchHistTable(ranchTopRetired(ret))}<div class="confirm-row"><button class="btn" data-act="nav" data-v="ranchhist">See all ${ret.length} retired Pokémon</button></div>` : '<p class="muted">Nobody has retired from your team yet.</p>'}</section>`;
   const done = live ? `<section class="panel"><div class="confirm-row"><button class="btn primary" data-act="ranchdone" ${picks.length ? 'disabled' : ''}>Continue to registration</button>${picks.length ? '<span class="warn">Settle the retirement first.</span>' : ''}</div></section>` : '';
-  return head + pickHtml + active + restPanel + retired + done;
+  return head + pickHtml + active + restPanel + hist + retired + done;
 }
 
-// ---------- historical ranch (v192) ----------
+// ---------- retired ranch (v192; called the historical ranch until v195) ----------
+const whyText = w => (w || '').replace('historical ranch', 'retired ranch');
 // the ranch screen shows the team's top RANCH_TOP retired Pokémon; the full list has its own screen
 const RANCH_TOP = 10;
 const retRank = r => (r.st.ko || 0) * 1000 + (r.st.w || 0) * 10 + (r.lvl || 0) / 100;
@@ -745,7 +746,7 @@ function retLink(r) {
 }
 function ranchHistTable(rows, sortable) {
   const th = (k, l, num) => sortable ? `<th${num ? ' class="num"' : ''}><button class="sort${rhSort.k === k ? ' on' : ''}" data-act="rhsort" data-k="${k}">${l}${rhSort.k === k ? (rhSort.dir < 0 ? ' ↓' : ' ↑') : ''}</button></th>` : `<th>${l}</th>`;
-  return `<div class="scroll"><table class="tbl compact"><thead><tr>${th('sp', 'Pokémon')}${th('lvl', 'Lv', 1)}${th('from', 'Last with')}${th('season', 'Retired', 1)}${sortable ? th('why', 'Why') : ''}${th('w', 'Record', 1)}${th('ko', 'KOs', 1)}</tr></thead><tbody>${rows.map(r => `<tr><td>${monFace(r.sp, r.shiny, 24)} ${retLink(r)}${retTags(r)}</td><td class="num">${r.lvl}</td><td>${retWho(r)}</td><td class="num">${r.season}</td>${sortable ? `<td class="small muted">${r.why || ''}</td>` : ''}<td class="num">${r.st.w}–${r.st.l}</td><td class="num">${r.st.ko}</td></tr>`).join('')}</tbody></table></div>`;
+  return `<div class="scroll"><table class="tbl compact"><thead><tr>${th('sp', 'Pokémon')}${th('lvl', 'Lv', 1)}${th('from', 'Last with')}${th('season', 'Retired', 1)}${sortable ? th('why', 'Why') : ''}${th('w', 'Record', 1)}${th('ko', 'KOs', 1)}</tr></thead><tbody>${rows.map(r => `<tr><td>${monFace(r.sp, r.shiny, 24)} ${retLink(r)}${retTags(r)}</td><td class="num">${r.lvl}</td><td>${retWho(r)}</td><td class="num">${r.season}</td>${sortable ? `<td class="small muted">${whyText(r.why)}</td>` : ''}<td class="num">${r.st.w}–${r.st.l}</td><td class="num">${r.st.ko}</td></tr>`).join('')}</tbody></table></div>`;
 }
 let rhSort = { k: 'ko', dir: -1 }, rhShow = 100;
 function viewRanchHistory() {
@@ -753,21 +754,21 @@ function viewRanchHistory() {
   const val = (r, key) => key === 'sp' ? r.sp : key === 'from' ? (r.fromName || '') : key === 'why' ? (r.why || '') : key === 'w' ? r.st.w : key === 'ko' ? r.st.ko : r[key] ?? 0;
   const rows = R.retired.slice().sort((a, b) => { const x = val(a, rhSort.k), y = val(b, rhSort.k); const c = typeof x === 'string' ? x.localeCompare(y) : x - y; return c * rhSort.dir || retRank(b) - retRank(a); });
   return `<section class="panel callout"><div class="eyebrow">${ORGS[k].name}</div><h2>Retired Pokémon</h2>
-    <p>Every Pokémon in your historical ranch: retired with a trainer, not registered for a new season, or unused in the active ranch for ${RANCH_STEPS} offseasons (${RANCH_STEPS_PARADOX} for Paradox Pokémon). ${R.retired.length} in all.</p>
+    <p>Every Pokémon in your retired ranch: retired with a trainer, not registered for a new season, or unused in the active ranch for ${RANCH_STEPS} offseasons (${RANCH_STEPS_PARADOX} for Paradox Pokémon). ${R.retired.length} in all.</p>
     <div class="confirm-row"><button class="btn" data-act="nav" data-v="ranch">Back to the ranch</button></div></section>
     <section class="panel">${rows.length ? ranchHistTable(rows.slice(0, rhShow), true) + (rows.length > rhShow ? `<div class="confirm-row"><button class="btn" data-act="rhmore">Show ${Math.min(100, rows.length - rhShow)} more</button><span class="muted small">Showing ${rhShow} of ${rows.length}</span></div>` : '') : '<p class="muted">Nobody has retired from your team yet.</p>'}</section>`;
 }
 
-// a retired Pokémon whose full card is gone: what the historical ranch kept
+// a retired Pokémon whose full card is gone: what the retired ranch kept
 function ranchRecBody() {
   const R = ranchOf(S.userOrg), r = R && R.retired.find(x => x.uid === modal.rec.u && x.season === modal.rec.s);
-  if (!r) return `<div class="mh"><h2>Pokémon</h2><button class="btn icon" data-act="close" aria-label="Close">×</button></div><p class="muted">This Pokémon is no longer in the historical ranch.</p>`;
+  if (!r) return `<div class="mh"><h2>Pokémon</h2><button class="btn icon" data-act="close" aria-label="Close">×</button></div><p class="muted">This Pokémon is no longer in the retired ranch.</p>`;
   const s = SP[r.sp], st = r.st || {}, t = r.from != null ? T(r.from) : null;
   return `<div class="mh"><h2>${r.sp}</h2><button class="btn icon" data-act="close" aria-label="Close">×</button></div>
     <div class="moncard"><div class="monpic">${monFace(r.sp, r.shiny, IMG_PX, 'big')}</div>
       <div><div>${s ? chips(monTypes(r)) : ''}${retTags(r)}</div>
         <p>Lv ${r.lvl}${r.nat ? ` · ${r.nat} nature` : ''}</p>
-        <p class="muted">In ${ORGS[S.userOrg].name}'s historical ranch since Season ${r.season}${r.why ? `: ${r.why}` : ''}.</p></div></div>
+        <p class="muted">In ${ORGS[S.userOrg].name}'s retired ranch since Season ${r.season}${r.why ? `: ${whyText(r.why)}` : ''}.</p></div></div>
     <section class="panel"><div class="ph"><h3>Last with ${t ? tname(t.id) : (r.fromName || 'the team')}</h3></div>
       <div class="stats"><div><b>${st.b || 0}</b><small>Battles</small></div><div><b>${st.w || 0}–${st.l || 0}</b><small>Win–loss</small></div><div><b>${st.ko || 0}</b><small>Knockouts</small></div></div></section>
     <p class="fine">The full stat card isn't kept for this one: trainers keep cards for the Pokémon that made a mark and their most recent others.</p>`;
@@ -1007,7 +1008,7 @@ const GLOSS_TERMS = {
     ['Baby legendary / Rare find', 'Pokémon like Cosmog or Meltan that grow into legendaries. Only one exists in the world at a time.'],
     ['Paradox', "Ancient and Future Pokémon. The Champion's team adds one to its ranch each season, and the League gives one when a trainer leaves a team for the Elite Four. They aren't one of a kind: two trainers can have the same one."],
     ['Banlist', "Each offseason, after League moves, the teams with challengers in a League vote on banning its five top performers of the season (by knockouts and wins per battle; at most two legendaries on the ballot). A majority bans it for the next season, up to two new bans a season and three at a time. Bans cover the Pokémon's whole evolution path and apply to everyone in that League, including Gym Leaders, the Elite Four and the Champion, who get replacements. Each ban comes back to the vote every offseason and lifts on its own after three seasons. A team's banned Pokémon wait in its ranch, legendaries included: a teammate in another League can take one, and it goes back to its trainer once it's allowed. A season a banned legendary can't be used anywhere on the team doesn't count toward its time with its trainer. Can be turned off in Advanced options when creating a league."],
-    ['Team ranch', "Every team keeps a ranch. The active ranch holds Pokémon the team can hand to its trainers in any League: the Champion's reward and farewell gifts land there, and when a team's trainer retires, the team keeps one of their Pokémon. The rest go to the historical ranch, on display for good, along with the roster of each of the team's trainers who wins the title. Each offseason, after the Champion's reward, each challenger can receive one, registered on top of the usual three in its first season. Each challenger can also rest one Pokémon there after a season: it sits out the next season and comes back with better IVs. A Pokémon nobody takes in three offseasons goes on display in the historical ranch (six for Paradox Pokémon; a season spent resting doesn't count), and legendaries only go to a ranch when they're banned in their trainer's League. When simming, extras that can't be registered are passed on to the active ranch for a teammate instead of released."],
+    ['Team ranch', "Every team keeps a ranch. The active ranch holds Pokémon the team can hand to its trainers in any League: the Champion's reward and farewell gifts land there, and when a team's trainer retires, the team keeps one of their Pokémon. The rest go to the retired ranch, on display for good. The roster of each of the team's trainers who wins the title goes to the historical ranch. Each offseason, after the Champion's reward, each challenger can receive one, registered on top of the usual three in its first season. Each challenger can also rest one Pokémon there after a season: it sits out the next season and comes back with better IVs. A Pokémon nobody takes in three offseasons goes on display in the retired ranch (six for Paradox Pokémon; a season spent resting doesn't count), and legendaries only go to a ranch when they're banned in their trainer's League. When simming, extras that can't be registered are passed on to the active ranch for a teammate instead of released."],
     ['Ultra Beast', 'Comes through an Ultra Wormhole. One chance to catch it.'],
     ['Wildcard', "A specialist's one strong Pokémon outside their type, kept for coverage."],
   ],

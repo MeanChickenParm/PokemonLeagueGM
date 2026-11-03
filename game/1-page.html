@@ -604,6 +604,13 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 0; }
 .itemlist li { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; }
 .itemlist .it-choose { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; }
 .it-bag { display: flex; flex-wrap: wrap; gap: 5px; margin: 4px 0 8px; }
+.histlist { display: flex; flex-direction: column; gap: 6px; }
+details.hist { border: 1px solid var(--line); border-radius: 8px; background: var(--sunk); }
+details.hist summary { cursor: pointer; padding: 8px 12px; list-style: none; }
+details.hist summary::-webkit-details-marker { display: none; }
+details.hist summary::before { content: '▸'; display: inline-block; width: 1em; color: var(--muted); transition: transform .15s; }
+details.hist[open] summary::before { transform: rotate(90deg); }
+details.hist .it-bag { padding: 0 12px 8px; margin: 0; }
 .it-opt.best { border: 2px solid var(--gold); background: color-mix(in srgb, var(--gold) 10%, var(--surface)); }
 .it-opt.nouse, .rel.nouse { opacity: 0.55; }
 .it-best { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--gold); }

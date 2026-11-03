@@ -1394,7 +1394,7 @@ function ageRanch(k) {
   if (!gone.length) return;
   R.active = R.active.filter(m => !gone.includes(m));
   for (const m of gone) toRetiredRanch(k, ranchRecord(m, { season: S.season, from: m.ranch.from ?? null, fromName: m.ranch.fromName || '', why: `unused in the ranch for ${ranchSteps(m)} offseasons` }));
-  if (k === S.userOrg) news(`${gone.length === 1 ? gone[0].sp + ' was' : gone.length + ' Pokémon were'} unused in your ranch for ${ranchSteps(gone[0])}${gone.some(m => ranchSteps(m) !== ranchSteps(gone[0])) ? ' or more' : ''} offseasons and went on display in the historical ranch${gone.length > 1 ? ': ' + gone.map(m => m.sp).join(', ') : ''}.`, 'you');
+  if (k === S.userOrg) news(`${gone.length === 1 ? gone[0].sp + ' was' : gone.length + ' Pokémon were'} unused in your ranch for ${ranchSteps(gone[0])}${gone.some(m => ranchSteps(m) !== ranchSteps(gone[0])) ? ' or more' : ''} offseasons and went on display in the retired ranch${gone.length > 1 ? ': ' + gone.map(m => m.sp).join(', ') : ''}.`, 'you');
 }
 // offseason step after the Champion's reward: rested Pokémon come back, AI teams rest and hand out; the player gets the
 // Ranch screen whenever they have a challenger on the roster
@@ -1655,7 +1655,7 @@ function ranchShelf(k, uidPick) {
   const R = ranchOf(k), m = R && R.active.find(x => x.uid === uidPick); if (!m) return null;
   if (isLegendLine(m.sp) && m.partners) { ranchLegendLeaves(k, m, 'let go from the ranch'); return m; }
   R.active = R.active.filter(x => x !== m);
-  toRetiredRanch(k, ranchRecord(m, { season: curSeason(), from: m.ranch ? m.ranch.from : null, fromName: m.ranch ? m.ranch.fromName : '', why: 'moved to the historical ranch' }));
+  toRetiredRanch(k, ranchRecord(m, { season: curSeason(), from: m.ranch ? m.ranch.from : null, fromName: m.ranch ? m.ranch.fromName : '', why: 'moved to the retired ranch' }));
   return m;
 }
 
