@@ -1369,7 +1369,7 @@ function applyCfg() {
 // ---------- several Leagues ----------
 // Each League keeps its own gyms, Elite Four, Champion, circuit, events and history. The bound League's state sits
 // directly on S (so S.gyms is always "this League's gyms"); the others wait in S.leagues until bound.
-const LEAGUE_FIELDS = ['gyms', 'e4', 'champion', 'challengers', 'event', 'legend', 'legendSeason', 'legendGifts', 'legendOffers', 'greatCaught', 'rayquazaDue', 'wealdSeason', 'shadowWild', 'outbreak', 'outbreakLog', 'wormhole', 'metaMons', 'meta', 'league', 'history', 'eventLog', 'seatBattles', 'lastBattles', 'snagOffers', 'snagPick', 'tradeOffers', 'stats', 'towns', 'lgName', 'pkrsSeason', 'legendPool', 'roamer', 'roamSeason', 'storm', 'stormSeason', 'forcesStorm', 'landorusSeason', 'skyLog', 'roamPlan', 'stormPlan', 'bans', 'banBallot', 'banLog'];
+const LEAGUE_FIELDS = ['gyms', 'e4', 'champion', 'challengers', 'event', 'legend', 'legendSeason', 'legendGifts', 'legendOffers', 'greatCaught', 'rayquazaDue', 'wealdSeason', 'shadowWild', 'outbreak', 'outbreakLog', 'wormhole', 'metaMons', 'meta', 'league', 'history', 'eventLog', 'seatBattles', 'lastBattles', 'snagOffers', 'snagPick', 'tradeOffers', 'stats', 'towns', 'lgName', 'pkrsSeason', 'legendPool', 'roamer', 'roamSeason', 'storm', 'stormSeason', 'forcesStorm', 'landorusSeason', 'skyLog', 'roamPlan', 'stormPlan', 'bans', 'banBallot', 'banLog', 'banCount'];
 const nLeagues = () => (S && S.leagues ? S.leagues.length : 1);
 const lgOf = t => (t && t.lg) || 0;
 // the League that actually lists a trainer (circuit or post); falls back to their tag. Used before anything that

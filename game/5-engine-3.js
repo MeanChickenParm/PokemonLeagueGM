@@ -1528,6 +1528,13 @@ function confirmBanVote() {
   S.banVote = null;
   beginReward();
 }
+// v195: how many times each Pokémon has been banned in the bound League. Kept apart from the ban log so the
+// Records board survives the log's trim; older saves rebuild it from the log the first time it's needed
+const BAN_LOG_MAX = 600;
+function banCounts() {
+  if (!S.banCount) { S.banCount = {}; for (const e of S.banLog || []) if (e.act === 'ban') S.banCount[e.sp] = (S.banCount[e.sp] || 0) + 1; }
+  return S.banCount;
+}
 function resolveBanVote(x, V, changes) {
   const i = x.lg, n = x.voters.length, user = S.userOrg, pre = nLeagues() > 1 ? `${lgShort(i)}: ` : '';
   const res = { lg: i, n, rows: [], reviews: [] };
@@ -1560,11 +1567,12 @@ function resolveBanVote(x, V, changes) {
     if (room <= 0) { row.capped = true; continue; }
     room--; row.passed = true;
     S.bans.push({ sp: c.sp, members: c.members, season: S.season, yes: row.yes, n });
+    const bc = banCounts(); bc[c.sp] = (bc[c.sp] || 0) + 1;
     S.banLog.unshift({ season: S.season, sp: c.sp, act: 'ban', yes: row.yes, n });
     changes.push(`${pre}${c.sp} is banned for Season ${S.season + 1} (${row.yes} of ${n} teams voted for it).`);
     news(`The ${S.lgName} banned ${c.sp}${c.members.length > 1 ? ` (and ${c.members.filter(s => s !== c.sp).join(', ')})` : ''} for Season ${S.season + 1}, ${row.yes} of ${n} teams voting for it.`, 'league');
   }
-  if (S.banLog.length > 60) S.banLog.length = 60;
+  if (S.banLog.length > BAN_LOG_MAX) S.banLog.length = BAN_LOG_MAX;
   enforceBans();
   return res;
 }

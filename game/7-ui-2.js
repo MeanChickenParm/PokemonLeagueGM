@@ -262,6 +262,15 @@ function recBoard(title, rows, note, key) {
 }
 const topBy = (list, val, n = 5, min = 1) => list.map(x => [x, val(x)]).filter(([, v]) => v != null && v >= min).sort((a, b) => b[1] - a[1]).slice(0, n);
 const monLink = x => monMini(x.sp, x.shiny) + (x.cur ? `<button class="tlink" data-act="mon" data-t="${x.t.id}" data-u="${x.uid}">${x.sp}</button>` : `<button class="tlink" data-act="alum" data-t="${x.t.id}" data-i="${x.i}">${x.sp}</button>`);
+// v195: Records board for the Pokémon banned most often in this League (by species, legendaries included)
+function banRecBoard() {
+  if (!featOn('banlist') && !(S.banLog || []).length) return '';
+  const live = new Set((S.bans || []).map(b => b.sp));
+  const seasons = sp => (S.banLog || []).filter(e => e.act === 'ban' && e.sp === sp).map(e => e.season + 1).sort((a, b) => a - b);
+  const rows = Object.entries(banCounts()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 50).map(([sp, v]) => { const ss = seasons(sp);
+    return { who: `${monMini(sp)} <b>${sp}</b>${live.has(sp) ? ' <span class="tag banned">Banned now</span>' : ''}`, v: v + (v === 1 ? ' ban' : ' bans'), sub: ss.length ? `banned for Season${ss.length > 1 ? 's' : ''} ${ss.join(', ')}` : '' }; });
+  return recBoard('Most times banned', rows, 'Each time a League vote bans it. A ban kept in later votes counts once. By species, legendaries included.', 'pk-most-times-banned');
+}
 function viewRecords() {
   const ts = Object.values(S.trainers).filter(t => t.role !== 'prospect');
   const champs = ts.filter(t => (t.titleSeasons || []).length || t.career.titles);
@@ -318,6 +327,7 @@ function viewRecords() {
     ${recBoard('Most Battle Bond transformations', topBy(mons, x => x.bonds || 0, 50).map(([x, v]) => ({ who: `${monLink(x)} <span class="muted small">${dn(x.t)}</span>`, v })), 'Transformed through Battle Bond in a League battle.', 'pk-most-bond')}
     ${recBoard('Most-used species', dex.map(([sp, st]) => [sp, st.b]).sort((a, b) => b[1] - a[1]).slice(0, 50).map(([sp, v]) => ({ who: `<b>${sp}</b>`, v: v + ' battles' })), 'pk-most-used-species')}
     ${recBoard('Best species win %', dex.filter(([, st]) => st.b >= 300).map(([sp, st]) => [sp, st.w / st.b, st]).sort((a, b) => b[1] - a[1]).slice(0, 50).map(([sp, v, st]) => ({ who: `<b>${sp}</b>`, v: Math.round(v * 100) + '%', sub: `${st.b} battles` })), 'At least 300 battles, all time.', 'pk-best-species-win')}
+    ${banRecBoard()}
   </div></section>`;
   const teams = `<section class="panel"><div class="ph"><h2>Teams</h2></div><div class="recgrid">
     ${recBoard('Team Cups', ORG_KEYS.map(k => [k, org(k).cups]).filter(([, v]) => v).sort((a, b) => b[1] - a[1]).map(([k, v]) => ({ who: orgLabel(k), v })))}
@@ -441,7 +451,22 @@ function viewHistory() {
   </tbody></table></div>` : '<p class="muted">The first season has not finished yet.</p>'}</section>
   ${h.some(x => x.awards && x.awards.length) ? `<section class="panel"><div class="ph"><h2>Season awards</h2></div><div class="scroll"><table class="tbl"><thead><tr><th>Season</th>${Object.values(AWARDS).map(a => `<th>${a.short}</th>`).join('')}</tr></thead><tbody>
   ${h.filter(x => x.awards).map(x => `<tr><td class="num">${x.season}</td>${Object.keys(AWARDS).map(k => { const a = x.awards.find(y => y.k === k); return `<td>${a ? awardWho(a) : '<span class="muted">—</span>'}</td>`; }).join('')}</tr>`).join('')}
-  </tbody></table></div></section>` : ''}`;
+  </tbody></table></div></section>` : ''}
+  ${banHistory()}`;
+}
+// v195: every banlist vote in this League, newest first: what was banned, kept and lifted, and what was in force after
+function banHistory() {
+  const log = S.banLog || [];
+  if (!log.length) return featOn('banlist') ? `<section class="panel"><div class="ph"><h2>Banlists${nLeagues() > 1 ? ' · ' + S.lgName : ''}</h2></div><p class="muted">No vote has banned anything here yet. The Banlist vote is in the offseason, after the draft.</p></section>` : '';
+  const by = {}; for (const e of log) (by[e.season] = by[e.season] || []).push(e);
+  const seasons = Object.keys(by).map(Number).sort((a, b) => b - a);
+  const inForce = new Set(), forceAt = {};
+  for (const sn of seasons.slice().reverse()) { for (const e of by[sn]) { if (e.act === 'ban' || e.act === 'keep') inForce.add(e.sp); else inForce.delete(e.sp); } forceAt[sn] = [...inForce]; }
+  const list = (sn, act, f) => by[sn].filter(e => e.act === act).map(f).join(', ') || '<span class="muted">—</span>';
+  return `<section class="panel"><div class="ph"><h2>Banlists${nLeagues() > 1 ? ' · ' + S.lgName : ''}</h2><span class="muted">${Object.keys(banCounts()).length} Pokémon banned in all</span></div>
+  <div class="scroll"><table class="tbl"><thead><tr><th>For season</th><th>Banned</th><th>Kept</th><th>Lifted</th><th>Banlist</th></tr></thead><tbody>
+  ${seasons.map(sn => `<tr><td class="num">${sn + 1}</td><td>${list(sn, 'ban', e => `<b>${e.sp}</b> <span class="muted small">${e.yes}/${e.n}</span>`)}</td><td>${list(sn, 'keep', e => `${e.sp} <span class="muted small">${e.keep}/${e.n}</span>`)}</td><td>${list(sn, 'lift', e => `${e.sp} <span class="muted small">${e.limit ? 'time up' : `${e.keep}/${e.n} kept`}</span>`)}</td><td>${forceAt[sn].length ? forceAt[sn].map(sp => `${monMini(sp)} ${sp}`).join(', ') : '<span class="muted">none</span>'}</td></tr>`).join('')}
+  </tbody></table></div><p class="fine">Vote counts are the teams for out of the teams voting. A ban lifts on its own after ${BAN_MAX_SEASONS} seasons.</p></section>`;
 }
 
 // ---------- awards ----------
