@@ -7,6 +7,7 @@ const UPDATES = [
     "Ranches have no size limit. The historical ranch used to keep only the latest 80 Pokémon; now it keeps them all (the screen lists the latest 60).",
     "A Pokémon nobody takes from the active ranch in two offseasons goes on display in the historical ranch, which keeps saves from growing without end. A season spent resting doesn't count: a rested Pokémon's two offseasons start once it's back. Ranch Pokémon in their last offseason are marked Last offseason here.",
     "AI teams, and your team when simming, hand out ranch Pokémon in their last offseason first, and a great one (special, Paradox, a Champion's reward, a strong line or high IVs) goes to the weakest trainer who can use it before anything else is handed out.",
+    "The ranch screen's Retired Pokémon list now shows your top 10 by knockouts, then wins. See all opens a new Retired Pokémon screen with the whole historical ranch: sort by any column, see why each one is there, and show 100 more at a time.",
     "Sim multiple seasons lists how the ranch step is handled for your team, and when you sim 10 or more seasons or your league is already large, it reminds you that browsers only keep a few megabytes per site and to download your save file now and then.",
     "When you register your trainers yourself, the Pokémon you don't register go on display in your historical ranch instead of just being released. The same goes for every team.",
   ] },
@@ -449,6 +450,7 @@ function render() {
   if (view === 'register') v = viewRegister();
   if (view === 'reward') v = viewReward();
   if (view === 'ranch') v = viewRanch();
+  if (view === 'ranchhist') v = viewRanchHistory();
   if (view === 'reassign') v = viewReassign();
   if (view === 'offers') v = viewOffers();
   if (view === 'gifts') v = viewGifts();
@@ -713,6 +715,8 @@ document.addEventListener('click', ev => {
     case 'dexkind': dexKind = el.dataset.v; render(); break;
     case 'dextrait': dexTrait = el.dataset.v; render(); break;
     case 'dexscope': dexScope = el.dataset.v; render(); break;
+    case 'rhsort': { const k = el.dataset.k; rhSort = rhSort.k === k ? { k, dir: -rhSort.dir } : { k, dir: ['sp', 'from', 'why'].includes(k) ? 1 : -1 }; render(); break; }
+    case 'rhmore': rhShow += 100; render(); break;
     case 'trsort': { const k = el.dataset.k; trSort = trSort.k === k ? { k, dir: -trSort.dir } : { k, dir: ['name', 'org', 'pos'].includes(k) ? 1 : -1 }; render(); break; }
     case 'draftsort': { const k = el.dataset.k; draftSort = draftSort.k === k && k !== 'best' ? { k, dir: -draftSort.dir } : { k, dir: ['name', 'type', 'trait', 'age'].includes(k) ? 1 : -1 }; render(); break; }
     case 'trscope': trScope = el.dataset.v; render(); break;

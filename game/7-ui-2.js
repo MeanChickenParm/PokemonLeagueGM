@@ -682,9 +682,31 @@ function viewRanch() {
     <div class="eyebrow">Championship rosters</div>
     ${champs.length ? `<ul class="changes">${champs.map(c => `<li><b>Season ${c.season}</b>${nLeagues() > 1 ? ` <span class="tag lg">${(c.lgName || leagueName(c.lg)).replace(/ League$/, '')}</span>` : ''} · <b>${c.name}</b> <span class="muted">won the title</span><div class="it-bag">${c.mons.map(monBit).join('')}</div></li>`).join('')}</ul>` : '<p class="muted">None of your trainers has won the title yet.</p>'}
     <div class="eyebrow">Retired Pokémon</div>
-    ${ret.length ? `<div class="scroll"><table class="tbl compact"><thead><tr><th>Pokémon</th><th>Lv</th><th>Last with</th><th>Retired</th><th>Record</th></tr></thead><tbody>${ret.slice(0, 60).map(r => `<tr><td><b>${r.sp}</b>${r.shiny ? ' <span class="tag shiny">✦</span>' : ''}${r.alpha ? ' <span class="tag alpha">Alpha</span>' : ''}${r.delta ? ' <span class="tag delta">Δ</span>' : ''}${r.paradox ? ' <span class="tag paradox">Paradox</span>' : ''}</td><td class="num">${r.lvl}</td><td>${r.from != null && T(r.from) ? tname(r.from) : (r.fromName || '—')}</td><td class="num">${r.season}</td><td class="num">${r.st.w}–${r.st.l} · ${r.st.ko} KOs</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Nobody has retired from your team yet.</p>'}</section>`;
+    ${ret.length ? `<p class="muted small">Your top ${Math.min(RANCH_TOP, ret.length)} by knockouts, then wins.</p>${ranchHistTable(ranchTopRetired(ret))}<div class="confirm-row"><button class="btn" data-act="nav" data-v="ranchhist">See all ${ret.length} retired Pokémon</button></div>` : '<p class="muted">Nobody has retired from your team yet.</p>'}</section>`;
   const done = live ? `<section class="panel"><div class="confirm-row"><button class="btn primary" data-act="ranchdone" ${picks.length ? 'disabled' : ''}>Continue to registration</button>${picks.length ? '<span class="warn">Settle the retirement first.</span>' : ''}</div></section>` : '';
   return head + pickHtml + active + restPanel + retired + done;
+}
+
+// ---------- historical ranch (v192) ----------
+// the ranch screen shows the team's top RANCH_TOP retired Pokémon; the full list has its own screen
+const RANCH_TOP = 10;
+const retRank = r => (r.st.ko || 0) * 1000 + (r.st.w || 0) * 10 + (r.lvl || 0) / 100;
+const ranchTopRetired = ret => ret.slice().sort((a, b) => retRank(b) - retRank(a)).slice(0, RANCH_TOP);
+const retTags = r => `${r.shiny ? ' <span class="tag shiny">✦</span>' : ''}${r.alpha ? ' <span class="tag alpha">Alpha</span>' : ''}${r.delta ? ' <span class="tag delta">Δ</span>' : ''}${r.paradox ? ' <span class="tag paradox">Paradox</span>' : ''}`;
+const retWho = r => r.from != null && T(r.from) ? tname(r.from) : (r.fromName || '—');
+function ranchHistTable(rows, sortable) {
+  const th = (k, l, num) => sortable ? `<th${num ? ' class="num"' : ''}><button class="sort${rhSort.k === k ? ' on' : ''}" data-act="rhsort" data-k="${k}">${l}${rhSort.k === k ? (rhSort.dir < 0 ? ' ↓' : ' ↑') : ''}</button></th>` : `<th>${l}</th>`;
+  return `<div class="scroll"><table class="tbl compact"><thead><tr>${th('sp', 'Pokémon')}${th('lvl', 'Lv', 1)}${th('from', 'Last with')}${th('season', 'Retired', 1)}${sortable ? th('why', 'Why') : ''}${th('w', 'Record', 1)}${th('ko', 'KOs', 1)}</tr></thead><tbody>${rows.map(r => `<tr><td>${monFace(r.sp, r.shiny, 24)} <b>${r.sp}</b>${retTags(r)}</td><td class="num">${r.lvl}</td><td>${retWho(r)}</td><td class="num">${r.season}</td>${sortable ? `<td class="small muted">${r.why || ''}</td>` : ''}<td class="num">${r.st.w}–${r.st.l}</td><td class="num">${r.st.ko}</td></tr>`).join('')}</tbody></table></div>`;
+}
+let rhSort = { k: 'ko', dir: -1 }, rhShow = 100;
+function viewRanchHistory() {
+  const k = S.userOrg, R = ranchOf(k); if (!R) return viewOffice();
+  const val = (r, key) => key === 'sp' ? r.sp : key === 'from' ? (r.fromName || '') : key === 'why' ? (r.why || '') : key === 'w' ? r.st.w : key === 'ko' ? r.st.ko : r[key] ?? 0;
+  const rows = R.retired.slice().sort((a, b) => { const x = val(a, rhSort.k), y = val(b, rhSort.k); const c = typeof x === 'string' ? x.localeCompare(y) : x - y; return c * rhSort.dir || retRank(b) - retRank(a); });
+  return `<section class="panel callout"><div class="eyebrow">${ORGS[k].name}</div><h2>Retired Pokémon</h2>
+    <p>Every Pokémon in your historical ranch: retired with a trainer, not registered for a new season, or unused in the active ranch for ${RANCH_STEPS} offseasons. ${R.retired.length} in all.</p>
+    <div class="confirm-row"><button class="btn" data-act="nav" data-v="ranch">Back to the ranch</button></div></section>
+    <section class="panel">${rows.length ? ranchHistTable(rows.slice(0, rhShow), true) + (rows.length > rhShow ? `<div class="confirm-row"><button class="btn" data-act="rhmore">Show ${Math.min(100, rows.length - rhShow)} more</button><span class="muted small">Showing ${rhShow} of ${rows.length}</span></div>` : '') : '<p class="muted">Nobody has retired from your team yet.</p>'}</section>`;
 }
 
 // ---------- draft ----------
