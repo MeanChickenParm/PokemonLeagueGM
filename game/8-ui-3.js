@@ -1,4 +1,8 @@
 const UPDATES = [
+  { id: 191, date: 'November 3, 2026', time: '10:40 AM ET', title: 'Special tags on resting Pokémon', items: [
+    "Resting Pokémon now show their special conditions, so you can see at a glance when you're resting a shiny, alpha, Delta, Shadow, Paradox, legendary or other rare Pokémon. The tags appear in the Resting list, on the line saying what each trainer is resting, and on the buttons for choosing what to rest.",
+    "The Resting list also shows each Pokémon's picture, nature and IVs.",
+  ] },
   { id: 190, date: 'November 3, 2026', time: '9:05 AM ET', title: 'Your own images', items: [
     "Add your own pictures. The game still ships with no Pokémon artwork: you upload an image for any Pokémon (plus an optional shiny one) and a portrait for any trainer, and anything without one keeps its colored dot or initials.",
     "Three ways in, all opening the same upload window: the camera badge on a trainer's portrait square, the Add image and Add shiny image buttons on a Pokémon's page, and Images (in the league menu, and in Advanced options before a league starts), which shows what you have, the space it takes, and a grid to browse, add or replace pictures.",

@@ -633,6 +633,8 @@ function ranchMonBtn(m, on, act, sub) {
     <span class="reg-main"><span class="mon-name">${m.sp}${sp.paradox ? ' <span class="tag paradox">Paradox</span>' : ''}${m.shiny ? ' <span class="tag shiny">✦ Shiny</span>' : ''}${m.delta ? ' <span class="tag delta" title="Delta Pokémon: an unusual ' + m.delta + ' type">Δ Delta</span>' : ''}${m.alpha ? ' <span class="tag alpha">Alpha</span>' : ''}</span><span>${chips(monTypes(m))}</span><span class="small muted">${sub}</span></span>
     <span class="mon-bst">${sp.bst}<small>BST</small></span><span class="reg-check" aria-hidden="true">${on ? '✓' : ''}</span></button>`;
 }
+// v191: special conditions shown wherever a ranch Pokémon is listed (resting list, rest picker)
+const specialMonTags = m => { const sp = SP[m.sp] || {}; return `${sp.legend && !sp.ub && !sp.baby ? ' <span class="tag legend">Legendary</span>' : ''}${sp.paradox ? ' <span class="tag paradox">Paradox</span>' : ''}${babyTag(sp)}${m.shiny ? ' <span class="tag shiny">✦ Shiny</span>' : ''}${m.delta ? ' <span class="tag delta" title="Delta Pokémon: an unusual ' + m.delta + ' type">Δ Delta</span>' : ''}${m.alpha ? ' <span class="tag alpha">Alpha</span>' : ''}${condTags(m)}`; };
 const ranchSrc = r => r ? (r.how === 'reward' ? `Champion's reward · ${r.fromName}` : r.how === 'farewell' ? `Farewell gift from ${r.fromName}` : r.fromName ? `Kept from ${r.fromName}` : 'From the ranch') : '';
 function ranchPickPanel(p, i, n) {
   const t = T(p.from); if (!t) return '';
@@ -665,13 +667,13 @@ function viewRanch() {
   const rested = S.ranchRested || {}, resting = R.resting || [];
   const restRows = live ? org(k).roster.map(T).filter(t => t && t.role === 'challenger').map(t => {
     const now = rested[t.id] != null ? resting.find(m => m.uid === rested[t.id]) : null;
-    if (now) return `<div class="relpick"><p><b>${dn(t)}</b> ${lgTag(t)} is resting <b>${now.sp}</b>. It comes back after Season ${now.rest.back}.</p><div class="confirm-row"><button class="btn small" data-act="ranchunrest" data-id="${t.id}">Keep it on the team instead</button></div></div>`;
+    if (now) return `<div class="relpick"><p><b>${dn(t)}</b> ${lgTag(t)} is resting <b>${now.sp}</b>${specialMonTags(now)}. It comes back after Season ${now.rest.back}.</p><div class="confirm-row"><button class="btn small" data-act="ranchunrest" data-id="${t.id}">Keep it on the team instead</button></div></div>`;
     const opts = t.team.filter(m => canRest(t, m));
-    return `<div class="relpick"><p><b>${dn(t)}</b> ${lgTag(t)}</p>${opts.length ? `<div class="release">${opts.map(m => `<button class="rel" data-act="ranchrest" data-id="${t.id}" data-u="${m.uid}">${m.sp} <span class="muted">IVs ${ivGrade(m)}</span></button>`).join('')}</div>` : '<p class="muted small">Nothing that can rest this offseason.</p>'}</div>`;
+    return `<div class="relpick"><p><b>${dn(t)}</b> ${lgTag(t)}</p>${opts.length ? `<div class="release">${opts.map(m => `<button class="rel" data-act="ranchrest" data-id="${t.id}" data-u="${m.uid}">${m.sp}${specialMonTags(m)} <span class="muted">IVs ${ivGrade(m)}</span></button>`).join('')}</div>` : '<p class="muted small">Nothing that can rest this offseason.</p>'}</div>`;
   }).join('') : '';
   const restPanel = `<section class="panel"><div class="ph"><h3>Resting</h3><span class="muted">${resting.length} Pokémon</span></div>
     <p class="muted small">One Pokémon per trainer each offseason. A resting Pokémon sits out the whole next season, then comes back to the active ranch with better IVs (and a little more friendship), ready to go back to its trainer. It doesn't count toward registration while it rests.</p>
-    ${resting.length ? `<ul class="changes">${resting.map(m => `<li><b>${m.sp}</b> · ${m.rest.fromName} <span class="muted">back after Season ${m.rest.back}</span></li>`).join('')}</ul>` : ''}
+    ${resting.length ? `<ul class="changes">${resting.map(m => `<li>${monFace(m.sp, m.shiny, 24)} <b>${m.sp}</b>${specialMonTags(m)} · ${m.rest.fromName} <span class="muted">· ${m.nat} · IVs ${ivGrade(m)}</span> <span class="muted">back after Season ${m.rest.back}</span></li>`).join('')}</ul>` : ''}
     ${live ? restRows : (resting.length ? '' : '<p class="muted">Nothing is resting. You can rest a Pokémon in the offseason ranch step.</p>')}</section>`;
   const ret = R.retired, champs = (R.champs || []).filter(c => c.won);
   const monBit = m => `<span class="itemchip">${m.sp}${m.shiny ? ' ✦' : ''}${m.alpha ? ' (alpha)' : ''}${m.delta ? ' (Δ)' : ''} <span class="muted">Lv ${m.lvl}${m.ko ? ` · ${m.ko} KOs` : ''}</span></span>`;
