@@ -10345,7 +10345,7 @@ function ranchHand(k, ranchUid, toId) {
   const top = to.team.length ? Math.floor(Math.max(...to.team.map(x => x.lvl))) : 10;
   m.lvl = Math.max(5, Math.min(Math.floor(m.lvl), top));
   const home = info.how === 'rest' && info.from === to.id;
-  if (info.how === 'retired' || info.how === 'farewell' || (info.how === 'rest' && !home)) { m.prior = { name: info.fromName, st: m.st || blankStat() }; m.st = blankStat(); }
+  if (info.how === 'retired' || info.how === 'farewell' || info.how === 'surplus' || (info.how === 'rest' && !home)) { m.prior = { name: info.fromName, st: m.st || blankStat() }; m.st = blankStat(); }
   m.ss = null; m.form = 0; m.gift = S.season + 1; m.metFr = 1;
   if (!home) m.met = { how: info.how === 'reward' ? 'gift' : info.how === 'farewell' ? 'farewell' : 'ranch', season: S.season + 1, week: 1, from: info.fromName || orgName(k) };
   m.ranchFrom = { org: k, how: info.how || 'ranch', fromName: info.fromName || '', season: S.season + 1 };
@@ -10355,7 +10355,7 @@ function ranchHand(k, ranchUid, toId) {
   to.team.push(m);
   (S.ranchLog = S.ranchLog || []).push({ season: S.season + 1, org: k, to: to.id, toName: dn(to), sp: m.sp, how: info.how || 'ranch', fromName: info.fromName || '', lg: lgOf(to) });
   if (S.ranchLog.length > 200) S.ranchLog.splice(0, S.ranchLog.length - 200);
-  inLeague(lgOf(to), () => news(home ? `${dn(to)}'s ${m.sp} is back from a season of rest at the ${orgName(k)} ranch.` : `${orgName(k)} sent ${m.sp} from its ranch to ${dn(to)}${info.how === 'farewell' && info.fromName ? `, a farewell gift from ${info.fromName}` : info.how === 'retired' && info.fromName ? `. It last battled for ${info.fromName}` : ''}.`, k === S.userOrg ? 'you' : 'move', to.id));
+  inLeague(lgOf(to), () => news(home ? `${dn(to)}'s ${m.sp} is back from a season of rest at the ${orgName(k)} ranch.` : `${orgName(k)} sent ${m.sp} from its ranch to ${dn(to)}${info.how === 'farewell' && info.fromName ? `, a farewell gift from ${info.fromName}` : (info.how === 'retired' || info.how === 'surplus') && info.fromName ? `. It last battled for ${info.fromName}` : ''}.`, k === S.userOrg ? 'you' : 'move', to.id));
   return m;
 }
 // a team's own choices: the trainers who need it most (lowest OVR) get first pick of what suits them best
@@ -10365,7 +10365,7 @@ function ranchAuto(k) {
   for (const t of ranchTakers(k).sort((a, b) => ovr(a) - ovr(b))) {
     if (!R.active.length) break;
     const lines = new Set(t.team.map(m => LINE[m.sp]));
-    const m = R.active.filter(x => !lines.has(LINE[x.sp])).sort((a, b) => ranchValue(b, t) - ranchValue(a, t))[0];
+    const m = R.active.filter(x => !lines.has(LINE[x.sp]) && !(x.ranch && x.ranch.how === 'surplus' && x.ranch.from === t.id)).sort((a, b) => ranchValue(b, t) - ranchValue(a, t))[0];
     if (m) ranchHand(k, m.uid, t.id);
   }
 }
@@ -10407,21 +10407,40 @@ function returnRested(k) {
     news(`${r.fromName}'s ${m.sp} is rested and back at the ${orgName(k)} ranch${up ? `, stronger for it (IVs +${up})` : ''}.`, k === S.userOrg ? 'you' : 'move', r.from);
   }
 }
-// AI trainers rest the best Pokémon they'd otherwise have to release at registration, about half the time
+// v192: AI trainers almost always rest the best Pokémon they'd otherwise have to release at registration
 function aiRest(k) {
   for (const t of org(k).roster.map(T).filter(x => x && x.role === 'challenger')) {
-    if (regular(t).length <= START_TEAM || rand() >= 0.5) continue;
+    if (regular(t).length <= START_TEAM || rand() >= 0.95) continue;
     const keep = new Set(bestThree(t));
-    const m = regular(t).filter(x => !keep.has(x.uid) && canRest(t, x) && (isSpecial(x) || linePeak(x.sp) >= 480)).sort((a, b) => ranchValue(b, t) - ranchValue(a, t))[0];
+    const m = regular(t).filter(x => !keep.has(x.uid) && canRest(t, x)).sort((a, b) => ranchValue(b, t) - ranchValue(a, t))[0];
     if (m) restMon(t, m.uid);
   }
+}
+// v192: whatever else an AI trainer would release at registration goes into the team's active ranch for a teammate,
+// so the ranch rarely runs dry. An AI team keeps up to AI_RANCH_STOCK there; the least valued make room.
+const AI_RANCH_STOCK = 8;
+function aiStock(k) {
+  const R = ranchOf(k); if (!R) return;
+  for (const t of org(k).roster.map(T).filter(x => x && x.role === 'challenger')) {
+    if (regular(t).length <= START_TEAM) continue;
+    const keep = new Set(bestThree(t));
+    for (const m of regular(t).filter(x => !keep.has(x.uid) && canRest(t, x))) {
+      if (regular(t).length <= START_TEAM) break;
+      if (m.item) { bagAdd(t, m.item); m.item = null; }
+      if (t.mega && t.mega.uid === m.uid) t.mega.uid = null;
+      farewell(t, m, `passed on to ${orgName(k)}'s ranch`);
+      t.team = t.team.filter(x => x !== m);
+      addToRanch(k, m, { how: 'surplus', season: curSeason(), from: t.id, fromName: dn(t) });
+    }
+  }
+  if (R.active.length > AI_RANCH_STOCK) { R.active.sort((a, b) => (b.ranch && b.ranch.how === 'rest' ? 1e6 : 0) + ranchValue(b) - (a.ranch && a.ranch.how === 'rest' ? 1e6 : 0) - ranchValue(a)); R.active.length = AI_RANCH_STOCK; }
 }
 // offseason step after the Champion's reward: rested Pokémon come back, AI teams rest and hand out; the player gets the
 // Ranch screen whenever they have a challenger on the roster
 function beginRanch() {
   S.ranchGiven = {}; S.ranchRested = {};
   for (const k of ORG_KEYS) returnRested(k);
-  for (const k of ORG_KEYS) if (k !== S.userOrg) { ranchAuto(k); aiRest(k); }
+  for (const k of ORG_KEYS) if (k !== S.userOrg) { aiRest(k); aiStock(k); ranchAuto(k); }
   const mine = (S.ranchPicks || []).filter(p => p.org === S.userOrg).length;
   if (S.userOrg && (mine || ranchTakers(S.userOrg).length)) { S.phase = 'ranch'; return; }
   beginRegistration();
@@ -12785,7 +12804,7 @@ function ranchMonBtn(m, on, act, sub) {
 }
 // v191: special conditions shown wherever a ranch Pokémon is listed (resting list, rest picker)
 const specialMonTags = m => { const sp = SP[m.sp] || {}; return `${sp.legend && !sp.ub && !sp.baby ? ' <span class="tag legend">Legendary</span>' : ''}${sp.paradox ? ' <span class="tag paradox">Paradox</span>' : ''}${babyTag(sp)}${m.shiny ? ' <span class="tag shiny">✦ Shiny</span>' : ''}${m.delta ? ' <span class="tag delta" title="Delta Pokémon: an unusual ' + m.delta + ' type">Δ Delta</span>' : ''}${m.alpha ? ' <span class="tag alpha">Alpha</span>' : ''}${condTags(m)}`; };
-const ranchSrc = r => r ? (r.how === 'reward' ? `Champion's reward · ${r.fromName}` : r.how === 'farewell' ? `Farewell gift from ${r.fromName}` : r.fromName ? `Kept from ${r.fromName}` : 'From the ranch') : '';
+const ranchSrc = r => r ? (r.how === 'reward' ? `Champion's reward · ${r.fromName}` : r.how === 'farewell' ? `Farewell gift from ${r.fromName}` : r.how === 'surplus' ? `Passed on by ${r.fromName}` : r.fromName ? `Kept from ${r.fromName}` : 'From the ranch') : '';
 function ranchPickPanel(p, i, n) {
   const t = T(p.from); if (!t) return '';
   const mons = t.team.filter(m => p.uids.includes(m.uid));
@@ -13198,6 +13217,11 @@ function viewTourney() {
 // Versioning rule (from v179 on): every new version gets the next id, a date AND a timestamp (Eastern Time),
 // and all changes made in one working session go into that one version's entry.
 const UPDATES = [
+  { id: 192, date: 'November 3, 2026', time: '10:50 AM ET', title: 'AI teams use their ranches', items: [
+    "AI teams now use the Team ranch every offseason. A trainer with more Pokémon than they can register almost always sends the best one they'd otherwise release to rest, so it comes back next offseason with better IVs.",
+    "Whatever else an AI trainer would release at registration is passed on to the team's active ranch instead, so a teammate can use it. Each AI team keeps up to eight Pokémon there, dropping the least valuable when it's full. In the ranch these show as Passed on by, and their record with the old trainer stays on their stat card.",
+    "With the ranch stocked, AI challengers now usually get a Pokémon from it each offseason, weakest trainers first. A trainer is never handed back a Pokémon they just passed on.",
+  ] },
   { id: 191, date: 'November 3, 2026', time: '10:40 AM ET', title: 'Special tags on resting Pokémon', items: [
     "Resting Pokémon now show their special conditions, so you can see at a glance when you're resting a shiny, alpha, Delta, Shadow, Paradox, legendary or other rare Pokémon. The tags appear in the Resting list, on the line saying what each trainer is resting, and on the buttons for choosing what to rest.",
     "The Resting list also shows each Pokémon's picture, nature and IVs.",

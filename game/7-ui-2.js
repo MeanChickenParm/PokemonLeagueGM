@@ -635,7 +635,7 @@ function ranchMonBtn(m, on, act, sub) {
 }
 // v191: special conditions shown wherever a ranch Pokémon is listed (resting list, rest picker)
 const specialMonTags = m => { const sp = SP[m.sp] || {}; return `${sp.legend && !sp.ub && !sp.baby ? ' <span class="tag legend">Legendary</span>' : ''}${sp.paradox ? ' <span class="tag paradox">Paradox</span>' : ''}${babyTag(sp)}${m.shiny ? ' <span class="tag shiny">✦ Shiny</span>' : ''}${m.delta ? ' <span class="tag delta" title="Delta Pokémon: an unusual ' + m.delta + ' type">Δ Delta</span>' : ''}${m.alpha ? ' <span class="tag alpha">Alpha</span>' : ''}${condTags(m)}`; };
-const ranchSrc = r => r ? (r.how === 'reward' ? `Champion's reward · ${r.fromName}` : r.how === 'farewell' ? `Farewell gift from ${r.fromName}` : r.fromName ? `Kept from ${r.fromName}` : 'From the ranch') : '';
+const ranchSrc = r => r ? (r.how === 'reward' ? `Champion's reward · ${r.fromName}` : r.how === 'farewell' ? `Farewell gift from ${r.fromName}` : r.how === 'surplus' ? `Passed on by ${r.fromName}` : r.fromName ? `Kept from ${r.fromName}` : 'From the ranch') : '';
 function ranchPickPanel(p, i, n) {
   const t = T(p.from); if (!t) return '';
   const mons = t.team.filter(m => p.uids.includes(m.uid));
