@@ -1429,7 +1429,7 @@ function confirmRanch() {
 // usual three rather than on top of them, and if its time runs out in the ranch it moves on as usual. A banned Pokémon
 // can wait out at most BAN_HOLD offseasons with nobody able to take it; then a legendary moves on, and anything else goes on display.
 // v195: no separate limit on new bans a season beyond the ballot; a League holds at most five
-const BAN_BALLOT = 5, BAN_MAX_NEW = BAN_BALLOT, BAN_CAP = 5, BAN_MAX_SEASONS = 3, BAN_MIN_B = 8, BAN_BALLOT_LEGENDS = 2, BAN_HOLD = 4;
+const BAN_POOL = 20, BAN_BALLOT = 5, BAN_MAX_NEW = BAN_BALLOT, BAN_CAP = 5, BAN_MAX_SEASONS = 3, BAN_MIN_B = 8, BAN_BALLOT_LEGENDS = 2, BAN_HOLD = 4;
 let PREV_EVO = null, PREV_N = 0;
 function prevEvo(sp) {
   const n = Object.keys(SP).length;
@@ -1462,16 +1462,23 @@ function buildBanBallot() {
   }
   const score = a => a.ko / a.b + 0.5 * a.w / a.b + Math.log2(1 + a.users.size) * 0.15;
   const list = Object.values(agg).filter(a => a.b >= BAN_MIN_B && !banOf(a.sp, S.lg || 0)).sort((x, y) => score(y) - score(x));
-  const cands = [], used = new Set(); let legs = 0;
+  // v195: the ballot is any five of the season's top BAN_POOL performers, so it varies from year to year.
+  // The pool keeps one entry per evolutionary family; the draw keeps the two-legendary limit
+  const pool = [], used = new Set();
   for (const a of list) {
-    if (cands.length >= BAN_BALLOT) break;
+    if (pool.length >= BAN_POOL) break;
     const mem = banMembers(a.sp); if (mem.some(x => used.has(x))) continue;
-    const leg = isLegendLine(a.sp) || !!SP[a.sp].legend;
-    if (leg && legs >= BAN_BALLOT_LEGENDS) continue;
-    if (leg) legs++;
     mem.forEach(x => used.add(x));
-    cands.push({ sp: a.sp, members: mem, b: a.b, ko: a.ko, w: a.w, users: a.users.size, score: Math.round(score(a) * 100) / 100, leg });
+    pool.push({ sp: a.sp, members: mem, b: a.b, ko: a.ko, w: a.w, users: a.users.size, score: Math.round(score(a) * 100) / 100, leg: isLegendLine(a.sp) || !!SP[a.sp].legend, top: pool.length + 1 });
   }
+  const cands = []; let legs = 0;
+  for (const c of shuffle(pool)) {
+    if (cands.length >= BAN_BALLOT) break;
+    if (c.leg && legs >= BAN_BALLOT_LEGENDS) continue;
+    if (c.leg) legs++;
+    cands.push(c);
+  }
+  cands.sort((x, y) => x.top - y.top);
   S.banBallot = { season: S.season, cands };
 }
 // the teams that vote in League i: those with a challenger there
