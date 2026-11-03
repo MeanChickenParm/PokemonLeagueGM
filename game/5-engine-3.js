@@ -1428,7 +1428,8 @@ function confirmRanch() {
 // partner clock. A season it can't be used anywhere on the team doesn't count toward that clock. It registers in the
 // usual three rather than on top of them, and if its time runs out in the ranch it moves on as usual. A banned Pokémon
 // can wait out at most BAN_HOLD offseasons with nobody able to take it; then a legendary moves on, and anything else goes on display.
-const BAN_BALLOT = 5, BAN_MAX_NEW = 2, BAN_CAP = 3, BAN_MAX_SEASONS = 3, BAN_MIN_B = 8, BAN_BALLOT_LEGENDS = 2, BAN_HOLD = 4;
+// v195: no separate limit on new bans a season beyond the ballot; a League holds at most five
+const BAN_BALLOT = 5, BAN_MAX_NEW = BAN_BALLOT, BAN_CAP = 5, BAN_MAX_SEASONS = 3, BAN_MIN_B = 8, BAN_BALLOT_LEGENDS = 2, BAN_HOLD = 4;
 let PREV_EVO = null, PREV_N = 0;
 function prevEvo(sp) {
   const n = Object.keys(SP).length;
