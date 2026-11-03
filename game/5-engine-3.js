@@ -1177,7 +1177,7 @@ function ranchChampionRoster(k, c, won) {
 }
 const ranchable = sp => !!SP[sp] && !isLegendLine(sp) && !SP[sp].legend && !SP[sp].baby && !babyLine(sp) && !SP[sp].ub && !SP[sp].glitch;
 // how much a team values a ranch Pokémon (for AI choices and for which one makes room when the ranch is full)
-const ranchValue = (m, t) => SP[m.sp].bst * (t && onSpec(t, m.sp) ? 1.15 : 1) + (m.shiny ? 60 : 0) + (m.alpha ? 40 : 0) + (m.delta ? 40 : 0) + (SP[m.sp].paradox ? 50 : 0) + ivTotal(m) / 4;
+const ranchValue = (m, t) => SP[m.sp].bst * (t && onSpec(t, m.sp) ? 1.15 : 1) + (m.shiny ? 60 : 0) + (m.alpha ? 40 : 0) + (m.delta ? 40 : 0) + (SP[m.sp].paradox ? 40 : 0) + ivTotal(m) / 4;
 function ranchRecord(m, info) {
   const st = m.st || {};
   return { uid: m.uid, sp: m.sp, lvl: Math.floor(m.lvl || 1), season: info.season, from: info.from ?? null, fromName: info.fromName || '', why: info.why || '', nat: m.nat,
@@ -1247,20 +1247,21 @@ function autoRanchPick(i) {
 function ranchTakers(k) { return org(k).roster.map(T).filter(t => t && t.role === 'challenger' && !(S.ranchGiven || {})[t.id]); }
 function ranchHand(k, ranchUid, toId) {
   const R = ranchOf(k), to = T(toId); if (!R || !to) return null;
-  if (to.org !== k || to.role !== 'challenger' || (S.ranchGiven || {})[to.id]) return null;
   const m = R.active.find(x => x.uid === ranchUid); if (!m) return null;
-  R.active = R.active.filter(x => x !== m);
   const info = m.ranch || {};
+  // v192: a rested Pokémon going back to its own trainer doesn't use their handoff, and it registers like any of theirs
+  const home = info.how === 'rest' && info.from === to.id;
+  if (to.org !== k || to.role !== 'challenger' || (!home && (S.ranchGiven || {})[to.id])) return null;
+  R.active = R.active.filter(x => x !== m);
   const top = to.team.length ? Math.floor(Math.max(...to.team.map(x => x.lvl))) : 10;
   m.lvl = Math.max(5, Math.min(Math.floor(m.lvl), top));
-  const home = info.how === 'rest' && info.from === to.id;
   if (info.how === 'retired' || info.how === 'farewell' || info.how === 'surplus' || (info.how === 'rest' && !home)) { m.prior = { name: info.fromName, st: m.st || blankStat() }; m.st = blankStat(); }
-  m.ss = null; m.form = 0; m.gift = S.season + 1; m.metFr = 1;
+  m.ss = null; m.form = 0; m.gift = home ? null : S.season + 1; m.metFr = 1;
   if (!home) m.met = { how: info.how === 'reward' ? 'gift' : info.how === 'farewell' ? 'farewell' : 'ranch', season: S.season + 1, week: 1, from: info.fromName || orgName(k) };
   m.ranchFrom = { org: k, how: info.how || 'ranch', fromName: info.fromName || '', season: S.season + 1 };
   delete m.ranch;
   ensureMon(m); refreshMoves(m);
-  (S.ranchGiven = S.ranchGiven || {})[to.id] = true;
+  if (!home) (S.ranchGiven = S.ranchGiven || {})[to.id] = true;
   to.team.push(m);
   (S.ranchLog = S.ranchLog || []).push({ season: S.season + 1, org: k, to: to.id, toName: dn(to), sp: m.sp, how: info.how || 'ranch', fromName: info.fromName || '', lg: lgOf(to) });
   if (S.ranchLog.length > 200) S.ranchLog.splice(0, S.ranchLog.length - 200);
@@ -1274,7 +1275,7 @@ const ranchGreat = m => isSpecial(m) || !!SP[m.sp].paradox || (m.ranch && m.ranc
 const ranchPickValue = (m, t) => ranchValue(m, t) + (ranchLastChance(m) ? RANCH_LAST_BONUS : 0);
 function ranchAuto(k) {
   const R = ranchOf(k); if (!R || !R.active.length) return;
-  for (const m of R.active.filter(x => x.ranch && x.ranch.how === 'rest')) { const t = ranchTakers(k).find(x => x.id === m.ranch.from); if (t) ranchHand(k, m.uid, t.id); }
+  for (const m of R.active.filter(x => x.ranch && x.ranch.how === 'rest')) { const t = T(m.ranch.from); if (t && t.org === k && t.role === 'challenger') ranchHand(k, m.uid, t.id); }
   // great Pokémon about to leave the ranch go first, each to the weakest trainer who can use it
   for (const m of R.active.filter(x => ranchLastChance(x) && ranchGreat(x)).sort((a, b) => (isSpecial(b) ? 1000 : 0) + ranchValue(b) - (isSpecial(a) ? 1000 : 0) - ranchValue(a))) {
     const t = ranchTakers(k).filter(x => !x.team.some(y => LINE[y.sp] === LINE[m.sp]) && !(m.ranch.how === 'surplus' && m.ranch.from === x.id)).sort((a, b) => ovr(a) - ovr(b))[0];
@@ -1353,21 +1354,21 @@ function aiStock(k) {
 }
 // v192: a Pokémon nobody takes in RANCH_STEPS offseason ranch steps goes on display in the historical ranch.
 // A season spent resting doesn't count: a rested Pokémon only starts counting once it's back in the active ranch.
-// Paradox Pokémon are rare enough that they never age out.
-const RANCH_STEPS = 3;
-const ranchAges = m => !(SP[m.sp] && SP[m.sp].paradox);
-const ranchLastChance = m => !!(m && m.ranch && ranchAges(m) && (m.ranch.steps || 0) >= RANCH_STEPS);
+// Paradox Pokémon are rare, so they get twice as long.
+const RANCH_STEPS = 3, RANCH_STEPS_PARADOX = 6;
+const ranchSteps = m => SP[m.sp] && SP[m.sp].paradox ? RANCH_STEPS_PARADOX : RANCH_STEPS;
+const ranchLastChance = m => !!(m && m.ranch && (m.ranch.steps || 0) >= ranchSteps(m));
 function ageRanch(k) {
   const R = ranchOf(k); if (!R || !R.active.length) return;
   const gone = [];
   for (const m of R.active) {
     m.ranch.steps = (m.ranch.steps || 0) + 1;
-    if (m.ranch.steps > RANCH_STEPS && ranchAges(m)) gone.push(m);
+    if (m.ranch.steps > ranchSteps(m)) gone.push(m);
   }
   if (!gone.length) return;
   R.active = R.active.filter(m => !gone.includes(m));
-  for (const m of gone) toRetiredRanch(k, ranchRecord(m, { season: S.season, from: m.ranch.from ?? null, fromName: m.ranch.fromName || '', why: `unused in the ranch for ${RANCH_STEPS} offseasons` }));
-  if (k === S.userOrg) news(`${gone.length === 1 ? gone[0].sp + ' was' : gone.length + ' Pokémon were'} unused in your ranch for ${RANCH_STEPS} offseasons and went on display in the historical ranch${gone.length > 1 ? ': ' + gone.map(m => m.sp).join(', ') : ''}.`, 'you');
+  for (const m of gone) toRetiredRanch(k, ranchRecord(m, { season: S.season, from: m.ranch.from ?? null, fromName: m.ranch.fromName || '', why: `unused in the ranch for ${ranchSteps(m)} offseasons` }));
+  if (k === S.userOrg) news(`${gone.length === 1 ? gone[0].sp + ' was' : gone.length + ' Pokémon were'} unused in your ranch for ${ranchSteps(gone[0])}${gone.some(m => ranchSteps(m) !== ranchSteps(gone[0])) ? ' or more' : ''} offseasons and went on display in the historical ranch${gone.length > 1 ? ': ' + gone.map(m => m.sp).join(', ') : ''}.`, 'you');
 }
 // offseason step after the Champion's reward: rested Pokémon come back, AI teams rest and hand out; the player gets the
 // Ranch screen whenever they have a challenger on the roster
@@ -1711,4 +1712,4 @@ function foundingDraft(userOrg) {
   setupDraft(ROSTER * nLeagues());
 }
 
-if (typeof module !== 'undefined') module.exports = { ranchLastChance, RANCH_STEPS, restMon, unrestMon, returnRested, aiRest, canRest, ranchChampionRoster, ranchOf, ranchHand, ranchAuto, beginRanch, confirmRanch, answerRanchPick, autoRanchPick, ranchTakers, addToRanch, settleRanchPick, ranchable, runTourney, tourneyPick, aiTourneyChoice, tourneySpecies, tourneySpOk, settleTourneyOffer, seedOrder, TOURNEY_WEEK, applyDex, dexImport, checkDexEntry, dexNorm, dexBaseStats, get dexLib() { return dexLib; }, set dexLib(v) { dexLib = v; }, BASE_STATS, SPECIES_AB, STARTERS, LINE, EVOLVED, GREAT_LEGENDS, makeMon, ROAMERS, STORMS, paradoxRewardPool, settleStorm, stormRank, ABILITIES, SPECIES_AB, abilityOf, rollAbSlot, ITEMS, TYPE_ITEMS, itemScore, autoEquip, eliteItems, gymItemOffer, takeItemOffer, setItem, bagAdd, heldItem, crossroads, reinvent, dryStreak, isGrandSlam, champLeaguesOf, checkGrandSlams, useLeague, inLeague, eachLeague, nLeagues, lgOf, lgRoster, openLeague, moveTrainer, leagueFit, aiLeagueMoves, worldChampionship, cupStandings, leagueName, startLegend, legendBattle, legendWeek, villainLegend, legendOffseason, joinLegend, answerLegend, weald, wantsLegend, recordGreat, GREAT_LEGENDS, REWARD_LEGENDS, FEATURES, featOn, legacyChance, scheduleLegacy, makeLegacy, legacyLine, metaMons, counterTypesFor, metaCounters, AWARDS, seasonAwards, seasonScore, VILLAIN_TEAMS, startVillainEvent, villainWeek, endVillainEvent, eventActive, eventFoe, eventTeam, gymClosed, raidBattle, answerSnag, offerSnag, snag, purify, purifyWeek, makeShadow, openHeart, wantsRaid, circuitLevel, bondBlocked, BOND_ROLES, checkBonds, bondMon, bondName, BOND_ATK, pokerusWeek, pkrsContact, infectPkrs, monGrowth, LUCKY_CHANCE, PKRS_WEEKS, titleOf, titleNameTaken, famName, famBase, chooseFamous, checkCustom, checkPackName, setCustomLib, parsePackText, prepImport, builtinSource, packExportText, uniquePackName, BUILTIN_SOURCES, ensureCustom, useCustom, customSpecies, newCustomKey, get customLib() { return customLib; }, MALE, FEMALE, FAMOUS_PACKS, BASE_FAMOUS, packOn, famousAvailable, TRADE_EVOS, findTrade, doTrade, roadTrades, answerTrade, MEGA, megaFor, hasMega, megaHolder, assignMegaStone, earnMega, rotateGyms, fitGymTeam, isSpecial, monTypes, makeDelta, DELTA_CHANCE, gymLost, adaptGym, activeOutbreak, maybeOutbreak, offerRejoin, rejoinChoice, simOneSeason, autoStep, fixHallOfFame, repairLevels, repairLeagues, homeLeague, backfillLeagueTags, isLegendLine, legendBlocked, pooledLegend, claimLegend, legendDepartures, adoptLegends, curSeason,  eliteSlot, TRAITS, traitOf, h2hOf, isRival, roadBattles, FAMOUS_TAG_LIST, FAMOUS_BY_NAME, ULTRA_BEASTS, BABY_LEGENDS, ownedLegends, freeBabies, PARADOX, DUAL_CLASSES, specTypes, specFit, applyCfg, ALL_ORG_KEYS, get ORG_KEYS() { return ORG_KEYS; }, get ROSTER() { return ROSTER; }, careerSpan, ageRetireChance, leadStyle, LEAD_STYLES, confirmGift, legacyOf, legacyPoints, coverOptions, MOVES, idealMoves, refreshMoves, estimate, battler, natureFx, NATURES, ensureMon, learnedCov, frTier, formTier, retireChance, trainerRec, blankStat, FAMOUS, confirmReward, confirmReassign, beginReassign, beginGifts, confirmGifts, giftTeammates, confirmGift, autoGift, canMoveNow, LEGENDS, champOrg, confirmRegistration, independents, ORGS, orgStandings, userTrainers, userRelease, draftCurrent, draftAvail, PACE, dn, CLASSES, setupDraft, get S() { return S; }, set S(v) { S = v; }, newWorld, simWeek, runLeague, userDraft, acceptOffer, aiAction, aiCatch, wildOffers, ovr, T, challengers, SP, BASES, battle };
+if (typeof module !== 'undefined') module.exports = { ranchLastChance, RANCH_STEPS, RANCH_STEPS_PARADOX, restMon, unrestMon, returnRested, aiRest, canRest, ranchChampionRoster, ranchOf, ranchHand, ranchAuto, beginRanch, confirmRanch, answerRanchPick, autoRanchPick, ranchTakers, addToRanch, settleRanchPick, ranchable, runTourney, tourneyPick, aiTourneyChoice, tourneySpecies, tourneySpOk, settleTourneyOffer, seedOrder, TOURNEY_WEEK, applyDex, dexImport, checkDexEntry, dexNorm, dexBaseStats, get dexLib() { return dexLib; }, set dexLib(v) { dexLib = v; }, BASE_STATS, SPECIES_AB, STARTERS, LINE, EVOLVED, GREAT_LEGENDS, makeMon, ROAMERS, STORMS, paradoxRewardPool, settleStorm, stormRank, ABILITIES, SPECIES_AB, abilityOf, rollAbSlot, ITEMS, TYPE_ITEMS, itemScore, autoEquip, eliteItems, gymItemOffer, takeItemOffer, setItem, bagAdd, heldItem, crossroads, reinvent, dryStreak, isGrandSlam, champLeaguesOf, checkGrandSlams, useLeague, inLeague, eachLeague, nLeagues, lgOf, lgRoster, openLeague, moveTrainer, leagueFit, aiLeagueMoves, worldChampionship, cupStandings, leagueName, startLegend, legendBattle, legendWeek, villainLegend, legendOffseason, joinLegend, answerLegend, weald, wantsLegend, recordGreat, GREAT_LEGENDS, REWARD_LEGENDS, FEATURES, featOn, legacyChance, scheduleLegacy, makeLegacy, legacyLine, metaMons, counterTypesFor, metaCounters, AWARDS, seasonAwards, seasonScore, VILLAIN_TEAMS, startVillainEvent, villainWeek, endVillainEvent, eventActive, eventFoe, eventTeam, gymClosed, raidBattle, answerSnag, offerSnag, snag, purify, purifyWeek, makeShadow, openHeart, wantsRaid, circuitLevel, bondBlocked, BOND_ROLES, checkBonds, bondMon, bondName, BOND_ATK, pokerusWeek, pkrsContact, infectPkrs, monGrowth, LUCKY_CHANCE, PKRS_WEEKS, titleOf, titleNameTaken, famName, famBase, chooseFamous, checkCustom, checkPackName, setCustomLib, parsePackText, prepImport, builtinSource, packExportText, uniquePackName, BUILTIN_SOURCES, ensureCustom, useCustom, customSpecies, newCustomKey, get customLib() { return customLib; }, MALE, FEMALE, FAMOUS_PACKS, BASE_FAMOUS, packOn, famousAvailable, TRADE_EVOS, findTrade, doTrade, roadTrades, answerTrade, MEGA, megaFor, hasMega, megaHolder, assignMegaStone, earnMega, rotateGyms, fitGymTeam, isSpecial, monTypes, makeDelta, DELTA_CHANCE, gymLost, adaptGym, activeOutbreak, maybeOutbreak, offerRejoin, rejoinChoice, simOneSeason, autoStep, fixHallOfFame, repairLevels, repairLeagues, homeLeague, backfillLeagueTags, isLegendLine, legendBlocked, pooledLegend, claimLegend, legendDepartures, adoptLegends, curSeason,  eliteSlot, TRAITS, traitOf, h2hOf, isRival, roadBattles, FAMOUS_TAG_LIST, FAMOUS_BY_NAME, ULTRA_BEASTS, BABY_LEGENDS, ownedLegends, freeBabies, PARADOX, DUAL_CLASSES, specTypes, specFit, applyCfg, ALL_ORG_KEYS, get ORG_KEYS() { return ORG_KEYS; }, get ROSTER() { return ROSTER; }, careerSpan, ageRetireChance, leadStyle, LEAD_STYLES, confirmGift, legacyOf, legacyPoints, coverOptions, MOVES, idealMoves, refreshMoves, estimate, battler, natureFx, NATURES, ensureMon, learnedCov, frTier, formTier, retireChance, trainerRec, blankStat, FAMOUS, confirmReward, confirmReassign, beginReassign, beginGifts, confirmGifts, giftTeammates, confirmGift, autoGift, canMoveNow, LEGENDS, champOrg, confirmRegistration, independents, ORGS, orgStandings, userTrainers, userRelease, draftCurrent, draftAvail, PACE, dn, CLASSES, setupDraft, get S() { return S; }, set S(v) { S = v; }, newWorld, simWeek, runLeague, userDraft, acceptOffer, aiAction, aiCatch, wildOffers, ovr, T, challengers, SP, BASES, battle };
