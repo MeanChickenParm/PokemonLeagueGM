@@ -6,6 +6,7 @@ This repo is the only master copy of the game. Every chat works the same way: cl
 - `game/`: the source, in nine pieces plus `build.py`. Edit these.
 - `Pokémon League GM.html` and `index.html` (root): the built game (two identical copies), rebuilt from `game/` on every push. Never edit them by hand. `index.html` is the live GitHub Pages site; `.nojekyll` tells Pages to serve files as they are.
 - `archive/`: old files kept for reference only. Never build from them.
+- `TODO.md`: ideas the user has tabled for later. Add tabled ideas here; remove them once built.
 - `dist/` (not committed): build output.
 
 | Piece | What's in it | Starts at |
