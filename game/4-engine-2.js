@@ -1200,10 +1200,55 @@ function tourneyField() {
   for (let i = 0; i < nLeagues(); i++) inLeague(i, () => { for (const t of challengers()) if (t && t.role === 'challenger' && t.team && t.team.length) out.push(t); });
   return [...new Set(out)];
 }
+// v193: each season's tournament is played under one special rule, drawn when the season starts (or fixed in the
+// league's Advanced options) and announced after week 8. Rules only change the tournament's own battles.
+const TOURNEY_RULES = {
+  inverse: { name: 'Inverse Battle', desc: 'The type chart is flipped: super-effective hits are not very effective, and resisted hits and immunities become super effective.' },
+  nolegends: { name: 'Legendaries banned', desc: 'Legendaries, mythicals, Ultra Beasts, Paradox Pokémon and baby legendaries sit out. Trainers fight with the rest of their team.' },
+  flat: { name: 'Flat levels', desc: "Every Pokémon fights at Lv 50, so training doesn't matter: species, moves, abilities and the trainer decide it." },
+  trickroom: { name: 'Trick Room', desc: 'Slower Pokémon move first all tournament. Priority moves still go first.' },
+  noitems: { name: 'Items off', desc: 'No held items: team against team.' },
+  bring3: { name: 'Bring 3', desc: "Before each battle, both trainers see the other's team and bring the three Pokémon that match up best. Sharper trainers choose better." },
+};
+const TOURNEY_RULE_WEEK = 8; // the drawn rule is announced after this week
+const tourneyRuleCfg = () => (S.cfg && S.cfg.tourneyRule) || 'rotate';
+const tourneyRulePool = () => Object.keys(TOURNEY_RULES).filter(k => k !== 'noitems' || itemsOn());
+function drawTourneyRule() {
+  const c = tourneyRuleCfg(); let k = null;
+  if (c === 'rotate') { const last = (S.tourneyHist || []).slice(-1)[0], pool = tourneyRulePool().filter(x => !last || x !== last.rule); k = pick(pool.length ? pool : tourneyRulePool()); }
+  else if (TOURNEY_RULES[c]) k = c;
+  S.tourneyRule = { season: S.season, k };
+}
+// this season's rule (null: standard battles, or none drawn yet)
+const tourneyRule = () => S.tourneyRule && S.tourneyRule.season === S.season ? S.tourneyRule.k : null;
+// whether the rule is public yet: a rule fixed in the options always is; a rotating one is from week 8
+const tourneyRuleKnown = () => tourneyRuleCfg() !== 'rotate' || S.week >= TOURNEY_RULE_WEEK || S.phase !== 'season';
+const tourneyBanned = m => { const s = SP[m.sp]; return !!(s && (s.legend || s.paradox || s.baby || babyLine(m.sp))); };
+// Bring 3: the three Pokémon that match up best against the other team (power, type matchups both ways)
+function bringThree(t, opp) {
+  if (t.team.length <= 3) return t.team;
+  const oppT = opp.map(monTypes), sharp = clamp(((t.r && t.r.str) || 50) / 100, 0, 1);
+  const score = m => {
+    const atk = [...new Set((m.moves || []).map(n => MOVES[n]).filter(x => x && !x.utility && x.pw > 0).map(x => x.type))];
+    if (!atk.length) atk.push(...monTypes(m));
+    const off = oppT.reduce((a, d) => a + bestMult(atk, d), 0) / oppT.length, def = oppT.reduce((a, d) => a + bestMult(d, monTypes(m)), 0) / oppT.length;
+    return monPower(m) * Math.sqrt(off / def) * (1 + (rand() - 0.5) * (1 - sharp) * 0.4);
+  };
+  const keep = new Set(t.team.map(m => ({ m, s: score(m) })).sort((x, y) => y.s - x.s).slice(0, 3).map(x => x.m));
+  return t.team.filter(m => keep.has(m));
+}
 function tourneyBattle(a, b, round) {
+  const rule = tourneyRule(), R = rule ? TOURNEY_RULES[rule] : null;
   return inLeague(lgOf(a), () => {
     for (const t of [a, b]) if (itemsOn() && (!t.user || !t.itemsManual)) autoEquip(t, t === a ? b : a);
-    const r = battle(a, b, 'tourney', `Midseason Tournament ${round} · ${dn(a)} vs ${dn(b)}`);
+    // the rule may field only part of each team for this battle; the full teams come back afterwards
+    const full = [a.team, b.team];
+    if (rule === 'nolegends') for (const t of [a, b]) { const f = t.team.filter(m => !tourneyBanned(m)); if (f.length) t.team = f; }
+    if (rule === 'bring3') { const pa = bringThree(a, full[1]), pb = bringThree(b, full[0]); a.team = pa; b.team = pb; }
+    let r;
+    BATTLE_RULE = rule;
+    try { r = battle(a, b, 'tourney', `Midseason Tournament ${round} · ${dn(a)} vs ${dn(b)}`, { equal: rule === 'flat' ? 50 : 0, ruleNote: R ? `Tournament rule: ${R.name}. ${R.desc}` : null }); }
+    finally { BATTLE_RULE = null; a.team = full[0]; b.team = full[1]; }
     for (const t of [a, b]) if (itemsOn() && (!t.user || !t.itemsManual)) autoEquip(t);
     return r;
   });
@@ -1212,7 +1257,7 @@ function runTourney() {
   const field = tourneyField().sort((x, y) => tourneyStrength(y) - tourneyStrength(x));
   if (field.length < 2) return null;
   let P = 2; while (P < field.length) P *= 2;
-  const T0 = S.tourney = { season: S.season, size: field.length, slots: P, entrants: field.map(t => t.id), rounds: [], winner: null, runner: null, semis: [], reward: null };
+  const T0 = S.tourney = { season: S.season, size: field.length, slots: P, entrants: field.map(t => t.id), rounds: [], winner: null, runner: null, semis: [], reward: null, rule: tourneyRule() };
   // round one: seeds in bracket order; a slot past the field is a bye
   let alive = seedOrder(P).map(sd => field[sd - 1] || null);
   while (alive.length > 1) {
@@ -1236,10 +1281,10 @@ function runTourney() {
   if (R) (R.tourneyFinals = R.tourneyFinals || []).push(S.season);
   const lvl = Math.max(5, Math.floor(Math.max(...W.team.map(m => m.lvl))));
   T0.reward = { id: W.id, lvl, sp: null };
-  (S.tourneyHist = S.tourneyHist || []).push({ season: S.season, winner: W.id, winnerName: dn(W), runner: T0.runner, runnerName: R ? dn(R) : null, size: field.length, winnerOrg: W.org || null, sp: null });
+  (S.tourneyHist = S.tourneyHist || []).push({ season: S.season, winner: W.id, winnerName: dn(W), runner: T0.runner, runnerName: R ? dn(R) : null, size: field.length, winnerOrg: W.org || null, sp: null, rule: T0.rule });
   if (S.tourneyHist.length > 200) S.tourneyHist.shift();
   const mine = W.user || (R && R.user) || field.some(t => t.user && T0.semis.includes(t.id));
-  inLeague(lgOf(W), () => news(`${dn(W)} won the Season ${S.season} Midseason Tournament, beating ${R ? dn(R) : 'the field'} in the final (${field.length} challengers${nLeagues() > 1 ? ' from every League' : ''}). The prize: an alpha of their choice.`, mine ? 'you' : 'title', W.id));
+  inLeague(lgOf(W), () => news(`${dn(W)} won the Season ${S.season} Midseason Tournament${T0.rule ? ` (${TOURNEY_RULES[T0.rule].name})` : ''}, beating ${R ? dn(R) : 'the field'} in the final (${field.length} challengers${nLeagues() > 1 ? ' from every League' : ''}). The prize: an alpha of their choice.`, mine ? 'you' : 'title', W.id));
   if (W.user) { S.tourneyOffer = { id: W.id, lvl }; news(`${dn(W)} won the Midseason Tournament! Choose the alpha Pokémon they receive.`, 'you', W.id); }
   else tourneyPick(W.id, aiTourneyChoice(W));
   return T0;
@@ -1581,7 +1626,11 @@ function doAction(t, act, userCatch) {
 function simWeek(plans = {}, catches = {}) {
   S.tourneyPause = false; // v188: the season stops after the Midseason Tournament until it's continued
   eachLeague(() => leagueWeek(plans, catches));
+  // v193: a save from before tournament rules draws this season's rule now, if it's early enough to announce it
+  if (featOn('tourney') && !(S.tourneyRule && S.tourneyRule.season === S.season) && S.week < TOURNEY_RULE_WEEK) drawTourneyRule();
   S.week++;
+  if (S.week === TOURNEY_RULE_WEEK && featOn('tourney') && tourneyRuleCfg() === 'rotate') { const R = TOURNEY_RULES[tourneyRule()];
+    if (R) news(`This season's Midseason Tournament rule, after week ${TOURNEY_WEEK}: ${R.name}. ${R.desc}`, 'league'); }
   if (S.week === TOURNEY_WEEK && featOn('tourney') && runTourney()) S.tourneyPause = true;
   S.weekOffers = {}; S.catchPicks = {};
   eachLeague(() => { maybeWormhole(); maybeOutbreak(); });

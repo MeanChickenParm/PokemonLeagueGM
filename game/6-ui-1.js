@@ -405,13 +405,14 @@ const PLAN_LABEL = { auto: 'Let them decide', challenge: 'Challenge the gym', tr
 const PLAN_SHORT = { challenge: 'Gym', train: 'Train', explore: 'Explore' };
 
 // ---------- setup ----------
-let setupLeagues = 1, setupTeams = 4, setupRoster = 3, setupPage = 'main', setupAdv = { allFamous: false }, setupBaseOff = false, setupPacks = {}, setupPackOpen = {}, setupOff = {};
+let setupLeagues = 1, setupTeams = 4, setupRoster = 3, setupPage = 'main', setupAdv = { allFamous: false }, setupBaseOff = false, setupPacks = {}, setupPackOpen = {}, setupOff = {}, setupTourneyRule = 'rotate';
 // every section on the Advanced page folds; folded sections show a one-line summary
 let setupFold = {};
 function foldSec(key, title, sub, summary, body, extra = '') {
   const shut = !!setupFold[key];
   return `<section class="panel fold${shut ? ' shut' : ''}"><div class="ph fold-h"><button class="fold-btn" data-act="advfold" data-k="${key}" aria-expanded="${!shut}"><span class="fold-chev" aria-hidden="true">${shut ? '▸' : '▾'}</span><h2>${title}</h2></button><span class="muted">${shut ? summary : sub}</span></div>${shut ? '' : extra + body}</section>`;
 }
+const tourneyRuleLabel = k => k === 'rotate' ? 'Rotating' : k === 'none' ? 'Standard' : TOURNEY_RULES[k].name;
 function viewAdvanced() {
   const opt = (k, title, desc) => `<button class="adv-opt${setupAdv[k] ? ' on' : ''}" data-act="advtoggle" data-k="${k}" role="switch" aria-checked="${setupAdv[k]}">
     <span class="adv-switch" aria-hidden="true"><i></i></span><span class="adv-text"><b>${title}</b><span class="muted small">${desc}</span></span></button>`;
@@ -426,9 +427,12 @@ function viewAdvanced() {
   return `<main class="wrap setup"><section class="panel callout"><div class="eyebrow">New league</div><h1>Advanced options</h1>
     <p>Optional rules for the new league. These aren't balanced; they're here for fun.</p>
     <div class="confirm-row"><button class="btn small" data-act="advfoldall" data-v="${anyOpen ? 1 : 0}">${anyOpen ? 'Collapse all' : 'Expand all'}</button></div></section>
-    ${foldSec('rules', 'Rules', 'Optional league rules', setupAdv.allFamous ? 'All-famous league on' : 'Nothing on', `<div class="adv-list">
+    ${foldSec('rules', 'Rules', 'Optional league rules', [setupAdv.allFamous ? 'All-famous league on' : '', setupTourneyRule !== 'rotate' ? 'Tournament rule: ' + tourneyRuleLabel(setupTourneyRule) : ''].filter(Boolean).join(' · ') || 'Nothing on', `<div class="adv-list">
       ${opt('allFamous', 'All-famous league', `Every trainer is a famous trainer from the games and anime: Gym Leaders, Elite Four, Champions, rivals and draft prospects. Draws from ${famousCount} famous trainers${famousCount ? '' : ' (none are switched on, so the league will use ordinary trainers)'}; once every one has debuted, they come round again as V2 (Kanto Leader Misty V2), then V3, and so on.`)}
-    </div>`)}
+    </div>
+    <div class="adv-rule"><div class="eyebrow">Midseason Tournament rule</div><p class="muted small">Rotating (the default) draws one rule each season, never the same twice in a row, and announces it after week 8. Pick one to use it every season, or Standard for plain battles.</p>
+      <div class="segs wrap-segs">${['rotate', ...Object.keys(TOURNEY_RULES), 'none'].map(k => `<button class="seg${setupTourneyRule === k ? ' on' : ''}" data-act="settourneyrule" data-v="${k}" aria-pressed="${setupTourneyRule === k}">${tourneyRuleLabel(k)}</button>`).join('')}</div>
+      <p class="small">${setupTourneyRule === 'rotate' ? 'One of: ' + Object.values(TOURNEY_RULES).map(r => r.name).join(', ') + '.' : setupTourneyRule === 'none' ? 'Every tournament is played with standard battles.' : TOURNEY_RULES[setupTourneyRule].desc}</p></div>`)}
     ${foldSec('features', 'Game features', 'Everything is on by default. Settings are fixed once the league starts.', offCount ? `${offCount} feature${offCount === 1 ? '' : 's'} off` : 'Everything on', groups + (offCount ? '<div class="confirm-row"><button class="btn small" data-act="featreset">Turn everything back on</button></div>' : ''))}
     ${foldSec('packs', 'Famous trainer packs', "The game's own famous trainers, plus extras from outside Pokémon", `${setupBaseOff ? 'Pokémon trainers off' : 'Pokémon trainers on'} · ${packsOn} of ${packKeys.length} other pack${packKeys.length === 1 ? '' : 's'} on`, `<div class="adv-list">
       <button class="adv-opt${setupBaseOff ? '' : ' on'}" data-act="basetoggle" role="switch" aria-checked="${!setupBaseOff}">
@@ -827,7 +831,7 @@ function viewSetup() {
   if (setupPage === 'custom') return viewCustom();
   if (setupPage === 'import') return viewImport();
   const offNames = FEATURES.flatMap(g => g.items).filter(i => setupOff[i[0]]).map(i => i[1]);
-  const advOn = Object.entries(setupAdv).filter(([, v]) => v).map(([k]) => ({ allFamous: 'All-famous league' }[k])).concat(setupBaseOff ? ['Pokémon famous trainers off'] : []).concat(Object.keys(setupPacks).filter(k => setupPacks[k] && FAMOUS_PACKS[k]).map(k => FAMOUS_PACKS[k].name)).concat(offNames.length ? [`${offNames.length} feature${offNames.length === 1 ? '' : 's'} off`] : []).concat(dexLib.on && dexHas(dexLib) ? ['My Pokédex'] : []);
+  const advOn = Object.entries(setupAdv).filter(([, v]) => v).map(([k]) => ({ allFamous: 'All-famous league' }[k])).concat(setupBaseOff ? ['Pokémon famous trainers off'] : []).concat(Object.keys(setupPacks).filter(k => setupPacks[k] && FAMOUS_PACKS[k]).map(k => FAMOUS_PACKS[k].name)).concat(offNames.length ? [`${offNames.length} feature${offNames.length === 1 ? '' : 's'} off`] : []).concat(dexLib.on && dexHas(dexLib) ? ['My Pokédex'] : []).concat(setupTourneyRule !== 'rotate' ? ['Tournament rule: ' + tourneyRuleLabel(setupTourneyRule)] : []);
   const keys = ALL_ORG_KEYS;
   const opt = (act, v, cur, label) => `<button class="seg${cur === v ? ' on' : ''}" data-act="${act}" data-v="${v}" aria-pressed="${cur === v}">${label}</button>`;
   const total = setupTeams * setupRoster;

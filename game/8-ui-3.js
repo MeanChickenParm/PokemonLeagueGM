@@ -1,4 +1,16 @@
 const UPDATES = [
+  { id: 193, date: 'November 3, 2026', time: '1:14 PM ET', title: 'Midseason Tournament rules', items: [
+    "Each season's Midseason Tournament is now played under one special rule, drawn at random when the season starts (never the same as the season before) and announced in the news after week 8. Until then the office card and the tournament page say a rule is coming.",
+    "Inverse Battle: the type chart is flipped. Super-effective hits are not very effective, and resisted hits and immunities become super effective. Abilities like Levitate and Flash Fire still work as usual.",
+    "Legendaries banned: legendaries, mythicals, Ultra Beasts, Paradox Pokémon and baby legendaries sit out, and trainers fight with the rest of their team.",
+    "Flat levels: every Pokémon fights at Lv 50, so species, moves, abilities and the trainer decide it rather than training.",
+    "Trick Room: slower Pokémon move first all tournament. Priority moves still go first, and a Quick Claw can still jump the queue.",
+    "Items off: no held items in the tournament. Only drawn when held items are on in the league.",
+    "Bring 3: before each battle, both trainers see the other's team and bring the three Pokémon that match up best, by power and type matchups both ways. Sharper trainers choose better. Your trainers choose for themselves.",
+    "Rules only change the tournament's own battles. Teams, levels and items are exactly as they were afterwards. Each tournament replay opens with the rule, the bracket page shows it, and Past winners has a new Rule column.",
+    "Advanced options → Rules has a new Midseason Tournament rule setting for new leagues: Rotating (the default), any one rule every season, or Standard for plain battles. Existing leagues rotate, starting with the next tournament that hasn't reached week 8 yet.",
+    "To-do list: a doubles format for the tournament is tabled for later.",
+  ] },
   { id: 192, date: 'November 3, 2026', time: '12:40 PM ET', title: 'Teams use their ranches', items: [
     "AI teams now use the Team ranch every offseason. A trainer with more Pokémon than they can register almost always sends the best one they'd otherwise release to rest, so it comes back next offseason with better IVs.",
     "Whatever else an AI trainer would release at registration is passed on to the team's active ranch instead, so a teammate can use it. In the ranch these show as Passed on by, and their record with the old trainer stays on their stat card.",
@@ -592,6 +604,7 @@ document.addEventListener('click', ev => {
     case 'packlist': setupPackOpen[el.dataset.k] = !setupPackOpen[el.dataset.k]; render(); break;
     case 'feattoggle': setupOff[el.dataset.k] = !setupOff[el.dataset.k]; render(); break;
     case 'featreset': setupOff = {}; render(); break;
+    case 'settourneyrule': setupTourneyRule = el.dataset.v; render(); break;
     case 'cfexport': cfExport = cfExport === el.dataset.k ? null : el.dataset.k; if (setupPage === 'custom') cfRead(); render(); { const b = $('.cf-export'); if (b) b.scrollIntoView({ block: 'nearest' }); } break;
     case 'cfexpclose': cfExport = null; if (setupPage === 'custom') cfRead(); render(); break;
     case 'cfexpcopy': { const ta = $('#cf-exptext'); if (!ta) break; const done = () => toast('Pack copied. Paste it into Import trainers on another device.');
@@ -633,7 +646,7 @@ document.addEventListener('click', ev => {
     case 'packall': { const on = el.dataset.v === '1'; setupBaseOff = !on; setupPacks = { ...setupPacks, ...Object.fromEntries(Object.keys(FAMOUS_PACKS).filter(k => !FAMOUS_PACKS[k].custom).map(k => [k, on])) }; render(); break; }
     case 'advfold': setupFold[el.dataset.k] = !setupFold[el.dataset.k]; render(); break;
     case 'advfoldall': { const shut = el.dataset.v === '1'; setupFold = Object.fromEntries(['rules', 'features', 'packs', 'mypacks', 'dex', 'images', 'load', ...FEATURES.map(g => 'feat-' + g.group)].map(k => [k, shut])); render(); break; }
-    case 'pickorg': viewLg = 0; newWorld(el.dataset.k, { leagues: setupLeagues, teams: setupTeams, roster: setupRoster, allFamous: setupAdv.allFamous, baseOff: setupBaseOff, packs: Object.keys(setupPacks).filter(k => setupPacks[k]), off: Object.keys(setupOff).filter(k => setupOff[k]) }); S.catchPicks = {}; setupPage = 'main'; save(); go('draft'); break;
+    case 'pickorg': viewLg = 0; newWorld(el.dataset.k, { leagues: setupLeagues, teams: setupTeams, roster: setupRoster, allFamous: setupAdv.allFamous, baseOff: setupBaseOff, packs: Object.keys(setupPacks).filter(k => setupPacks[k]), off: Object.keys(setupOff).filter(k => setupOff[k]), tourneyRule: setupTourneyRule }); S.catchPicks = {}; setupPage = 'main'; save(); go('draft'); break;
     case 'nav': navOpen = null; modal = null; renderModal(); go(el.dataset.v); break;
     case 'navgrp': navOpen = navOpen === el.dataset.k ? null : el.dataset.k; syncNav(); break;
     case 'profile': modal = { kind: 'profile', id: +el.dataset.id, back: recBack() }; renderModal(); break;

@@ -974,7 +974,7 @@ const GLOSS_TERMS = {
     ['Team Cup', 'The season-long team standings: badges, League wins, titles and posts earn points.'],
     ['World Championship', 'With several Leagues, their Champions meet after the season.'],
     ['Grand Slam', 'Champion of every League in a multi-League world. Former Champions chase it: other teams move them toward Leagues they haven\'t won, a dethroned one returns to the circuit in an unwon League when there\'s room, and a trainer with titles in 2+ Leagues gets 3 extra seasons before age can retire them.'],
-    ['Midseason Tournament', 'After week 12, every challenger in every League meets in one single-elimination bracket (Gym Leaders, the Elite Four and Champions sit it out). The strongest get any byes. The winner chooses an alpha of any Pokémon that isn\'t one of a kind or a Paradox Pokémon.'],
+    ['Midseason Tournament', 'After week 12, every challenger in every League meets in one single-elimination bracket (Gym Leaders, the Elite Four and Champions sit it out). The strongest get any byes. The winner chooses an alpha of any Pokémon that isn\'t one of a kind or a Paradox Pokémon. Each season it\'s played under one special rule, announced after week 8: Inverse Battle, Legendaries banned, Flat levels, Trick Room, Items off or Bring 3.'],
     ['Hall of Fame', 'Retired Champions.'],
     ['Hall of Shame', "Records nobody wants: worst win rates, longest losing streaks and the like."],
     ['Meta', 'The five best-performing species of the season. Gyms and new prospects adapt to counter them.'],
@@ -1025,6 +1025,12 @@ function glossaryBody() {
 // ---------- Midseason Tournament (v188) ----------
 let tourneyRel = null, tourneyText = '';
 const tourneyNow = () => S.tourney && S.tourney.season === S.season ? S.tourney : null;
+// v193: this season's tournament rule, as a line for the office card and the tournament page
+function tourneyRuleLine(k) {
+  if (k === undefined) { if (!tourneyRuleKnown()) return `This season's special rule is announced after week ${TOURNEY_RULE_WEEK}.`; k = tourneyRule(); }
+  const R = k && TOURNEY_RULES[k];
+  return R ? `<b>Rule: ${R.name}.</b> ${R.desc}` : (k === null && tourneyRuleCfg() === 'none' ? 'Standard battles: no special rule in this league.' : 'Standard battles.');
+}
 const tourneyPaused = () => !!(S && S.phase === 'season' && S.tourneyPause && tourneyNow());
 // how far a trainer got: { text, ok } from the bracket
 function tourneyRun(T0, id) {
@@ -1057,7 +1063,7 @@ function tourneyCard() {
   if (S.phase !== 'season' || (!featOn('tourney') && !tourneyNow())) return '';
   const T0 = tourneyNow();
   if (!T0) { const n = tourneyField().length, left = TOURNEY_WEEK - S.week;
-    return `<section class="panel"><div class="ph"><h3>Midseason Tournament</h3><span class="muted">after week ${TOURNEY_WEEK}</span></div><p class="small">${n} challengers${nLeagues() > 1 ? ' from every League' : ''} will meet in a single-elimination bracket in ${left} week${left === 1 ? '' : 's'}. The winner chooses an alpha of almost any Pokémon.</p><button class="link" data-act="nav" data-v="tourney">The tournament ›</button></section>`; }
+    return `<section class="panel"><div class="ph"><h3>Midseason Tournament</h3><span class="muted">after week ${TOURNEY_WEEK}</span></div><p class="small">${n} challengers${nLeagues() > 1 ? ' from every League' : ''} will meet in a single-elimination bracket in ${left} week${left === 1 ? '' : 's'}. The winner chooses an alpha of almost any Pokémon.</p><p class="small">${tourneyRuleLine()}</p><button class="link" data-act="nav" data-v="tourney">The tournament ›</button></section>`; }
   const w = T(T0.winner);
   return `<section class="panel"><div class="ph"><h3>Midseason Tournament</h3><span class="muted">Season ${T0.season}</span></div><p class="small">${tname(T0.winner)} won it, beating ${T0.runner ? tname(T0.runner) : 'the field'} in the final.${T0.reward && T0.reward.sp && T0.reward.sp !== '—' ? ` Prize: an alpha <b>${T0.reward.sp}</b>.` : w && w.user ? ' <b class="good">Choose their alpha prize.</b>' : ''}</p><button class="link" data-act="nav" data-v="tourney">The bracket ›</button></section>`;
 }
@@ -1074,11 +1080,13 @@ function viewTourney() {
     top = `<section class="panel callout"><div class="eyebrow">Season ${S.phase === 'season' ? S.season : S.season + 1}</div><h1>Midseason Tournament</h1>
       <p>${featOn('tourney') ? `After week ${TOURNEY_WEEK}, every challenger${nLeagues() > 1 ? ' in every League' : ''} meets in one single-elimination bracket. Gym Leaders, the Elite Four and Champions sit it out. The strongest trainers are seeded so they get any byes, and one loss ends a run.` : 'The Midseason Tournament is switched off in this league.'}</p>
       ${featOn('tourney') ? `<p>The winner chooses an alpha of any Pokémon that isn't one of a kind or a Paradox Pokémon, at the level of their strongest Pokémon. Battles count toward records like any other. Replays are kept for the semifinals and the final.</p>
+      <p>${S.phase === 'season' ? tourneyRuleLine() : tourneyRuleCfg() === 'rotate' ? `Each season's tournament is played under one special rule, drawn at random (never the same as the last one) and announced after week ${TOURNEY_RULE_WEEK}: ${Object.values(TOURNEY_RULES).map(r => r.name).join(', ')}.` : tourneyRuleLine(tourneyRuleCfg() === 'none' ? null : tourneyRuleCfg())}</p>
       <p class="muted">${S.phase === 'season' ? (S.week < TOURNEY_WEEK ? `It's played after week ${TOURNEY_WEEK}, in ${TOURNEY_WEEK - S.week} week${TOURNEY_WEEK - S.week === 1 ? '' : 's'}. ${n} challengers would enter today.` : '') : `Next season's tournament is played after week ${TOURNEY_WEEK}.`}</p>` : ''}</section>`;
   } else {
     const r = T0.reward, w = T(T0.winner);
     const paused = tourneyPaused(), contBtn = paused ? `<div class="confirm-row"><button class="btn primary" data-act="tourneydone">Continue to week ${S.week + 1}</button><span class="muted small">The season picks up again from here.</span></div>` : '';
     top = `<section class="panel callout"><div class="eyebrow">Season ${T0.season} · ${paused ? `after week ${TOURNEY_WEEK} · ` : ''}${T0.size} challengers${nLeagues() > 1 ? ' · every League' : ''}</div><h1>Midseason Tournament</h1>
+      <p class="small">${tourneyRuleLine(T0.rule || null)}</p>
       <p><b>${tname(T0.winner)} won it</b>, beating ${T0.runner ? tname(T0.runner) : 'the field'} in the final.${T0.semis.length ? ` Semifinalists: ${T0.semis.map(id => tname(id)).join(', ')}.` : ''}</p>
       ${r && r.sp && r.sp !== '—' ? `<p>Prize: an alpha <b>${r.sp}</b> ${chips(SP[r.sp] ? SP[r.sp].types : [])} at Lv ${r.lvl}.</p>` : ''}${contBtn}</section>
       ${w && w.user && S.tourneyOffer && S.tourneyOffer.id === w.id ? `<section class="panel">${tourneyOfferPanel(w)}</section>` : ''}
@@ -1087,8 +1095,8 @@ function viewTourney() {
     top += rounds.map(({ rd, ri }) => { const real = rd.matches.filter(m => !m.bye).length, byes = rd.matches.length - real;
       return `<section class="panel"><div class="ph"><h3>${rd.name}</h3><span class="muted">${real} battle${real === 1 ? '' : 's'}${byes ? ` · ${byes} bye${byes === 1 ? '' : 's'}` : ''}</span></div>${rd.matches.map((m, mi) => tourneyMatch(m, ri, mi)).join('')}</section>`; }).join('');
   }
-  const histHtml = hist.length ? `<section class="panel"><div class="ph"><h2>Past winners</h2><span class="muted">${hist.length} tournament${hist.length === 1 ? '' : 's'}</span></div><div class="scroll"><table class="tbl"><thead><tr><th>Season</th><th>Winner</th><th>Runner-up</th><th>Field</th><th>Prize</th></tr></thead><tbody>
-    ${hist.map(h => `<tr><td class="num">${h.season}</td><td>${T(h.winner) ? tname(h.winner, h.winnerOrg || null) : esc(h.winnerName)}</td><td>${h.runner && T(h.runner) ? tname(h.runner) : esc(h.runnerName || '—')}</td><td class="num">${h.size}</td><td>${h.sp && h.sp !== '—' ? 'Alpha ' + h.sp : '<span class="muted">—</span>'}</td></tr>`).join('')}</tbody></table></div></section>` : '';
+  const histHtml = hist.length ? `<section class="panel"><div class="ph"><h2>Past winners</h2><span class="muted">${hist.length} tournament${hist.length === 1 ? '' : 's'}</span></div><div class="scroll"><table class="tbl"><thead><tr><th>Season</th><th>Rule</th><th>Winner</th><th>Runner-up</th><th>Field</th><th>Prize</th></tr></thead><tbody>
+    ${hist.map(h => `<tr><td class="num">${h.season}</td><td>${h.rule && TOURNEY_RULES[h.rule] ? TOURNEY_RULES[h.rule].name : '<span class="muted">Standard</span>'}</td><td>${T(h.winner) ? tname(h.winner, h.winnerOrg || null) : esc(h.winnerName)}</td><td>${h.runner && T(h.runner) ? tname(h.runner) : esc(h.runnerName || '—')}</td><td class="num">${h.size}</td><td>${h.sp && h.sp !== '—' ? 'Alpha ' + h.sp : '<span class="muted">—</span>'}</td></tr>`).join('')}</tbody></table></div></section>` : '';
   const end = T0 && tourneyPaused() ? `<section class="panel"><div class="confirm-row"><button class="btn primary" data-act="tourneydone">Continue to week ${S.week + 1}</button><span class="muted small">${S.tourneyOffer ? 'Your champion can still choose their alpha later, from their trainer page, until the League starts.' : 'Back to the office to plan the next week.'}</span></div></section>` : '';
   return top + histHtml + end;
 }

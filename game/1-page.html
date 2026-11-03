@@ -455,6 +455,9 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 0; }
 .tswitch .sw-n { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .tswitch > span { white-space: nowrap; flex: none; }
 .segs.wide { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.adv-rule { padding: 10px 2px 2px; }
+.adv-rule .segs.wrap-segs { grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 6px 0; }
+@media (max-width: 560px) { .adv-rule .segs.wrap-segs { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 560px) { .segs.wide { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .segs.wide .seg { padding: 9px 6px; font-size: 0.86rem; }
 .gymprev { border: 1px solid var(--line); background: var(--sunk); border-radius: var(--r); padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }

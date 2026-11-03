@@ -29,7 +29,11 @@ const CHART = {
   // TYPES, so it never becomes a gym type, a trainer's specialty or a Delta type.
   Bird:[[],[],[]],
 };
-function effOne(a, d) { const c = CHART[a]; if (c[2].includes(d)) return 0; if (c[0].includes(d)) return 2; if (c[1].includes(d)) return 0.5; return 1; }
+// v193: the Midseason Tournament's special rule, set only while its battles run (see TOURNEY_RULES)
+let BATTLE_RULE = null;
+function effOne(a, d) { const c = CHART[a]; const r = c[2].includes(d) ? 0 : c[0].includes(d) ? 2 : c[1].includes(d) ? 0.5 : 1;
+  // Inverse Battle: super effective becomes not very effective, and resisted hits and immunities become super effective
+  return BATTLE_RULE === 'inverse' ? (r === 2 ? 0.5 : r === 1 ? 1 : 2) : r; }
 function bestMult(atkTypes, defTypes) {
   let best = 0;
   for (const a of atkTypes) { let m = 1; for (const d of defTypes) m *= effOne(a, d); if (m > best) best = m; }
@@ -901,7 +905,8 @@ function traitMod(t, foe, stakes) {
 }
 function battle(tA, tB, stakes, title, opts = {}) {
   // opts.equal: both teams fight at the same level (the higher side's top level), as in an Elite Four title challenge
-  const EQ = opts.equal ? Math.max(...tA.team.concat(tB.team).map(m => Math.floor(m.lvl))) : 0;
+  // a number fixes the level outright (the tournament's Flat levels rule)
+  const EQ = opts.equal === true ? Math.max(...tA.team.concat(tB.team).map(m => Math.floor(m.lvl))) : (+opts.equal || 0);
   const nerveW = stakes === 'gym' ? 0.07 : 0.18;
   const sides = [tA, tB].map((t, i) => ({
     t, mons: t.team.map(m => battler(EQ ? Object.assign({}, m, { lvl: EQ }) : m)), act: -1, megaUid: megaStakes(stakes) && megaHolder(t) ? megaHolder(t).uid : null, megaUsed: false,
@@ -914,7 +919,7 @@ function battle(tA, tB, stakes, title, opts = {}) {
     rocks: false, spikes: false,
   }));
   // held items; the Mega Stone takes the Mega holder's item slot
-  for (const sd of sides) sd.mons.forEach((b, i) => { if (sd.megaUid != null && sd.t.team[i] && sd.t.team[i].uid === sd.megaUid) b.item = null; applyItemStats(b);
+  for (const sd of sides) sd.mons.forEach((b, i) => { if ((sd.megaUid != null && sd.t.team[i] && sd.t.team[i].uid === sd.megaUid) || BATTLE_RULE === 'noitems') b.item = null; applyItemStats(b);
     b.sd = sd;
     // Multitype / RKS System: the held type item sets its type
     if ((b.ab === 'Multitype' || b.ab === 'RKS System') && b.item && ITEMS[b.item] && ITEMS[b.item].type) { b.baseTypes = b.types; b.types = [ITEMS[b.item].type]; b.plate = true; } });
@@ -929,6 +934,7 @@ function battle(tA, tB, stakes, title, opts = {}) {
   // the field: a gym's own weather, else the region's (events, legendaries); weather abilities and moves replace it
   let weather = (featOn('abilities') && stakes === 'gym' ? GYM_WEATHER[tB.specialty] : null) || regionWeather();
   if (weather && featOn('abilities')) ev.push({ k: 'note', s: -1, txt: `${WEATHER_NAME[weather]} ${stakes === 'gym' ? 'fills the gym' : 'covers the region'}.`, cls: 'weather' });
+  if (opts.ruleNote) ev.push({ k: 'note', s: -1, txt: opts.ruleNote, cls: 'weather' });
   const note = (si, i, txt, extra = {}) => ev.push(Object.assign({ k: 'note', s: si, i, txt }, extra));
   if (opts.boss && opts.boss.luck) { const x = opts.boss.luck; ev.push({ k: 'note', s: -1, cls: 'stat', txt: `${dn(tA)}'s team is having a ${luckWord(x)} day (damage x${x.toFixed(2)}).` }); }
   // terrain abilities power up the whole team from the start
@@ -1341,7 +1347,8 @@ function battle(tA, tB, stakes, title, opts = {}) {
       if (m.ab === 'Triage' && /^(heal|drain)/.test(mv.eff)) return 1;
       if (m.ab === 'Gale Wings' && mv.type === 'Flying' && m.hp === m.max) return 1;
       return 0; };
-    const spd = si => { const m = active(si); return m.L + speedOf(m) / 4 + rand() * 12 + (m.item === 'quickclaw' && rand() < 0.2 ? 1000 : 0); };
+    // Trick Room (a tournament rule): the slower Pokémon moves first; a Quick Claw still jumps the queue
+    const spd = si => { const m = active(si), v = m.L + speedOf(m) / 4; return (BATTLE_RULE === 'trickroom' ? -v : v) + rand() * 12 + (m.item === 'quickclaw' && rand() < 0.2 ? 1000 : 0); };
     const sp0 = spd(0), sp1 = spd(1);
     const order = prio(plan[0]) !== prio(plan[1]) ? (prio(plan[0]) > prio(plan[1]) ? [0, 1] : [1, 0]) : sp0 >= sp1 ? [0, 1] : [1, 0];
     for (let n = 0; n < 2; n++) {
