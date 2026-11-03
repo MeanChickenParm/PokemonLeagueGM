@@ -1058,7 +1058,7 @@ function autoStep(acceptInvites) {
     setupDraft(); return;
   }
   if (S.phase === 'draft') { autoUserDraft(); if (S.phase === 'draft') runDraft(); return; }
-  if (S.phase === 'ranch') { let g = 0; while ((S.ranchPicks || []).length && g++ < 40) autoRanchPick(0); ranchAuto(S.userOrg); confirmRanch(); return; }
+  if (S.phase === 'ranch') { let g = 0; while ((S.ranchPicks || []).length && g++ < 40) autoRanchPick(0); if (S.userOrg) { aiRest(S.userOrg); aiStock(S.userOrg); ranchAuto(S.userOrg); } confirmRanch(); return; }
   if (S.phase === 'reward') { const tg = T(S.reward.target); confirmReward(S.reward.pool.slice().sort((a, b) => SP[b].bst + (onSpec(tg, b) ? 60 : 0) - SP[a].bst - (onSpec(tg, a) ? 60 : 0))[0]); return; }
   if (S.phase === 'register') { confirmRegistration(); return; }
   if (S.phase === 'gifts') { let g = 0; while ((S.pendingGifts || []).length && g++ < 40) autoGift(); confirmGifts(); return; }
@@ -1163,7 +1163,7 @@ function confirmReward(name) {
 // the trainer's own strongest level and is registered on top of the usual three in its first season. Pokémon never age
 // out of a ranch. Legendaries and other one-of-a-kind Pokémon never go to the active ranch.
 // v189: the active ranch has no limit; one handoff per trainer each offseason keeps it in check
-const RANCH_RETIRED_MAX = 80, REST_IV = [4, 8];
+const REST_IV = [4, 8]; // v192: neither part of a ranch has a size limit
 function ranchOf(k) { const o = k && S.orgs && S.orgs[k]; if (!o) return null; if (!o.ranch) o.ranch = { active: [], retired: [] }; if (!o.ranch.champs) o.ranch.champs = []; if (!o.ranch.resting) o.ranch.resting = []; return o.ranch; }
 // the historical ranch also keeps every title-winning roster: each season one of the team's trainers wins the title and
 // ends the League as Champion (defenses aren't recorded)
@@ -1186,7 +1186,6 @@ function ranchRecord(m, info) {
 function toRetiredRanch(k, rec) {
   const R = ranchOf(k); if (!R) return;
   R.retired.unshift(rec);
-  if (R.retired.length > RANCH_RETIRED_MAX) R.retired.length = RANCH_RETIRED_MAX;
 }
 // a Pokémon joins the active ranch
 function addToRanch(k, m, info) {
@@ -1326,8 +1325,7 @@ function aiRest(k) {
   }
 }
 // v192: whatever else an AI trainer would release at registration goes into the team's active ranch for a teammate,
-// so the ranch rarely runs dry. An AI team keeps up to AI_RANCH_STOCK there; the least valued make room.
-const AI_RANCH_STOCK = 8;
+// so the ranch rarely runs dry. Simming runs this for the player's team too.
 function aiStock(k) {
   const R = ranchOf(k); if (!R) return;
   for (const t of org(k).roster.map(T).filter(x => x && x.role === 'challenger')) {
@@ -1342,7 +1340,6 @@ function aiStock(k) {
       addToRanch(k, m, { how: 'surplus', season: curSeason(), from: t.id, fromName: dn(t) });
     }
   }
-  if (R.active.length > AI_RANCH_STOCK) { R.active.sort((a, b) => (b.ranch && b.ranch.how === 'rest' ? 1e6 : 0) + ranchValue(b) - (a.ranch && a.ranch.how === 'rest' ? 1e6 : 0) - ranchValue(a)); R.active.length = AI_RANCH_STOCK; }
 }
 // offseason step after the Champion's reward: rested Pokémon come back, AI teams rest and hand out; the player gets the
 // Ranch screen whenever they have a challenger on the roster
@@ -1376,6 +1373,8 @@ function applyRegistration(t, uids) {
   if (!keep.length) return;
   const gone = t.team.filter(m => !keep.includes(m));
   for (const m of gone) farewell(t, m, 'not registered for the new season');
+  // v192: a team's trainer's unregistered Pokémon go on display in the team's historical ranch
+  if (t.org && ranchOf(t.org)) for (const m of gone) toRetiredRanch(t.org, ranchRecord(m, { season: S.season, from: t.id, fromName: dn(t), why: `not registered by ${dn(t)} for Season ${S.season + 1}` }));
   t.team = keep;
   if (gone.length && t.user) news(`${dn(t)} registered ${keep.map(m => m.sp).join(', ')} for Season ${S.season + 1} and released ${gone.map(m => m.sp).join(', ')}.`, 'you', t.id);
 }

@@ -1,8 +1,11 @@
 const UPDATES = [
-  { id: 192, date: 'November 3, 2026', time: '10:50 AM ET', title: 'AI teams use their ranches', items: [
+  { id: 192, date: 'November 3, 2026', time: '11:04 AM ET', title: 'Teams use their ranches', items: [
     "AI teams now use the Team ranch every offseason. A trainer with more Pokémon than they can register almost always sends the best one they'd otherwise release to rest, so it comes back next offseason with better IVs.",
-    "Whatever else an AI trainer would release at registration is passed on to the team's active ranch instead, so a teammate can use it. Each AI team keeps up to eight Pokémon there, dropping the least valuable when it's full. In the ranch these show as Passed on by, and their record with the old trainer stays on their stat card.",
+    "Whatever else an AI trainer would release at registration is passed on to the team's active ranch instead, so a teammate can use it. In the ranch these show as Passed on by, and their record with the old trainer stays on their stat card.",
     "With the ranch stocked, AI challengers now usually get a Pokémon from it each offseason, weakest trainers first. A trainer is never handed back a Pokémon they just passed on.",
+    "Simming through the ranch step now runs your team the same way: each of your challengers rests their best extra, passes the others on to your ranch, and takes one Pokémon from it.",
+    "Ranches have no size limit. The historical ranch used to keep only the latest 80 Pokémon; now it keeps them all (the screen lists the latest 60).",
+    "When you register your trainers yourself, the Pokémon you don't register go on display in your historical ranch instead of just being released. The same goes for every team.",
   ] },
   { id: 191, date: 'November 3, 2026', time: '10:40 AM ET', title: 'Special tags on resting Pokémon', items: [
     "Resting Pokémon now show their special conditions, so you can see at a glance when you're resting a shiny, alpha, Delta, Shadow, Paradox, legendary or other rare Pokémon. The tags appear in the Resting list, on the line saying what each trainer is resting, and on the buttons for choosing what to rest.",
