@@ -11240,7 +11240,7 @@ function header() {
   if (S.phase === 'reward') { status = `Season ${S.season + 1} · Champion's reward`; btn = view !== 'reward' ? `<button class="btn primary" data-act="nav" data-v="reward">Choose the Paradox Pokémon</button>` : ''; }
   if (S.phase === 'ranch') { status = `Season ${S.season + 1} · Team ranch`; btn = view !== 'ranch' ? `<button class="btn primary" data-act="nav" data-v="ranch">Go to the ranch</button>` : ''; }
   if (S.phase === 'register') { status = `Season ${S.season + 1} · Registration`; btn = view !== 'register' ? `<button class="btn primary" data-act="nav" data-v="register">Register teams</button>` : ''; }
-  if (S.phase === 'season' && tourneyPaused()) { status = `Season ${S.season} · Midseason Tournament`; btn = `<button class="btn primary" data-act="tourneydone">Continue to week ${S.week + 1}</button>${view !== 'tourney' ? '<button class="btn ghost" data-act="nav" data-v="tourney">See the tournament</button>' : ''}`; }
+  if (S.phase === 'season' && tourneyPaused()) { status = `Season ${S.season} · Midseason Tournament`; btn = `<button class="btn primary" data-act="tourneydone">Continue to week ${S.week + 1}</button>${view !== 'tourney' ? '<button class="btn ghost" data-act="nav" data-v="tourney">See the tournament</button>' : ''}<button class="btn ghost" data-act="autoseasonask">Sim to League</button>`; }
   else if (S.phase === 'season') { status = `Season ${S.season} · Week ${S.week + 1} of ${SEASON_WEEKS}${tourneyNext() ? ' · Midseason Tournament after this week' : ''}`; btn = `<button class="btn primary" data-act="playweek"${tourneyNext() ? ` title="Plays week ${S.week + 1}, then the Midseason Tournament"` : ''}>${playLabel()}</button><button class="btn ghost" data-act="simweek" title="Your trainers make their own calls this week, ignoring the plans you set">Sim week</button><button class="btn ghost" data-act="autoseasonask">Sim to League</button>`; }
   if (S.phase === 'league') { status = `Season ${S.season} · Pokémon League`; btn = `<button class="btn primary" data-act="runleague">Run the Pokémon League</button>`; }
   if (S.phase === 'offseason') { status = `Season ${S.season} · Offseason`; btn = S.offers.length ? (view !== 'offers' ? `<button class="btn primary" data-act="nav" data-v="offers">League offers (${S.offers.length})</button>` : '') : `<button class="btn primary" data-act="todraft">Start the Season ${S.season + 1} draft</button>`; }
@@ -13399,7 +13399,7 @@ function viewTourney() {
 // Versioning rule (from v179 on): every new version gets the next id, a date AND a timestamp (Eastern Time),
 // and all changes made in one working session go into that one version's entry.
 const UPDATES = [
-  { id: 193, date: 'November 3, 2026', time: '3:40 PM ET', title: 'Midseason Tournament rules', items: [
+  { id: 193, date: 'November 3, 2026', time: '3:54 PM ET', title: 'Midseason Tournament rules', items: [
     "Each season's Midseason Tournament is now played under one special rule, drawn at random when the season starts (never the same as the season before) and announced in the news after week 8. Until then the office card and the tournament page say a rule is coming.",
     "Inverse Battle: the type chart is flipped. Super-effective hits are not very effective, and resisted hits and immunities become super effective. Abilities like Levitate and Flash Fire still work as usual.",
     "Legendaries banned: legendaries, mythicals, Ultra Beasts, Paradox Pokémon and baby legendaries sit out, and trainers fight with the rest of their team.",
@@ -13414,6 +13414,7 @@ const UPDATES = [
     "Rules only change the tournament's own battles. Teams, levels and items are exactly as they were afterwards. Each tournament replay opens with the rule, the bracket page shows it, and Past winners has a new Rule column.",
     "Advanced options → Rules has a new Midseason Tournament rule setting for new leagues: Rotating (the default), any one rule every season, or Standard for plain battles. Existing leagues rotate, starting with the next tournament that hasn't reached week 8 yet.",
     "Sim to League and Sim multiple seasons have a new Stop before the Midseason Tournament option. Sim to League stops at the start of week 12; Sim multiple seasons plays on into the next season and stops there. You set the plans and play the week that ends with the tournament yourself.",
+    "Sim to League is now also there on the pause after the Midseason Tournament, so it's available every week of the season.",
     "In week 12 the play button says Play Midseason Tournament: it plays the week with your plans, then the tournament.",
     "To-do list: a doubles format for the tournament is tabled for later.",
   ] },
@@ -14093,7 +14094,7 @@ document.addEventListener('click', ev => {
     case 'tourneydone': S.tourneyPause = false; save(); go('office'); toast(`On to week ${S.week + 1}.`); break;
     case 'simweek': if (S.phase !== 'season') break; finishWeek({}, true); break;
     case 'autoseasonask': modal = { kind: 'confirmsim' }; renderModal(); setTimeout(() => { const b = document.querySelector('[data-act="autoseason"]'); if (b && b.focus) b.focus(); }, 0); break;
-    case 'autoseason': { const stop = tourneyAhead() && simStopTourney; modal = null; renderModal();
+    case 'autoseason': { const stop = tourneyAhead() && simStopTourney; modal = null; renderModal(); S.tourneyPause = false;
       if (stop) simToTourney(); else while (S.phase === 'season') simWeek({}, {});
       save(); go('office'); toast(stop ? `Simulated to week ${TOURNEY_WEEK}. Your trainers made their own calls. The Midseason Tournament is played after this week.` : 'Simulated to the end of the regular season. Your trainers made their own calls.'); break; }
     case 'runleague': runLeague(); save(); go('recap'); break;
