@@ -358,7 +358,7 @@ function header() {
   if (S.phase === 'ranch') { status = `Season ${S.season + 1} · Team ranch`; btn = view !== 'ranch' ? `<button class="btn primary" data-act="nav" data-v="ranch">Go to the ranch</button>` : ''; }
   if (S.phase === 'register') { status = `Season ${S.season + 1} · Registration`; btn = view !== 'register' ? `<button class="btn primary" data-act="nav" data-v="register">Register teams</button>` : ''; }
   if (S.phase === 'season' && tourneyPaused()) { status = `Season ${S.season} · Midseason Tournament`; btn = `<button class="btn primary" data-act="tourneydone">Continue to week ${S.week + 1}</button>${view !== 'tourney' ? '<button class="btn ghost" data-act="nav" data-v="tourney">See the tournament</button>' : ''}`; }
-  else if (S.phase === 'season') { status = `Season ${S.season} · Week ${S.week + 1} of ${SEASON_WEEKS}`; btn = `<button class="btn primary" data-act="playweek">Play week ${S.week + 1}</button><button class="btn ghost" data-act="simweek" title="Your trainers make their own calls this week, ignoring the plans you set">Sim week</button><button class="btn ghost" data-act="autoseasonask">Sim to League</button>`; }
+  else if (S.phase === 'season') { status = `Season ${S.season} · Week ${S.week + 1} of ${SEASON_WEEKS}${tourneyNext() ? ' · Midseason Tournament after this week' : ''}`; btn = `<button class="btn primary" data-act="playweek"${tourneyNext() ? ` title="Plays week ${S.week + 1}, then the Midseason Tournament"` : ''}>${playLabel()}</button><button class="btn ghost" data-act="simweek" title="Your trainers make their own calls this week, ignoring the plans you set">Sim week</button><button class="btn ghost" data-act="autoseasonask">Sim to League</button>`; }
   if (S.phase === 'league') { status = `Season ${S.season} · Pokémon League`; btn = `<button class="btn primary" data-act="runleague">Run the Pokémon League</button>`; }
   if (S.phase === 'offseason') { status = `Season ${S.season} · Offseason`; btn = S.offers.length ? (view !== 'offers' ? `<button class="btn primary" data-act="nav" data-v="offers">League offers (${S.offers.length})</button>` : '') : `<button class="btn primary" data-act="todraft">Start the Season ${S.season + 1} draft</button>`; }
   if (S.phase === 'gifts') { status = `Season ${S.season + 1} · Farewell gifts`; btn = view !== 'gifts' ? `<button class="btn primary" data-act="nav" data-v="gifts">${(S.pendingGifts || []).length ? 'Choose the farewell gift' : 'Farewell gifts'}</button>` : ''; }
@@ -403,6 +403,15 @@ function nav() {
 }
 const PLAN_LABEL = { auto: 'Let them decide', challenge: 'Challenge the gym', train: 'Train', explore: 'Explore', raid: 'Confront villains', purify: 'Purify', seek: 'Seek the legendary' };
 const PLAN_SHORT = { challenge: 'Gym', train: 'Train', explore: 'Explore' };
+// v193: the week whose end brings the Midseason Tournament, and the play button's label for it
+const tourneyNext = () => !!(S && S.phase === 'season' && featOn('tourney') && S.week === TOURNEY_WEEK - 1 && !tourneyNow());
+const playLabel = () => tourneyNext() ? 'Play Midseason Tournament' : `Play week ${S.week + 1}`;
+// "Stop before the Midseason Tournament", shared by Sim to League and Sim multiple seasons (remembered for the visit)
+let simStopTourney = false;
+const tourneyAhead = () => !!(S && S.phase === 'season' && featOn('tourney') && S.week < TOURNEY_WEEK - 1 && !tourneyNow());
+const stopTourneyOpt = () => `<button class="adv-opt${simStopTourney ? ' on' : ''}" data-act="simstoptourney" role="switch" aria-checked="${simStopTourney}"><span class="adv-switch" aria-hidden="true"><i></i></span><span class="adv-text"><b>Stop before the Midseason Tournament</b><span class="muted small">The sim stops at the start of week ${TOURNEY_WEEK}, so you can set your plans and play the week that ends with the tournament yourself.</span></span></button>`;
+// sim weeks up to the start of the tournament week
+function simToTourney() { let g = 0; while (S.phase === 'season' && S.week < TOURNEY_WEEK - 1 && g++ < 60) simWeek({}, {}); }
 
 // ---------- setup ----------
 let setupLeagues = 1, setupTeams = 4, setupRoster = 3, setupPage = 'main', setupAdv = { allFamous: false }, setupBaseOff = false, setupPacks = {}, setupPackOpen = {}, setupOff = {}, setupTourneyRule = 'rotate';
@@ -916,7 +925,7 @@ function teamOverview(roster) {
         <span class="ovw-last"><span class="eyebrow">Last week</span>${lastEntryText(t)}</span>
         <span class="ovw-go" aria-hidden="true">›</span></button>`;
     })).join('') || '<p class="muted">No trainers on your roster.</p>'}</div>
-    <div class="confirm-row"><button class="btn primary" data-act="playweek">Play week ${S.week + 1}</button><button class="btn" data-act="simweek">Sim week</button><span class="muted small">Sim week lets your trainers make their own calls instead of the plans set here.</span></div>
+    <div class="confirm-row"><button class="btn primary" data-act="playweek">${playLabel()}</button><button class="btn" data-act="simweek">Sim week</button><span class="muted small">${tourneyNext() ? `Week ${S.week + 1} is played with the plans set here, then the Midseason Tournament. ` : ''}Sim week lets your trainers make their own calls instead of the plans set here.</span></div>
   </section>`;
 }
 

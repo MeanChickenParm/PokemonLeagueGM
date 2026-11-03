@@ -1,5 +1,5 @@
 const UPDATES = [
-  { id: 193, date: 'November 3, 2026', time: '2:18 PM ET', title: 'Midseason Tournament rules', items: [
+  { id: 193, date: 'November 3, 2026', time: '3:40 PM ET', title: 'Midseason Tournament rules', items: [
     "Each season's Midseason Tournament is now played under one special rule, drawn at random when the season starts (never the same as the season before) and announced in the news after week 8. Until then the office card and the tournament page say a rule is coming.",
     "Inverse Battle: the type chart is flipped. Super-effective hits are not very effective, and resisted hits and immunities become super effective. Abilities like Levitate and Flash Fire still work as usual.",
     "Legendaries banned: legendaries, mythicals, Ultra Beasts, Paradox Pokémon and baby legendaries sit out, and trainers fight with the rest of their team.",
@@ -13,6 +13,8 @@ const UPDATES = [
     "Underdog Cup: only each trainer's three lowest-level Pokémon battle, so the bench decides it.",
     "Rules only change the tournament's own battles. Teams, levels and items are exactly as they were afterwards. Each tournament replay opens with the rule, the bracket page shows it, and Past winners has a new Rule column.",
     "Advanced options → Rules has a new Midseason Tournament rule setting for new leagues: Rotating (the default), any one rule every season, or Standard for plain battles. Existing leagues rotate, starting with the next tournament that hasn't reached week 8 yet.",
+    "Sim to League and Sim multiple seasons have a new Stop before the Midseason Tournament option. Sim to League stops at the start of week 12; Sim multiple seasons plays on into the next season and stops there. You set the plans and play the week that ends with the tournament yourself.",
+    "In week 12 the play button says Play Midseason Tournament: it plays the week with your plans, then the tournament.",
     "To-do list: a doubles format for the tournament is tabled for later.",
   ] },
   { id: 192, date: 'November 3, 2026', time: '12:40 PM ET', title: 'Teams use their ranches', items: [
@@ -674,7 +676,8 @@ document.addEventListener('click', ev => {
     case 'recmore': modal = { kind: 'recmore', key: el.dataset.k }; renderModal(); break;
     case 'simmanyn': modal.n = +el.dataset.v; renderModal(); break;
     case 'simmanyacc': modal.accept = el.dataset.v === '1'; renderModal(); break;
-    case 'simmanygo': modal.running = true; modal.log = []; renderModal(); simTimer = setTimeout(simManyTick, 30); break;
+    case 'simstoptourney': simStopTourney = !simStopTourney; renderModal(); break;
+    case 'simmanygo': modal.stopTourney = simStopTourney && featOn('tourney'); modal.running = true; modal.log = []; renderModal(); simTimer = setTimeout(simManyTick, 30); break;
     case 'simmanystop': modal.stopRequested = true; renderModal(); break;
     case 'simmanyclose': modal = null; renderModal(); go('office'); break;
     case 'simmanyrecords': modal = null; renderModal(); go('records'); break;
@@ -690,7 +693,9 @@ document.addEventListener('click', ev => {
     case 'tourneydone': S.tourneyPause = false; save(); go('office'); toast(`On to week ${S.week + 1}.`); break;
     case 'simweek': if (S.phase !== 'season') break; finishWeek({}, true); break;
     case 'autoseasonask': modal = { kind: 'confirmsim' }; renderModal(); setTimeout(() => { const b = document.querySelector('[data-act="autoseason"]'); if (b && b.focus) b.focus(); }, 0); break;
-    case 'autoseason': modal = null; renderModal(); while (S.phase === 'season') simWeek({}, {}); save(); go('office'); toast('Simulated to the end of the regular season. Your trainers made their own calls.'); break;
+    case 'autoseason': { const stop = tourneyAhead() && simStopTourney; modal = null; renderModal();
+      if (stop) simToTourney(); else while (S.phase === 'season') simWeek({}, {});
+      save(); go('office'); toast(stop ? `Simulated to week ${TOURNEY_WEEK}. Your trainers made their own calls. The Midseason Tournament is played after this week.` : 'Simulated to the end of the regular season. Your trainers made their own calls.'); break; }
     case 'runleague': runLeague(); save(); go('recap'); break;
     case 'giftpick': giftPick = +el.dataset.u; render(); break;
     case 'giftgo': if (giftPick == null) break; confirmGift(giftPick); giftPick = null; save(); render(); toast('Farewell gift left in the ranch.'); break;

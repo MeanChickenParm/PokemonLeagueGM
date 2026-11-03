@@ -775,7 +775,8 @@ function renderModal() {
   if (modal.kind === 'mon') body = monBody();
   if (modal.kind === 'confirmsim') { const left = SEASON_WEEKS - S.week; body = `<div class="mh"><h2>Sim to the League?</h2><button class="btn icon" data-act="close" aria-label="Close">×</button></div>
     <p>This plays the remaining <b>${left} week${left === 1 ? '' : 's'}</b> of Season ${S.season} in one go. Your trainers ignore the plans you've set and make their own calls, including what to catch. You can't undo it.</p>
-    <div class="confirm-row"><button class="btn primary" data-act="autoseason">Sim ${left} week${left === 1 ? '' : 's'}</button><button class="btn" data-act="close">Cancel</button></div>`; }
+    ${tourneyAhead() ? `<div class="adv-list">${stopTourneyOpt()}</div>` : ''}
+    <div class="confirm-row"><button class="btn primary" data-act="autoseason">${tourneyAhead() && simStopTourney ? `Sim to week ${TOURNEY_WEEK}` : `Sim ${left} week${left === 1 ? '' : 's'}`}</button><button class="btn" data-act="close">Cancel</button></div>`; }
   if (modal.kind === 'profile') body = `<div class="mh"><h2>Trainer profile</h2><button class="btn icon" data-act="close" aria-label="Close">×</button></div>${profileBody(T(modal.id), false)}`;
   if (modal.kind === 'battle') body = battleShell();
   if (modal.kind === 'img') body = imgBody();
@@ -857,7 +858,7 @@ function simManyBody() {
       ${m.stopped ? '<p class="muted small">Stopped early. You pick up at the start of the next season.</p>' : ''}
       ${m.failed ? `<p class="warn">Something went wrong during Season ${m.failed.season}, so the sim stopped. Everything up to that point is saved. If it happens again, please report this message: <span class="small">${esc(m.failed.msg).slice(0, 200)}</span></p>` : ''}
       ${rows ? `<div class="scroll"><table class="tbl"><thead><tr><th>Season</th><th>Team Cup</th><th>Champion</th><th>${ORGS[S.userOrg].short}</th><th>Your trainers</th></tr></thead><tbody>${rows}</tbody></table></div>` : ''}
-      <div class="confirm-row">${m.done ? `<button class="btn primary" data-act="simmanyclose">Continue in Season ${S.season}</button><button class="btn" data-act="simmanyrecords">See records</button>` : '<button class="btn" data-act="simmanystop">Stop after this season</button>'}</div>`;
+      <div class="confirm-row">${m.done ? `<button class="btn primary" data-act="simmanyclose">Continue in Season ${S.season}${S.phase === 'season' && S.week ? `, week ${S.week + 1}` : ''}</button><button class="btn" data-act="simmanyrecords">See records</button>` : '<button class="btn" data-act="simmanystop">Stop after this season</button>'}</div>`;
   }
   const n = m.n || 5;
   return `<div class="mh"><h2>Sim multiple seasons</h2><button class="btn icon" data-act="close" aria-label="Close">×</button></div>
@@ -866,6 +867,7 @@ function simManyBody() {
     <div class="eyebrow">Seasons</div><div class="segs setup-segs sim-n">${SIM_CHOICES.map(k => `<button class="seg${n === k ? ' on' : ''}" data-act="simmanyn" data-v="${k}" aria-pressed="${n === k}">${k}</button>`).join('')}</div>
     <div class="eyebrow" style="margin-top:12px">If the League invites one of your trainers to a gym or Elite Four seat</div>
     <div class="segs setup-segs">${[[false, 'Decline and keep them'], [true, 'Accept the invitation']].map(([v, l]) => `<button class="seg${!!m.accept === v ? ' on' : ''}" data-act="simmanyacc" data-v="${v ? 1 : 0}" aria-pressed="${!!m.accept === v}">${l}</button>`).join('')}</div>
+    ${featOn('tourney') ? `<div class="adv-list" style="margin-top:12px">${stopTourneyOpt().replace('The sim stops at the start of week', 'After the last season, the sim plays on into the next one and stops at the start of week')}</div>` : ''}
     ${S.phase !== 'season' || S.week > 0 ? `<p class="muted small">${S.phase === 'season' ? `Season ${S.season} is in week ${S.week + 1}, so it finishes first and counts as the first season.` : `The current ${S.phase === 'offseason' ? 'offseason' : S.phase} finishes first.`}</p>` : ''}
     ${n >= 10 || simSaveBig() ? `<p class="warn small">Planning to sim far ahead? Saves grow every season, and browsers only keep a few megabytes per site${simSaveBig() ? ' (this league is already large)' : ''}. If the save gets too big for this browser, the game tells you and stops saving here. Use Download save file in the menu now and then, so a long league is never lost.</p>` : ''}
     <p class="muted small">You can't undo it. Copy your save from the menu first if you might want this point back.</p>
@@ -889,7 +891,10 @@ function simManyTick() {
   catch (e) { m.running = false; m.done = true; m.failed = { season: S.season, msg: String(e && e.message || e) }; save(); view = 'office'; render(); renderModal(); return; }
   if (h) m.log.push({ ...h, mine: simLine(h) });
   save();
-  if (m.log.length >= m.n || m.stopRequested) { m.running = false; m.done = true; m.stopped = m.stopRequested && m.log.length < m.n; view = 'office'; render(); renderModal(); return; }
+  if (m.log.length >= m.n || m.stopRequested) {
+    // v193: Stop before the Midseason Tournament plays on into the new season up to the tournament week
+    if (m.stopTourney && !m.failed) { try { simToTourney(); } catch (e) { m.failed = { season: S.season, msg: String(e && e.message || e) }; } save(); }
+    m.running = false; m.done = true; m.stopped = m.stopRequested && m.log.length < m.n; view = 'office'; render(); renderModal(); return; }
   renderModal();
   simTimer = setTimeout(simManyTick, 30);
 }
