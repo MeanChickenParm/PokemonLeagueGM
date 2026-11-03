@@ -1353,14 +1353,16 @@ function aiStock(k) {
 }
 // v192: a Pokémon nobody takes in RANCH_STEPS offseason ranch steps goes on display in the historical ranch.
 // A season spent resting doesn't count: a rested Pokémon only starts counting once it's back in the active ranch.
-const RANCH_STEPS = 2;
-const ranchLastChance = m => !!(m && m.ranch && (m.ranch.steps || 0) >= RANCH_STEPS);
+// Paradox Pokémon are rare enough that they never age out.
+const RANCH_STEPS = 3;
+const ranchAges = m => !(SP[m.sp] && SP[m.sp].paradox);
+const ranchLastChance = m => !!(m && m.ranch && ranchAges(m) && (m.ranch.steps || 0) >= RANCH_STEPS);
 function ageRanch(k) {
   const R = ranchOf(k); if (!R || !R.active.length) return;
   const gone = [];
   for (const m of R.active) {
     m.ranch.steps = (m.ranch.steps || 0) + 1;
-    if (m.ranch.steps > RANCH_STEPS) gone.push(m);
+    if (m.ranch.steps > RANCH_STEPS && ranchAges(m)) gone.push(m);
   }
   if (!gone.length) return;
   R.active = R.active.filter(m => !gone.includes(m));
