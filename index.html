@@ -4896,6 +4896,7 @@ const FEATURES = [
     ['trades', 'Road trades', 'Challengers sometimes swap Pokémon when they meet.'],
     ['lucky', 'Lucky Pokémon', 'Traded Pokémon can arrive Lucky, with boosted IVs (needs road trades).'],
     ['legacy', 'Legacy trainers', "Notable retirees' children enter the draft years later."],
+    ['extclasses', 'Extended trainer classes', "Trainer classes made for this game that aren't in the Pokémon games, such as Storm Chaser, Lamplighter, Locksmith and Desert Nomad. They're mostly dual-type specialists covering type pairs the games' classes don't. Off: only classes from the games are handed out."],
     ['rotation', 'Gym rotation', 'Gym Leaders are shuffled among the towns each season.'],
     ['banlist', 'League banlists', "Each offseason the teams in a League vote on banning its top performers for the next season. Banned Pokémon go to their team's ranch, and Gym Leaders, the Elite Four and the Champion get replacements."] ] },
 ];
@@ -4982,16 +4983,37 @@ const CLASSES = {
   Steel: [['Worker','m'],['Engineer',null]],
   Fairy: [['Beauty','f'],['Fairy Tale Girl','f'],['Pokéfan',null]],
 };
-// Dual-type classes: a primary and a secondary type. About 1 in 6 typed challengers and prospects gets one.
+// Dual-type classes: [name, primary, secondary, gender, extended]. About 1 in 6 typed challengers and prospects gets one.
+// Extended classes (5th field true, v198) aren't in the games; the "Extended trainer classes" feature switches them off.
 const DUAL_CLASSES = [
   ['Burglar', 'Fire', 'Poison', 'm'], ['Super Nerd', 'Electric', 'Poison', 'm'], ['Cue Ball', 'Fighting', 'Poison', 'm'], ['Ninja Boy', 'Poison', 'Bug', 'm'],
   ['Parasol Lady', 'Water', 'Fairy', 'f'], ['Kimono Girl', 'Psychic', 'Fairy', 'f'], ['Pokémon Ranger', 'Grass', 'Bug', null], ['Triathlete', 'Water', 'Flying', null],
   ['Sky Trainer', 'Flying', 'Dragon', null], ['Scuba Diver', 'Water', 'Dark', null],
-  ['Storm Chaser', 'Electric', 'Flying', null], ['Volcanologist', 'Fire', 'Ground', null], ['Blacksmith', 'Fire', 'Steel', null], ['Mechanic', 'Steel', 'Electric', null],
-  ['Herbalist', 'Grass', 'Poison', null], ['Shrine Maiden', 'Ghost', 'Psychic', 'f'], ['Gravekeeper', 'Ghost', 'Ground', null], ['Spelunker', 'Rock', 'Dark', null],
-  ['Polar Explorer', 'Ice', 'Ground', null], ['Glacier Diver', 'Water', 'Ice', null], ['Night Watchman', 'Dark', 'Flying', 'm'], ['Monk', 'Fighting', 'Psychic', 'm'],
-  ['Astronomer', 'Psychic', 'Rock', null], ['Apothecary', 'Poison', 'Fairy', null], ['Dragon Rider', 'Dragon', 'Flying', null], ['Wrestler', 'Fighting', 'Normal', 'm'],
+  // v198: classes from the games, given a second type
+  ['Tuber', 'Water', 'Normal', null], ['Cameraman', 'Normal', 'Electric', 'm'], ['Rancher', 'Normal', 'Ground', null], ['Picnicker', 'Grass', 'Normal', 'f'],
+  ['Pokémon Breeder', 'Normal', 'Fairy', null], ['Pilot', 'Flying', 'Steel', null], ['Poké Maniac', 'Ground', 'Poison', 'm'],
+  // extended classes
+  ['Storm Chaser', 'Electric', 'Flying', null, true], ['Volcanologist', 'Fire', 'Ground', null, true], ['Blacksmith', 'Fire', 'Steel', null, true], ['Mechanic', 'Steel', 'Electric', null, true],
+  ['Herbalist', 'Grass', 'Poison', null, true], ['Shrine Maiden', 'Ghost', 'Psychic', 'f', true], ['Gravekeeper', 'Ghost', 'Ground', null, true], ['Spelunker', 'Rock', 'Dark', null, true],
+  ['Polar Explorer', 'Ice', 'Ground', null, true], ['Glacier Diver', 'Water', 'Ice', null, true], ['Night Watchman', 'Dark', 'Flying', 'm', true], ['Monk', 'Fighting', 'Psychic', 'm', true],
+  ['Astronomer', 'Psychic', 'Rock', null, true], ['Apothecary', 'Poison', 'Fairy', null, true], ['Dragon Rider', 'Dragon', 'Flying', null, true], ['Wrestler', 'Fighting', 'Normal', 'm', true],
+  // v198 extended classes, filling type pairs nobody covered
+  ['Courier', 'Normal', 'Flying', null, true],
+  ['Locksmith', 'Steel', 'Fairy', null, true], ['Samurai', 'Bug', 'Steel', 'm', true], ['Knight', 'Steel', 'Dragon', null, true], ['Fencer', 'Fighting', 'Steel', null, true],
+  ['Mercenary', 'Steel', 'Dark', null, true], ['Antique Dealer', 'Ghost', 'Steel', null, true], ['Junk Dealer', 'Poison', 'Steel', null, true],
+  ['Jeweler', 'Rock', 'Fairy', null, true], ['Fossil Diver', 'Rock', 'Water', null, true], ['Paleontologist', 'Rock', 'Flying', null, true], ['Stoker', 'Fire', 'Rock', null, true],
+  ['Rock Climber', 'Rock', 'Fighting', null, true],
+  ['Lamplighter', 'Fire', 'Ghost', null, true], ['Phantom Thief', 'Ghost', 'Dark', null, true], ['Occultist', 'Poison', 'Ghost', null, true],
+  ['Paranormal Investigator', 'Ghost', 'Electric', null, true], ['Doll Collector', 'Ghost', 'Fairy', null, true],
+  ['Farmer', 'Grass', 'Ground', null, true], ['Lumberjack', 'Grass', 'Fighting', null, true], ['Landscaper', 'Grass', 'Steel', null, true], ['Florist', 'Grass', 'Fairy', null, true],
+  ['Bandit', 'Grass', 'Dark', null, true], ['Orchardist', 'Grass', 'Dragon', null, true],
+  ['Lighthouse Keeper', 'Water', 'Electric', null, true], ['Lifeguard', 'Water', 'Fighting', null, true], ['Harbor Master', 'Water', 'Steel', null, true], ['Clam Digger', 'Water', 'Ground', null, true],
+  ['Falconer', 'Fire', 'Flying', null, true], ['Kickboxer', 'Fire', 'Fighting', null, true], ['Fortune Teller', 'Psychic', 'Fire', null, true], ['Desert Nomad', 'Ground', 'Dragon', null, true],
+  ['Street Fighter', 'Fighting', 'Dark', null, true], ['Con Artist', 'Psychic', 'Dark', null, true], ['Trickster', 'Fairy', 'Dark', null, true],
+  ['Lepidopterist', 'Bug', 'Flying', null, true], ['Figure Skater', 'Ice', 'Fairy', null, true],
 ];
+const extClassOn = () => featOn('extclasses');
+const dualClassesOn = () => extClassOn() ? DUAL_CLASSES : DUAL_CLASSES.filter(d => !d[4]);
 const DUAL_CHANCE = 0.17;
 // the types a trainer specialises in (none, one, or two)
 function specTypes(t) { return t && t.specialty ? (t.spec2 ? [t.specialty, t.spec2] : [t.specialty]) : []; }
@@ -5029,7 +5051,7 @@ function assignClass(t, age, allowDual) {
   let opts = t.specialty ? CLASSES[t.specialty] : (age >= 28 ? [GENERAL[1]] : [GENERAL[0]]);
   let [cls, g] = pick(opts);
   t.spec2 = null;
-  const duals = allowDual && t.specialty ? DUAL_CLASSES.filter(d => d[1] === t.specialty || d[2] === t.specialty) : [];
+  const duals = allowDual && t.specialty ? dualClassesOn().filter(d => d[1] === t.specialty || d[2] === t.specialty) : [];
   if (duals.length && rand() < DUAL_CHANCE) {
     const d = pick(duals); cls = d[0]; g = d[3];
     // keep the asked-for type as the primary one, so counter-type prospects still counter the meta
@@ -12439,7 +12461,7 @@ const trImg = t => t ? imgUrl(IMG_TR(t)) || trClsImg(t) : null;
 function imgClassList() {
   const out = [], seen = new Set(), add = c => { if (c && !seen.has(c)) { seen.add(c); out.push(c); } };
   for (const list of Object.values(CLASSES)) for (const [c] of list) add(c);
-  for (const d of DUAL_CLASSES) add(d[0]);
+  for (const d of DUAL_CLASSES) if (!d[4] || !S || featOn('extclasses')) add(d[0]);
   for (const [c] of GENERAL) add(c);
   if (S) for (const t of Object.values(S.trainers)) add(t.cls);
   for (const k of IMGS.keys()) if (k[0] === 'c') add(k.slice(2));
@@ -13923,6 +13945,12 @@ function viewTourney() {
 // Versioning rule (from v179 on): every new version gets the next id, a date AND a timestamp (Eastern Time),
 // and all changes made in one working session go into that one version's entry.
 const UPDATES = [
+  { id: 198, date: 'November 3, 2026', time: '8:59 PM ET', title: 'More trainer classes', items: [
+    "New dual-type trainer classes covering type pairs no class had. From the games: Tuber (Water/Normal), Cameraman (Normal/Electric), Rancher (Normal/Ground), Picnicker (Grass/Normal), Pokémon Breeder (Normal/Fairy), Pilot (Flying/Steel) and Poké Maniac (Ground/Poison).",
+    "New extended classes: Courier, Locksmith, Samurai, Knight, Fencer, Mercenary, Antique Dealer, Junk Dealer, Jeweler, Fossil Diver, Paleontologist, Stoker, Rock Climber, Lamplighter, Phantom Thief, Occultist, Paranormal Investigator, Doll Collector, Farmer, Lumberjack, Landscaper, Florist, Bandit, Orchardist, Lighthouse Keeper, Lifeguard, Harbor Master, Clam Digger, Falconer, Kickboxer, Fortune Teller, Desert Nomad, Street Fighter, Con Artist, Trickster, Lepidopterist and Figure Skater.",
+    "Every type now has at least three dual classes, and Steel, Ghost, Rock and Grass have many more. Dual specialists are no more common than before (about 1 in 6 typed challengers); there's just more variety in which pair they get.",
+    "New option in Advanced options (World): Extended trainer classes. On by default. Turn it off and only classes from the Pokémon games are handed out, which also retires the made-up ones from earlier versions (Storm Chaser, Volcanologist, Blacksmith, Mechanic, Herbalist, Shrine Maiden, Gravekeeper, Spelunker, Polar Explorer, Glacier Diver, Night Watchman, Monk, Astronomer, Apothecary, Dragon Rider and Wrestler).",
+  ] },
   { id: 197, date: 'November 3, 2026', time: '8:39 PM ET', title: 'Temperaments', items: [
     "New: temperaments. Every nature still raises one stat and lowers another in battle, and now also gives a small effect off the field. A Pokémon's profile shows its temperament under its nature.",
     "Attack natures are fiery. Lonely bonds faster but sulks for 4 weeks after a trade. Brave hits 5% harder against a stronger team. Adamant levels 8% faster but gains less from resting. Naughty slacks off against the first three gyms but rises to face villain teams.",

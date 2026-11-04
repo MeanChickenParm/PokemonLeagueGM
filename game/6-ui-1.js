@@ -1153,7 +1153,7 @@ const trImg = t => t ? imgUrl(IMG_TR(t)) || trClsImg(t) : null;
 function imgClassList() {
   const out = [], seen = new Set(), add = c => { if (c && !seen.has(c)) { seen.add(c); out.push(c); } };
   for (const list of Object.values(CLASSES)) for (const [c] of list) add(c);
-  for (const d of DUAL_CLASSES) add(d[0]);
+  for (const d of DUAL_CLASSES) if (!d[4] || !S || featOn('extclasses')) add(d[0]);
   for (const [c] of GENERAL) add(c);
   if (S) for (const t of Object.values(S.trainers)) add(t.cls);
   for (const k of IMGS.keys()) if (k[0] === 'c') add(k.slice(2));

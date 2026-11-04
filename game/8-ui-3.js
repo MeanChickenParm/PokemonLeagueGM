@@ -1,4 +1,10 @@
 const UPDATES = [
+  { id: 198, date: 'November 3, 2026', time: '8:59 PM ET', title: 'More trainer classes', items: [
+    "New dual-type trainer classes covering type pairs no class had. From the games: Tuber (Water/Normal), Cameraman (Normal/Electric), Rancher (Normal/Ground), Picnicker (Grass/Normal), Pokémon Breeder (Normal/Fairy), Pilot (Flying/Steel) and Poké Maniac (Ground/Poison).",
+    "New extended classes: Courier, Locksmith, Samurai, Knight, Fencer, Mercenary, Antique Dealer, Junk Dealer, Jeweler, Fossil Diver, Paleontologist, Stoker, Rock Climber, Lamplighter, Phantom Thief, Occultist, Paranormal Investigator, Doll Collector, Farmer, Lumberjack, Landscaper, Florist, Bandit, Orchardist, Lighthouse Keeper, Lifeguard, Harbor Master, Clam Digger, Falconer, Kickboxer, Fortune Teller, Desert Nomad, Street Fighter, Con Artist, Trickster, Lepidopterist and Figure Skater.",
+    "Every type now has at least three dual classes, and Steel, Ghost, Rock and Grass have many more. Dual specialists are no more common than before (about 1 in 6 typed challengers); there's just more variety in which pair they get.",
+    "New option in Advanced options (World): Extended trainer classes. On by default. Turn it off and only classes from the Pokémon games are handed out, which also retires the made-up ones from earlier versions (Storm Chaser, Volcanologist, Blacksmith, Mechanic, Herbalist, Shrine Maiden, Gravekeeper, Spelunker, Polar Explorer, Glacier Diver, Night Watchman, Monk, Astronomer, Apothecary, Dragon Rider and Wrestler).",
+  ] },
   { id: 197, date: 'November 3, 2026', time: '8:39 PM ET', title: 'Temperaments', items: [
     "New: temperaments. Every nature still raises one stat and lowers another in battle, and now also gives a small effect off the field. A Pokémon's profile shows its temperament under its nature.",
     "Attack natures are fiery. Lonely bonds faster but sulks for 4 weeks after a trade. Brave hits 5% harder against a stronger team. Adamant levels 8% faster but gains less from resting. Naughty slacks off against the first three gyms but rises to face villain teams.",
