@@ -501,6 +501,14 @@ const TRAITS = {
   lateBloomer: { name: 'Late Bloomer', text: 'Keeps improving well into their twenties and early thirties.' },
   competitor:  { name: 'Competitor',   text: 'Seeks out road battles and is fired up against rivals (+5%).' },
   hothead:     { name: 'Hothead',      text: 'Hits a little harder (+2%), but losses rattle their Pokémon.' },
+  // v199
+  underdog:    { name: 'Underdog',     text: 'Rises to the occasion against a stronger team (+5%).' },
+  frontrunner: { name: 'Front-runner', text: 'Dominates weaker teams (+4%), but wilts against stronger ones (−3%).' },
+  comeback:    { name: 'Comeback Kid', text: 'Bounces back: the battle after a loss gets +4%.' },
+  homeTurf:    { name: 'Home Turf',    text: 'As a Gym Leader, Elite Four member or Champion, defends their seat at +4%.' },
+  purist:      { name: 'Purist',       text: 'Battles at +3% when every Pokémon on the team fits their specialty.' },
+  hero:        { name: 'Hero',         text: 'Fights villain teams at +6% and opens Shadow Pokémon hearts faster.' },
+  globetrotter:{ name: 'Globetrotter', text: 'At their best in the World Championship (+5%), keener to move Leagues and chase the Grand Slam.' },
 };
 const TRAIT_CHANCE = 0.75;
 // famous trainers get the trait that fits them
@@ -512,7 +520,15 @@ const FAMOUS_TRAITS = { Ash: 'competitor', Gary: 'competitor', Blue: 'competitor
   Geeta: 'clutch', Nemona: 'competitor', Arven: 'grinder', Penny: 'collector', Kieran: 'hothead', Iono: 'streaky', Larry: 'steady', Grusha: 'steady', Hassel: 'mentor', Poppy: 'competitor', Katy: 'mentor', Liko: 'lateBloomer', Roy: 'competitor', Friede: 'mentor', Dot: 'collector',
   Noland: 'collector', Greta: 'hothead', Tucker: 'clutch', Lucy: 'steady', Spenser: 'mentor', Brandon: 'grinder', Anabel: 'steady', Palmer: 'mentor', Thorton: 'collector', Dahlia: 'streaky', Darach: 'steady', Argenta: 'mentor', Ingo: 'steady', Emmet: 'streaky',
   Maxie: 'grinder', Archie: 'hothead', Cyrus: 'steady', Ghetsis: 'clutch', Lysandre: 'clutch', Volo: 'collector', Archer: 'hothead', Ariana: 'steady', Courtney: 'streaky', Matt: 'hothead', Shelly: 'hothead', Mars: 'streaky', Jupiter: 'steady', Saturn: 'steady', Colress: 'collector',
-  Paul: 'grinder', Trip: 'competitor', Alain: 'clutch', Tobias: 'clutch', Sawyer: 'lateBloomer', Ritchie: 'steady', Harrison: 'competitor', Morrison: 'hothead', Cameron: 'streaky' };
+  Paul: 'grinder', Trip: 'competitor', Alain: 'clutch', Tobias: 'clutch', Sawyer: 'lateBloomer', Ritchie: 'steady', Harrison: 'competitor', Morrison: 'hothead', Cameron: 'streaky',
+  // v199
+  'Lt. Surge': 'homeTurf', Sabrina: 'homeTurf', Clair: 'homeTurf', Norman: 'homeTurf', Wulfric: 'homeTurf', Drake: 'homeTurf', Lorelei: 'homeTurf', Lucian: 'homeTurf',
+  Karen: 'purist', Erika: 'purist', Koga: 'purist', Janine: 'purist', Morty: 'purist', Fantina: 'purist', Phoebe: 'purist', Glacia: 'purist', Bugsy: 'purist',
+  Brendan: 'underdog', Ethan: 'underdog', Hilda: 'underdog', Gloria: 'underdog', Florian: 'underdog', Victor: 'underdog', Lucas: 'underdog',
+  Michael: 'hero', Hilbert: 'hero', Nate: 'hero', Rosa: 'hero', Elio: 'hero', Selene: 'hero', Calem: 'hero', Lyra: 'hero', Juliana: 'hero',
+  Hugh: 'comeback', Kenny: 'comeback', Zoey: 'comeback', Brawly: 'comeback', Cheren: 'comeback', Tierno: 'comeback',
+  Chili: 'frontrunner', Drew: 'frontrunner', Ursula: 'frontrunner', Avery: 'frontrunner', Klara: 'frontrunner', Malva: 'frontrunner',
+  Peony: 'globetrotter', Kahili: 'globetrotter', Willow: 'globetrotter', Lillie: 'globetrotter', Juan: 'globetrotter' };
 function rollTrait() { return rand() < TRAIT_CHANCE ? pick(Object.keys(TRAITS)) : null; }
 // trainers from older saves get a trait the first time it's needed
 function traitOf(t) { if (!t) return null; if (t.trait === undefined) t.trait = (t.famous && FAMOUS_TRAITS[famBase(t)]) || rollTrait(); return t.trait; }
@@ -1001,11 +1017,25 @@ function styledPick(t, av, mons, opening) {
   return av[av.length - 1];
 }
 // how a trainer's trait changes their strength in this battle
-function traitMod(t, foe, stakes) {
+// side 1 is the defending side: the Gym Leader, Elite Four member or Champion being challenged
+const SEAT_ROLES = { gym: ['leader'], league: ['e4', 'champion'], title: ['e4', 'champion'] };
+// v199: a team "stronger" or "weaker" than another by more than this share of its power
+const TRAIT_EDGE = 0.05;
+function traitMod(t, foe, stakes, opts = {}, side = 0) {
   const tr = traitOf(t);
   if (tr === 'clutch' && (stakes === 'league' || stakes === 'title')) return 1.04;
   if (tr === 'competitor' && (stakes === 'rival' || isRival(t, foe))) return 1.05;
   if (tr === 'hothead') return 1.02;
+  if ((tr === 'underdog' || tr === 'frontrunner') && foe && foe.team && foe.team.length && t.team.length) {
+    const mine = teamPower(t), theirs = teamPower(foe);
+    if (tr === 'underdog') return theirs > mine * (1 + TRAIT_EDGE) ? 1.05 : 1;
+    return mine > theirs * (1 + TRAIT_EDGE) ? 1.04 : theirs > mine * (1 + TRAIT_EDGE) ? 0.97 : 1;
+  }
+  if (tr === 'comeback') return t.r && trainerRec(t).cl > 0 ? 1.04 : 1;
+  if (tr === 'homeTurf') return side === 1 && !opts.world && (SEAT_ROLES[stakes] || []).includes(t.role) ? 1.04 : 1;
+  if (tr === 'purist') return t.team.length >= 3 && t.team.every(m => onSpec(t, m.sp)) ? 1.03 : 1;
+  if (tr === 'hero') return foe && foe.role === 'villain' ? 1.06 : 1;
+  if (tr === 'globetrotter') return opts.world ? 1.05 : 1;
   return 1;
 }
 function battle(tA, tB, stakes, title, opts = {}) {
@@ -1016,7 +1046,7 @@ function battle(tA, tB, stakes, title, opts = {}) {
   const sides = [tA, tB].map((t, i) => ({
     t, mons: t.team.map(m => battler(EQ ? Object.assign({}, m, { lvl: EQ }) : m)), act: -1, megaUid: megaStakes(stakes) && megaHolder(t) ? megaHolder(t).uid : null, megaUsed: false,
     bondUid: megaStakes(stakes) && bondMon(t) ? bondMon(t).uid : null, bondUsed: false,
-    mod: (1 + (t.r.nrv - 50) / 100 * nerveW) * traitMod(t, i ? tA : tB, stakes),
+    mod: (1 + (t.r.nrv - 50) / 100 * nerveW) * traitMod(t, i ? tA : tB, stakes, opts, i),
     crit: 0.03 + t.r.bnd / 1000,
     endure: t.r.bnd / 100 * 0.18,
     smart: 0.15 + t.r.str / 100 * 0.8,

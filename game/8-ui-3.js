@@ -1,4 +1,10 @@
 const UPDATES = [
+  { id: 199, date: 'November 3, 2026', time: '9:08 PM ET', title: 'New trainer traits', items: [
+    "Seven new trainer traits. Underdog: +5% against a stronger team. Front-runner: +4% against a weaker team, −3% against a stronger one. Comeback Kid: +4% in the battle after a loss. Home Turf: +4% when defending a Gym, Elite Four or Champion seat. Purist: +3% when every Pokémon on the team fits their specialty.",
+    "Hero: +6% against villain teams, and their Shadow Pokémon's hearts open 50% faster. Globetrotter: +5% in the World Championship; their team looks for a League move for them every offseason, takes smaller matchup gains to make one, and a Globetrotter chasing the Grand Slam feels twice the pull toward Leagues they haven't won.",
+    "A team counts as stronger or weaker when its power is more than 5% above or below the other's.",
+    "Trainers still have a 75% chance of a trait, now drawn from 16. Trainers who already have a trait keep it. Famous trainers who had no set trait now get a fitting one, including Home Turf for Lt. Surge, Sabrina and Clair, Purist for Karen, Erika and Morty, Hero for Michael, Hilbert and Elio, and Globetrotter for Peony and Kahili.",
+  ] },
   { id: 198, date: 'November 3, 2026', time: '8:59 PM ET', title: 'More trainer classes', items: [
     "New dual-type trainer classes covering type pairs no class had. From the games: Tuber (Water/Normal), Cameraman (Normal/Electric), Rancher (Normal/Ground), Picnicker (Grass/Normal), Pokémon Breeder (Normal/Fairy), Pilot (Flying/Steel) and Poké Maniac (Ground/Poison).",
     "New extended classes: Courier, Locksmith, Samurai, Knight, Fencer, Mercenary, Antique Dealer, Junk Dealer, Jeweler, Fossil Diver, Paleontologist, Stoker, Rock Climber, Lamplighter, Phantom Thief, Occultist, Paranormal Investigator, Doll Collector, Farmer, Lumberjack, Landscaper, Florist, Bandit, Orchardist, Lighthouse Keeper, Lifeguard, Harbor Master, Clam Digger, Falconer, Kickboxer, Fortune Teller, Desert Nomad, Street Fighter, Con Artist, Trickster, Lepidopterist and Figure Skater.",

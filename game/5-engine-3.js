@@ -1920,7 +1920,9 @@ const slamContender = t => slamChaser(t) && champLeaguesOf(t).size >= 2;
 const slamProtected = t => nLeagues() > 1 && !!t && ((t.titleSeasons || []).length >= 2 || (t.career && t.career.titles >= 2)) && (t.seasons || 0) < careerSpan(t) + SLAM_EXTRA && slamContender(t);
 const unwonLeagues = t => Array.from({ length: nLeagues() }, (_, i) => i).filter(i => !champLeaguesOf(t).has(i));
 // a League's matchup, plus a pull toward the Leagues a Slam chaser still needs
-const slamFit = (t, i) => leagueFit(t, i) + (slamChaser(t) && !champLeaguesOf(t).has(i) ? SLAM_PULL : 0);
+// v199: a Globetrotter feels the pull twice as strongly and looks for a move every offseason
+const globetrotter = t => !!t && t.r && hasTrait(t, 'globetrotter');
+const slamFit = (t, i) => leagueFit(t, i) + (slamChaser(t) && !champLeaguesOf(t).has(i) ? SLAM_PULL * (globetrotter(t) ? 2 : 1) : 0);
 // can t (any circuit trainer, team or independent) go to League i: room there and no legendary clash
 function slamRoom(t, i) {
   if (i === lgOf(t)) return false;
@@ -1972,17 +1974,17 @@ function aiLeagueMoves() {
     const ts = org(k).roster.map(T).filter(t => t.role === 'challenger');
     let best = null;
     for (const a of ts) for (const b of ts) {
-      if (lgOf(a) >= lgOf(b) || !(look || slamChaser(a) || slamChaser(b))) continue;
+      if (lgOf(a) >= lgOf(b) || !(look || slamChaser(a) || slamChaser(b) || globetrotter(a) || globetrotter(b))) continue;
       const gain = slamFit(a, lgOf(b)) + slamFit(b, lgOf(a)) - slamFit(a, lgOf(a)) - slamFit(b, lgOf(b));
-      if (gain > MOVE_EDGE && (!best || gain > best.gain) && !moveBlock(a, lgOf(b)) && !moveBlock(b, lgOf(a))) best = { a, b, gain };
+      if (gain > MOVE_EDGE * (globetrotter(a) || globetrotter(b) ? 0.5 : 1) && (!best || gain > best.gain) && !moveBlock(a, lgOf(b)) && !moveBlock(b, lgOf(a))) best = { a, b, gain };
     }
-    // a Slam chaser can also take an open spot in a League they haven't won, without a swap
+    // a Slam chaser (or a Globetrotter) can also take an open spot in another League, without a swap
     for (const a of ts) {
-      if (!slamChaser(a)) continue;
+      if (!slamChaser(a) && !globetrotter(a)) continue;
       for (let i = 0; i < nLeagues(); i++) {
         if (i === lgOf(a) || lgRoster(k, i).length >= ROSTER || moveBlock(a, i)) continue;
         const gain = slamFit(a, i) - slamFit(a, lgOf(a));
-        if (gain > MOVE_EDGE && (!best || gain > best.gain)) best = { a, to: i, gain };
+        if (gain > MOVE_EDGE * (globetrotter(a) ? 0.5 : 1) && (!best || gain > best.gain)) best = { a, to: i, gain };
       }
     }
     if (best) best.b ? moveTrainer(best.a.id, lgOf(best.b), best.b.id) : moveTrainer(best.a.id, best.to);

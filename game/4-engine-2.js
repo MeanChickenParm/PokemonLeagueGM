@@ -408,7 +408,7 @@ const timeWarp = () => (eventActive() && eventTeam().scheme === 'time' ? 0.5 + r
 // (about 6–8 weeks for a trainer with an average Bond rating).
 const SHADOW_ATK = 1.15, HYPER_CHANCE = 0.12, HEART_BATTLE = 4, HEART_TRAIN = 16, HEART_EXPLORE = 12, HEART_GYM = 11;
 function makeShadow(m) { m.shadow = { heart: 100, stored: 0 }; m.fr = 0; delete m.bond; return m; }
-function openHeart(t, m, amt) { if (!m.shadow) return; m.shadow.heart = Math.max(0, m.shadow.heart - amt * (0.6 + (t.r ? t.r.bnd : 50) / 100 * 0.8)); }
+function openHeart(t, m, amt) { if (!m.shadow) return; m.shadow.heart = Math.max(0, m.shadow.heart - amt * (0.6 + (t.r ? t.r.bnd : 50) / 100 * 0.8) * (t.r && hasTrait(t, 'hero') ? 1.5 : 1)); }
 function purify(t, m) {
   const gain = m.shadow ? m.shadow.stored : 0;
   delete m.shadow; m.purified = S.season || 1; m.fr = 220;
@@ -1698,7 +1698,7 @@ function worldBattle(a, b, round, W) {
   const keep = { stats: S.stats, dex: S.dex, dexSeason: S.dexSeason };
   S.stats = { ko: {}, use: {} }; S.dex = {}; S.dexSeason = {};
   let r;
-  try { r = inLeague(lgOf(T(a)), () => battle(A, B, 'title', `World Championship ${round} · ${dn(A)} vs ${dn(B)}`, { equal: true })); }
+  try { r = inLeague(lgOf(T(a)), () => battle(A, B, 'title', `World Championship ${round} · ${dn(A)} vs ${dn(B)}`, { equal: true, world: true })); }
   finally { Object.assign(S, keep); }
   r.world = round;
   const w = r.winner === 0 ? a : b, l = w === a ? b : a;
