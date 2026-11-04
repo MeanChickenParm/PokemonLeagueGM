@@ -401,7 +401,11 @@ function nav() {
     return `<div class="navgrp${open ? ' open' : ''}"><button class="tab navbtn${here ? ' on' : ''}" data-act="navgrp" data-k="${g.k}" aria-haspopup="true" aria-expanded="${open}">${g.label}${cur && cur !== g.label ? `<span class="navcur"> · ${cur}</span>` : ''}<span class="navchev" aria-hidden="true">▾</span></button>
       <div class="navmenu" role="menu">${g.items.map(x => x ? `<button class="navitem${view === x[0] ? ' on' : ''}" role="menuitem" data-act="nav" data-v="${x[0]}">${x[1]}</button>` : '<div class="navsep" role="separator"></div>').join('')}</div></div>`;
   };
-  return `<nav class="tabs" aria-label="Pages"><div class="tabs-in">${groups.map(grp).join('')}<button class="tab navgloss" data-act="glossary">Glossary</button><button class="tab navgloss${view === 'updates' ? ' on' : ''}" data-act="updates">Updates${updatesNew() ? '<span class="newdot" aria-label="new"></span>' : ''}</button></div></nav>`;
+  // v195: on phones Glossary and Updates share a More menu, so the bar fits the screen
+  const dot = updatesNew() ? '<span class="newdot" aria-label="new"></span>' : '', mOpen = navOpen === 'more';
+  const more = `<div class="navgrp navmore${mOpen ? ' open' : ''}"><button class="tab navbtn${view === 'updates' ? ' on' : ''}" data-act="navgrp" data-k="more" aria-haspopup="true" aria-expanded="${mOpen}">More${dot}<span class="navchev">▾</span></button>
+      <div class="navmenu navmenu-r" role="menu"><button class="navitem" role="menuitem" data-act="glossary">Glossary</button><button class="navitem${view === 'updates' ? ' on' : ''}" role="menuitem" data-act="updates">Updates${dot}</button></div></div>`;
+  return `<nav class="tabs" aria-label="Pages"><div class="tabs-in">${groups.map(grp).join('')}<button class="tab navgloss" data-act="glossary">Glossary</button><button class="tab navgloss${view === 'updates' ? ' on' : ''}" data-act="updates">Updates${dot}</button>${more}</div></nav>`;
 }
 const PLAN_LABEL = { auto: 'Let them decide', challenge: 'Challenge the gym', train: 'Train', explore: 'Explore', raid: 'Confront villains', purify: 'Purify', seek: 'Seek the legendary' };
 const PLAN_SHORT = { challenge: 'Gym', train: 'Train', explore: 'Explore' };

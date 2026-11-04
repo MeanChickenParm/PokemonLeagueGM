@@ -437,12 +437,16 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 0; }
 .navitem .ttab-n { max-width: none; white-space: normal; }
 .navsep { height: 1px; background: var(--line); margin: 4px 6px; }
 .navgloss { margin-left: auto; }
+.navmore { display: none; margin-left: auto; }
+.navmenu.navmenu-r { left: auto; right: 0; min-width: 160px; }
 @media (max-width: 560px) {
   .tab.navbtn, .tab.navgloss { padding: 12px 8px 10px; font-size: 0.86rem; }
   .navcur { display: none; }
   .navgrp { position: static; }
   .tabs { position: sticky; }
-  .navmenu { left: 8px; right: 8px; max-width: none; }
+  .navmenu, .navmenu.navmenu-r { left: 8px; right: 8px; max-width: none; }
+  .tab.navgloss { display: none; }
+  .navmore { display: block; }
 }
 @media (max-width: 400px) {
   .tab.navbtn, .tab.navgloss { padding: 12px 5px 10px; font-size: 0.84rem; }

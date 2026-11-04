@@ -437,12 +437,16 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 0; }
 .navitem .ttab-n { max-width: none; white-space: normal; }
 .navsep { height: 1px; background: var(--line); margin: 4px 6px; }
 .navgloss { margin-left: auto; }
+.navmore { display: none; margin-left: auto; }
+.navmenu.navmenu-r { left: auto; right: 0; min-width: 160px; }
 @media (max-width: 560px) {
   .tab.navbtn, .tab.navgloss { padding: 12px 8px 10px; font-size: 0.86rem; }
   .navcur { display: none; }
   .navgrp { position: static; }
   .tabs { position: sticky; }
-  .navmenu { left: 8px; right: 8px; max-width: none; }
+  .navmenu, .navmenu.navmenu-r { left: 8px; right: 8px; max-width: none; }
+  .tab.navgloss { display: none; }
+  .navmore { display: block; }
 }
 @media (max-width: 400px) {
   .tab.navbtn, .tab.navgloss { padding: 12px 5px 10px; font-size: 0.84rem; }
@@ -11595,7 +11599,11 @@ function nav() {
     return `<div class="navgrp${open ? ' open' : ''}"><button class="tab navbtn${here ? ' on' : ''}" data-act="navgrp" data-k="${g.k}" aria-haspopup="true" aria-expanded="${open}">${g.label}${cur && cur !== g.label ? `<span class="navcur"> · ${cur}</span>` : ''}<span class="navchev" aria-hidden="true">▾</span></button>
       <div class="navmenu" role="menu">${g.items.map(x => x ? `<button class="navitem${view === x[0] ? ' on' : ''}" role="menuitem" data-act="nav" data-v="${x[0]}">${x[1]}</button>` : '<div class="navsep" role="separator"></div>').join('')}</div></div>`;
   };
-  return `<nav class="tabs" aria-label="Pages"><div class="tabs-in">${groups.map(grp).join('')}<button class="tab navgloss" data-act="glossary">Glossary</button><button class="tab navgloss${view === 'updates' ? ' on' : ''}" data-act="updates">Updates${updatesNew() ? '<span class="newdot" aria-label="new"></span>' : ''}</button></div></nav>`;
+  // v195: on phones Glossary and Updates share a More menu, so the bar fits the screen
+  const dot = updatesNew() ? '<span class="newdot" aria-label="new"></span>' : '', mOpen = navOpen === 'more';
+  const more = `<div class="navgrp navmore${mOpen ? ' open' : ''}"><button class="tab navbtn${view === 'updates' ? ' on' : ''}" data-act="navgrp" data-k="more" aria-haspopup="true" aria-expanded="${mOpen}">More${dot}<span class="navchev">▾</span></button>
+      <div class="navmenu navmenu-r" role="menu"><button class="navitem" role="menuitem" data-act="glossary">Glossary</button><button class="navitem${view === 'updates' ? ' on' : ''}" role="menuitem" data-act="updates">Updates${dot}</button></div></div>`;
+  return `<nav class="tabs" aria-label="Pages"><div class="tabs-in">${groups.map(grp).join('')}<button class="tab navgloss" data-act="glossary">Glossary</button><button class="tab navgloss${view === 'updates' ? ' on' : ''}" data-act="updates">Updates${dot}</button>${more}</div></nav>`;
 }
 const PLAN_LABEL = { auto: 'Let them decide', challenge: 'Challenge the gym', train: 'Train', explore: 'Explore', raid: 'Confront villains', purify: 'Purify', seek: 'Seek the legendary' };
 const PLAN_SHORT = { challenge: 'Gym', train: 'Train', explore: 'Explore' };
@@ -13785,13 +13793,14 @@ function viewTourney() {
 // Versioning rule (from v179 on): every new version gets the next id, a date AND a timestamp (Eastern Time),
 // and all changes made in one working session go into that one version's entry.
 const UPDATES = [
-  { id: 195, date: 'November 3, 2026', time: '5:55 PM ET', title: 'Historical and retired ranches, ban records', items: [
+  { id: 195, date: 'November 3, 2026', time: '7:15 PM ET', title: 'Historical and retired ranches, ban records', items: [
     "The team ranch's display shelf is now two panels. The historical ranch holds the title-winning rosters; retired Pokémon (retired with a trainer, not registered, or unused in the active ranch) have their own retired ranch below it.",
     "Each title roster in the historical ranch is collapsible: tap a season to open or close its roster. They're listed newest first and start closed.",
     "Ranch text, the Glossary and the Retired Pokémon screen now say retired ranch where they mean retired Pokémon.",
     "New Records board under Pokémon: Most times banned. It counts each time a League vote bans a species (a ban kept in later votes counts once), shows the seasons it was banned for and flags what's banned now. Legendaries are included.",
     "History has a new Banlists section: every vote in the League, newest first, with what was banned, kept and lifted (and by how many teams), and the banlist in force for each season.",
     "The ban log now keeps up to 600 entries instead of 60, so the history doesn't lose old votes.",
+    "The page menu now fits phone screens: on narrow screens Glossary and Updates move into a More menu (with the new-updates dot), so the page no longer scrolls sideways a little on every screen.",
     "Fixed text changing size in the Banlists history on phones. It's now one block per vote (banned, kept, lifted and the banlist in force) instead of a wide table, and the page no longer lets the browser enlarge text on its own.",
     "The Banlist ballot now varies: instead of the season's exact top five, it's five drawn at random from the top 20 performers (still at most two legendaries, and one per evolutionary family). The vote screen shows each one's place in the top 20, and AI teams still lean toward banning the higher-ranked ones.",
     "Banlist limits loosened: there's no longer a limit of two new bans a season, so every Pokémon on the ballot that gets a majority is banned, and a League can hold up to five bans at a time instead of three. When there isn't room for them all, the most votes go first.",
@@ -14469,7 +14478,7 @@ document.addEventListener('click', ev => {
     case 'profile': modal = { kind: 'profile', id: +el.dataset.id, back: recBack() }; renderModal(); break;
     case 'ownTab': openOwnTab(); break;
     case 'embedhide': embedNoteHidden = true; try { sessionStorage.setItem('plgm-embed-note', '1'); } catch (e) {} render(); break;
-    case 'glossary': modal = { kind: 'glossary' }; renderModal(); break;
+    case 'glossary': navOpen = null; syncNav(); modal = { kind: 'glossary' }; renderModal(); break;
     case 'glosssec': glossSec = el.dataset.v; if (modal && modal.kind === 'glossary') { renderModal(); const sh = document.querySelector('.sheet'); if (sh) sh.scrollTop = 0; } break;
     case 'updates': navOpen = null; modal = null; renderModal(); markUpdatesSeen(); go('updates'); break;
     case 'close': if (modal && modal.kind === 'simmany' && modal.running) break; clearInterval(player); modal = modal && modal.back ? modal.back : null; renderModal(); break;
