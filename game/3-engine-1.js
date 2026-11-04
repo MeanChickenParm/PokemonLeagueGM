@@ -160,6 +160,7 @@ const FEATURES = [
     ['greatlegends', 'Legendary encounters', 'The box legendaries appear through story events, along with rare encounters (Regigigas, Darkrai, Cresselia, Deoxys), legendaries found while exploring (the Regis, Mew, Shaymin and more), legendaries that choose a trainer by character or season (the Lake trio, the Swords of Justice, Victini and more) and Missingno. A trainer holds one legendary at a time.'],
     ['abilities', 'Abilities', 'Pokémon have their real abilities (a growing set), with gym weather (rain, sun, sand, snow), burns, paralysis, poison and stat changes in battle.'],
     ['items', 'Held items', 'Pokémon hold items: type boosters, Leftovers, Choice items, Life Orb, Focus Sash and more. Earned from gyms, found while exploring, and given for deep League runs.'],
+    ['temper', 'Temperaments', 'Each nature also gives a small effect off the field: nerves on the big stage, faster learning, sulking after a trade and more.'],
     ['bond', 'Battle Bond', 'Long-time partners at max friendship can transform after a knockout in League battles.'],
     ['road', 'Road battles and rivalries', 'Challengers run into each other between gyms; rivalries and nemeses grow from it.'],
     ['gymadapt', 'Gym Leaders adapt', 'A Gym Leader on a losing streak swaps a Pokémon to counter what is beating them.'],
@@ -348,6 +349,77 @@ function natureFx(n) {
   if (nd.length && nd[0] !== nd[1]) { fx[nd[0]] = 1.1; fx[nd[1]] = 0.9; }
   return fx;
 }
+// v197: temperaments. Every nature also shapes how a Pokémon behaves off the field, with small effects in particular
+// situations. Grouped by the stat the nature raises: Attack natures are fiery, Defense steady, Speed restless, Sp. Atk
+// thinkers, Sp. Def composed, and the neutral natures are wildcards.
+const TEMPER = {
+  Lonely: { name: 'Loyal', d: 'Friendship grows half again as fast. After a trade it sulks for 4 weeks (−6% damage).' },
+  Brave: { name: 'Daring', d: '+5% damage against a team whose top three are 3 or more levels higher on average.' },
+  Adamant: { name: 'Driven', d: 'Levels 8% faster, but hates resting: half the usual IV gain from a season at the ranch.' },
+  Naughty: { name: 'Mischievous', d: '−4% damage against the first three gyms, +5% against villain teams.' },
+  Bold: { name: 'Unshaken', d: 'Losing never cools its form (fainting still does).' },
+  Relaxed: { name: 'Laid-back', d: 'Gets half again as much from a season of rest at the ranch, but levels 8% slower.' },
+  Impish: { name: 'Spiteful', d: "+5% damage against its trainer's rival." },
+  Lax: { name: 'Careless', d: '−4% damage against a team whose top three are 4 or more levels lower on average.' },
+  Timid: { name: 'Nervous', d: '−7% damage in its first Elite Four or Championship battle each season, unless a Calm teammate steadies it.' },
+  Hasty: { name: 'Impatient', d: 'Levels 15% faster in the first half of the season and 12% slower in the second.' },
+  Jolly: { name: 'Cheerful', d: 'While its trainer is on a win streak of 2 or more, the whole team does 3% more damage.' },
+  Naive: { name: 'Adaptable', d: 'Levels 25% faster in its first season with a new trainer (after a trade or a ranch handoff).' },
+  Modest: { name: 'Studious', d: 'Learns stronger moves and coverage moves 5 levels early.' },
+  Mild: { name: 'Easygoing', d: 'A cold streak never lowers its damage; a hot streak still helps.' },
+  Quiet: { name: 'Reflective', d: 'Comes back from a season of rest at the ranch 5 levels higher, on top of the better IVs.' },
+  Rash: { name: 'Reckless', d: 'Its damage swings from −8% to +8% each battle.' },
+  Calm: { name: 'Serene', d: 'Steadies the team: no Timid teammate gets nervous.' },
+  Gentle: { name: 'Nurturing', d: 'Teammates 10 or more levels below it level 15% faster.' },
+  Sassy: { name: 'Defiant', d: '+5% damage in the battle after one it lost.' },
+  Careful: { name: 'Cautious', d: 'Hard to wear down: fainting cools its form half as much.' },
+  Hardy: { name: 'Even-keeled', d: 'Never runs hot or cold: streaks have no effect on it.' },
+  Docile: { name: 'Agreeable', d: 'Keeps all its friendship when traded.' },
+  Serious: { name: 'Focused', d: '+4% damage in Elite Four and Championship battles.' },
+  Bashful: { name: 'Shy', d: 'Starts each season at −4% damage and gains 1% for every win it takes part in, up to +4%.' },
+  Quirky: { name: 'Unpredictable', d: 'Takes on a different temperament each season.' },
+};
+const TEMPER_KEYS = Object.keys(TEMPER).filter(k => k !== 'Quirky');
+// the temperament in effect (a Quirky Pokémon's changes each season), or null with temperaments switched off
+function temperOf(m) {
+  if (!m || !m.nat || !TEMPER[m.nat] || !featOn('temper')) return null;
+  return m.nat === 'Quirky' ? TEMPER_KEYS[hashStr(String(m.uid ?? m.sp) + ':' + ((S && S.season) || 1)) % TEMPER_KEYS.length] : m.nat;
+}
+const isTemper = (m, n) => temperOf(m) === n;
+// the level a Pokémon counts as for learning moves (Modest learns 5 levels early)
+const moveLv = m => Math.floor(m.lvl) + (isTemper(m, 'Modest') ? 5 : 0);
+// a Pokémon in its first season with a new trainer: traded this season, or handed over from a ranch for this season
+const newToTrainer = m => !!((m.met && m.met.how === 'traded' && m.met.season === S.season) || (m.gift && m.gift === S.season));
+// growth from temperament, with team context (Gentle teammates)
+function temperGrowth(m, team) {
+  const n = temperOf(m); let g = 1;
+  if (n === 'Adamant') g *= 1.08;
+  if (n === 'Relaxed') g *= 0.92;
+  if (n === 'Hasty') g *= S.week < SEASON_WEEKS / 2 ? 1.15 : 0.88;
+  if (n === 'Naive' && newToTrainer(m)) g *= 1.25;
+  if (team && team.some(x => x !== m && isTemper(x, 'Gentle') && x.lvl - m.lvl >= 10)) g *= 1.15;
+  return g;
+}
+// friendship gains (Lonely bonds faster)
+const temperFr = m => isTemper(m, 'Lonely') ? 1.5 : 1;
+// a temperament's damage multiplier for one battle: t is the Pokémon's trainer, foe the other side
+function temperMul(t, foe, m, stakes, eq, calm) {
+  const n = temperOf(m); if (!n) return 1;
+  let x = 1;
+  const gap = eq || !foe || !foe.team || !foe.team.length ? 0 : topAvg(foe, 3) - topAvg(t, 3);
+  const big = stakes === 'league' || stakes === 'title';
+  if (n === 'Brave' && gap >= 3) x *= 1.05;
+  if (n === 'Lax' && gap <= -4) x *= 0.96;
+  if (n === 'Naughty') { if (stakes === 'gym' && t.badges && t.badges.length < 3) x *= 0.96; if (foe && foe.role === 'villain') x *= 1.05; }
+  if (n === 'Impish' && foe && isRival(t, foe)) x *= 1.05;
+  if (n === 'Timid' && big && m.nerve !== S.season) { m.nerve = S.season; if (!calm) x *= 0.93; }
+  if (n === 'Serious' && big) x *= 1.04;
+  if (n === 'Sassy' && m.st && m.st.cl > 0) x *= 1.05;
+  if (n === 'Bashful') { const w = m.ss && m.ss.season === S.season ? m.ss.w || 0 : 0; x *= 0.96 + 0.01 * Math.min(8, w); }
+  if (n === 'Rash') x *= 0.92 + rand() * 0.16;
+  if (m.sulk > 0) x *= 0.94;
+  return x;
+}
 // Coverage: attack types a line can learn beyond its own, by the type it belongs to
 const COVER = { Bird: [], Normal: ['Fighting', 'Ground', 'Dark', 'Ghost', 'Electric'], Fire: ['Fighting', 'Ground', 'Dragon', 'Rock', 'Flying'], Water: ['Ice', 'Ground', 'Dark', 'Fighting', 'Psychic'], Electric: ['Steel', 'Flying', 'Ice', 'Grass', 'Fairy'], Grass: ['Poison', 'Ground', 'Fairy', 'Fighting', 'Dark'], Ice: ['Water', 'Ground', 'Fighting', 'Rock', 'Psychic'], Fighting: ['Rock', 'Dark', 'Ground', 'Steel', 'Ice'], Poison: ['Ground', 'Dark', 'Grass', 'Fire', 'Bug'], Ground: ['Rock', 'Steel', 'Dragon', 'Bug', 'Fire'], Flying: ['Steel', 'Fighting', 'Dark', 'Ground', 'Normal'], Psychic: ['Fighting', 'Fairy', 'Dark', 'Ghost', 'Electric'], Bug: ['Rock', 'Fighting', 'Poison', 'Steel', 'Flying'], Rock: ['Ground', 'Fighting', 'Steel', 'Dark', 'Fire'], Ghost: ['Dark', 'Fighting', 'Psychic', 'Poison', 'Ice'], Dragon: ['Fire', 'Ground', 'Steel', 'Flying', 'Electric'], Dark: ['Fighting', 'Poison', 'Ghost', 'Steel', 'Fire'], Steel: ['Ground', 'Rock', 'Fighting', 'Dark', 'Electric'], Fairy: ['Psychic', 'Fire', 'Steel', 'Normal', 'Grass'] };
 const COVER_POWER = 0.72; // coverage hits without the same-type bonus
@@ -376,7 +448,7 @@ function ensureMon(m, elite) {
   if (m.form == null) m.form = 0;
   return m;
 }
-function learnedCov(m) { return (m.cov || []).filter(c => Math.floor(m.lvl) >= c.lv).map(c => c.t); }
+function learnedCov(m) { const L = moveLv(m); return (m.cov || []).filter(c => L >= c.lv).map(c => c.t); }
 // a full set of six IVs from a roll function (or a fixed number)
 const ivSet = roll => Object.fromEntries(STAT_KEYS.map(k => [k, typeof roll === 'function' ? roll() : roll]));
 function ivTotal(m) { return m.iv ? STAT_KEYS.reduce((a, k) => a + (m.iv[k] ?? m.iv[k === 'spa' ? 'atk' : k === 'spd' ? 'def' : k] ?? 15), 0) : 93; }
@@ -729,7 +801,9 @@ function battler(m) {
   const nx = natureFx(m.nat), iv = k => 1 + (m.iv[k] - 15.5) / 155; // IVs move a stat by up to ±10%
   const stat = k => (Math.floor(2 * b[k] * L / 100) + 5) * iv(k) * nx[k];
   const hp = Math.round((Math.floor(2 * b.hp * L / 100) + L + 10) * iv('hp'));
-  const form = 1 + clamp(m.form, -3, 3) * 0.02;                     // hot or cold streak: up to ±6% damage
+  // hot or cold streak: up to ±6% damage (v197: Hardy ignores it, Mild ignores a cold one)
+  const fv = isTemper(m, 'Hardy') ? 0 : isTemper(m, 'Mild') ? Math.max(0, clamp(m.form, -3, 3)) : clamp(m.form, -3, 3);
+  const form = 1 + fv * 0.02;
   const frx = m.fr / 255;                                            // friendship
   return { sp: m.sp, glitchTop, types: monTypes(m), cov: learnedCov(m), L, base, hp, max: hp, endured: false, shadow: !!m.shadow,
     atk: stat('atk') * (m.shadow ? SHADOW_ATK : 1), spa: stat('spa') * (m.shadow ? SHADOW_ATK : 1), formMul: form, def: stat('def'), spd: stat('spd'), spe: b.spe * iv('spe') * nx.spe,
@@ -932,6 +1006,12 @@ function battle(tA, tB, stakes, title, opts = {}) {
     b.sd = sd;
     // Multitype / RKS System: the held type item sets its type
     if ((b.ab === 'Multitype' || b.ab === 'RKS System') && b.item && ITEMS[b.item] && ITEMS[b.item].type) { b.baseTypes = b.types; b.types = [ITEMS[b.item].type]; b.plate = true; } });
+  // v197: temperaments. A Calm Pokémon steadies Timid teammates; a Jolly one lifts the team during a win streak
+  if (featOn('temper')) sides.forEach((sd, si) => {
+    const team = sd.t.team || [], foe = sides[1 - si].t;
+    const calm = team.some(m => isTemper(m, 'Calm')), jolly = team.some(m => isTemper(m, 'Jolly')) && ((sd.t.rec && sd.t.rec.cs) || 0) >= 2;
+    sd.mons.forEach((b, i) => { const m = team[i]; if (m) b.tmp = temperMul(sd.t, foe, m, stakes, !!EQ, calm) * (jolly ? 1.03 : 1); });
+  });
   // a legendary encounter: its single Pokémon has raid-sized HP, and starts with whatever damage earlier attempts left
   if (opts.boss) { const b = sides[1].mons[0]; b.max = Math.round(b.max * opts.boss.hpMul); b.hp = Math.max(1, Math.round(b.max * opts.boss.hpFrac));
     // v177: the challenger's luck on the day swings their damage hard, and how hard the legendary hits back a little
@@ -1213,7 +1293,7 @@ function battle(tA, tB, stakes, title, opts = {}) {
     const momentum = atk.streak >= 3 ? 1.1 : atk.streak >= 2 ? 1.05 : 1;
     const expert = atk.item === 'expertbelt' && e >= 2 ? 1.2 : 1;
     let dmg = ((2 * atk.L / 5 + 2) * movePower(atk, mv, def, weather) * MOVE_SCALE * statRatio(atk, def, phys, weather, dAb) / 50 + 2) * e
-      * (0.85 + rand() * 0.15) * (crit ? (atk.ab === 'Sniper' ? 2.25 : 1.5) : 1) * s.mod * legendChaos() * stormMul(mv.type, phys) * expert * defendAbMul(def, dAb, { type: mv.type, e, flags: mv.flags, contact }, phys) * (atk.ab === 'Analytic' && !first ? 1.3 : 1) * burnMul * formMul * feel * momentum * (s.terrain[mv.type] || 1) * (atk.charged ? 1.3 : 1);
+      * (0.85 + rand() * 0.15) * (crit ? (atk.ab === 'Sniper' ? 2.25 : 1.5) : 1) * s.mod * legendChaos() * stormMul(mv.type, phys) * expert * defendAbMul(def, dAb, { type: mv.type, e, flags: mv.flags, contact }, phys) * (atk.ab === 'Analytic' && !first ? 1.3 : 1) * burnMul * formMul * (atk.tmp || 1) * feel * momentum * (s.terrain[mv.type] || 1) * (atk.charged ? 1.3 : 1);
     dmg = Math.max(1, Math.round(dmg));
     // multi-hit: each hit does the same damage; the hits together get past a Focus Sash or Sturdy
     const hits = rollHits(mv, atk.ab), per = dmg; dmg = per * hits;
@@ -1454,7 +1534,7 @@ function idealMoves(m) {
   if (isGlitch(m.sp)) return ['Sky Attack', 'Water Gun', 'Water Gun', '??????'];
   if (!MOVES_BY_TYPE) { MOVES_BY_TYPE = {}; UTILITY_MOVES = [];
     for (const x of Object.values(MOVES)) { if (x.sig) continue; if (x.utility) UTILITY_MOVES.push(x); else (MOVES_BY_TYPE[x.type] = MOVES_BY_TYPE[x.type] || []).push(x); } }
-  const L = Math.floor(m.lvl), types = monTypes(m), pref = moveCat(m, m.sp), h = hashStr(String(m.uid || m.sp) + m.sp), ab = abilityOf(m);
+  const L = moveLv(m), types = monTypes(m), pref = moveCat(m, m.sp), h = hashStr(String(m.uid || m.sp) + m.sp), ab = abilityOf(m);
   // Liquid Voice: sound moves count as Water moves
   const avail = ty => (MOVES_BY_TYPE[ty] || []).concat(ab === 'Liquid Voice' && ty === 'Water' ? Object.values(MOVES_BY_TYPE).flat().filter(x => x.flags.includes('s') && x.type !== 'Water') : [], ATE[ab] === ty ? MOVES_BY_TYPE.Normal || [] : []).filter(x => L >= MOVE_TIER_LV[x.tier]);
   // the best attack of a type: highest tier, matching the Pokémon's better attacking stat, ties broken per Pokémon
@@ -1483,7 +1563,7 @@ function idealMoves(m) {
 // bring a Pokémon's moves up to date; returns [learned, replaced] pairs
 // the moveset only depends on species, types, coverage and move tier, so skip the work when none of those changed
 const MOVE_KEYS = new WeakMap();
-const moveKey = (m, mv) => m.sp + '|' + monTypes(m).join('/') + '|' + learnedCov(m).join('/') + '|' + tierAt(Math.floor(m.lvl)) + '|' + abilityOf(m) + '|' + (mv || []).join(',');
+const moveKey = (m, mv) => m.sp + '|' + monTypes(m).join('/') + '|' + learnedCov(m).join('/') + '|' + tierAt(moveLv(m)) + '|' + abilityOf(m) + '|' + (mv || []).join(',');
 function refreshMoves(m) {
   const key = moveKey(m, m.moves);
   if (m.moves && MOVE_KEYS.get(m) === key) return [];
@@ -1904,7 +1984,8 @@ function doTrade(a, b, giveUid, getUid) {
     (m.trades = m.trades || []).push({ from: from.id, to: to.id, season: S.season, week: S.week + 1 });
     m.met = { how: 'traded', season: S.season, week: S.week + 1, from: from.id };
     delete m.bond;
-    m.fr = Math.max(70, Math.round((m.fr ?? 70) * 0.5));
+    if (!isTemper(m, 'Docile')) m.fr = Math.max(70, Math.round((m.fr ?? 70) * 0.5));
+    if (isTemper(m, 'Lonely')) m.sulk = 4; // v197: weeks of sulking after leaving its trainer
     // a Lucky Pokémon: some arrive from a trade with boosted IVs, and level a little faster from then on
     if (featOn('lucky') && !m.lucky && !isSpecial(m) && rand() < LUCKY_CHANCE) {
       ensureMon(m); m.lucky = true;
@@ -2075,11 +2156,13 @@ function recordBattle(trainers, tally, winner, stakes) {
       if (r.bond) { m.bonds = (m.bonds || 0) + 1; t.career.bondForms = (t.career.bondForms || 0) + 1; }
       // friendship grows with time in battle, faster for trainers with a high Bond rating
       if (m.shadow) openHeart(t, m, HEART_BATTLE);
-      else m.fr = Math.min(255, (m.fr ?? 70) + Math.round((2 + (won ? 2 : 0)) * (0.5 + t.r.bnd / 100) * (heldItem(m) === 'soothebell' ? 1.5 : 1)));
+      else m.fr = Math.min(255, (m.fr ?? 70) + Math.round((2 + (won ? 2 : 0)) * (0.5 + t.r.bnd / 100) * (heldItem(m) === 'soothebell' ? 1.5 : 1) * temperFr(m)));
       // form: wins and knockouts heat a Pokémon up, fainting cools it down, with some drift
       const tr = traitOf(t), swing = tr === 'streaky' ? 1.5 : tr === 'steady' ? 0.5 : 1;
-      const delta = ((won ? 0.35 : -0.35) + r.ko * 0.3 - r.f * 0.35 + (rand() - 0.5) * 0.5) * swing - (tr === 'hothead' && !won ? 0.3 : 0);
-      m.form = clamp((m.form || 0) * 0.92 + delta, -3, 3);
+      // v197: Bold shrugs off a loss, Careful cools half as much from fainting, Hardy never runs hot or cold
+      const bold = isTemper(m, 'Bold') && !won, careful = isTemper(m, 'Careful') ? 0.5 : 1;
+      const delta = ((won ? 0.35 : bold ? 0 : -0.35) + r.ko * 0.3 - r.f * 0.35 * careful + (rand() - 0.5) * 0.5) * swing - (tr === 'hothead' && !won && !bold ? 0.3 : 0);
+      m.form = isTemper(m, 'Hardy') ? 0 : clamp((m.form || 0) * 0.92 + delta, -3, 3);
     });
   });
 }

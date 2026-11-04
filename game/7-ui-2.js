@@ -688,7 +688,7 @@ function giftPanel(g) {
   return `<section class="panel offer"><div class="eyebrow">Farewell gift${S.pendingGifts.length > 1 ? ` · 1 of ${S.pendingGifts.length}` : ''}</div>
     <h2>${from.name} is leaving to become ${from.role === 'e4' ? 'an Elite Four member' : 'a Gym Leader'}, and wants to leave a Pokémon with the team.</h2>
     <p>Pick one of ${from.name}'s Pokémon to leave in your ranch. You'll hand it to one of your trainers in the ranch step, after the Champion's reward. It keeps its nature, IVs, moves and friendship, and its past record stays on its stat card.${from.role === 'e4' ? ` ${from.name} keeps the rest of their team, and the League replaces the gift with a Paradox Pokémon of their type.` : ''}</p>
-    <div class="regs">${g.mons.map(m => ranchMonBtn(m, giftPick === m.uid, 'giftpick', `Lv ${Math.floor(m.lvl)} · ${m.nat} · IVs ${ivGrade(m)} · ${wl(stOf(m))}, ${stOf(m).ko} KOs`)).join('')}</div>
+    <div class="regs">${g.mons.map(m => ranchMonBtn(m, giftPick === m.uid, 'giftpick', `Lv ${Math.floor(m.lvl)} · ${natLabel(m)} · IVs ${ivGrade(m)} · ${wl(stOf(m))}, ${stOf(m).ko} KOs`)).join('')}</div>
     <div class="confirm-row"><button class="btn primary" data-act="giftgo" ${giftPick != null ? '' : 'disabled'}>${giftPick != null ? `Leave ${g.mons.find(m => m.uid === giftPick).sp} in the ranch` : 'Pick a Pokémon'}</button><button class="btn" data-act="giftskip">Skip the gift</button></div></section>`;
 }
 
@@ -711,7 +711,7 @@ function ranchPickPanel(p, i, n) {
   return `<section class="panel offer"><div class="eyebrow">Retirement${n > 1 ? ` · 1 of ${n}` : ''}</div>
     <h2>${p.fromName} retired. Which Pokémon stays in your ranch?</h2>
     <p>Choose one to keep in your active ranch, where you can hand it to any of your trainers. The rest go to the retired ranch, on display for good.</p>
-    <div class="regs">${mons.map(m => ranchMonBtn(m, ranchKeep === m.uid, 'ranchkeep', `Lv ${Math.floor(m.lvl)} · ${m.nat} · IVs ${ivGrade(m)} · ${wl(stOf(m))}, ${stOf(m).ko} KOs`)).join('')}</div>
+    <div class="regs">${mons.map(m => ranchMonBtn(m, ranchKeep === m.uid, 'ranchkeep', `Lv ${Math.floor(m.lvl)} · ${natLabel(m)} · IVs ${ivGrade(m)} · ${wl(stOf(m))}, ${stOf(m).ko} KOs`)).join('')}</div>
     <div class="confirm-row"><button class="btn primary" data-act="ranchkeepgo" data-i="${i}" ${ranchKeep != null ? '' : 'disabled'}>${ranchKeep != null ? `Keep ${mons.find(m => m.uid === ranchKeep).sp}` : 'Pick a Pokémon to keep'}</button><button class="btn" data-act="ranchkeepnone" data-i="${i}">Keep none</button></div></section>`;
 }
 function viewRanch() {
@@ -730,7 +730,7 @@ function viewRanch() {
     ${live ? '' : '<p class="muted small">You can hand Pokémon out each offseason, after the draft and the Champion\'s reward.</p>'}</section>`;
   const pickHtml = live && picks.length ? ranchPickPanel(picks[0].p, picks[0].i, picks.length) : (picks.length ? `<section class="panel"><p class="muted">${picks.length} retirement${picks.length > 1 ? 's' : ''} to settle in the offseason.</p></section>` : '');
   const active = `<section class="panel"><div class="ph"><h3>Active ranch</h3><span class="muted">${R.active.length} Pokémon</span></div>
-    ${R.active.length ? `<div class="regs">${R.active.map(m => ranchMonBtn(m, ranchSel === m.uid, 'ranchsel', `${ranchSrc(m.ranch)} · ${m.nat} · IVs ${ivGrade(m)}${ranchLastChance(m) ? ' · <span class="warn">Last offseason here</span>' : ''}${m.ranch && m.ranch.how === 'banned' && m.leg ? ` · with ${m.ranch.fromName} until Season ${m.leg.until}` : ''}${m.ranch && m.ranch.how === 'banned' && !org(k).roster.some(id => ranchCanTake(T(id), m)) ? ' · <span class="muted">Nobody on your team can take it yet</span>' : ''}`)).join('')}</div>
+    ${R.active.length ? `<div class="regs">${R.active.map(m => ranchMonBtn(m, ranchSel === m.uid, 'ranchsel', `${ranchSrc(m.ranch)} · ${natLabel(m)} · IVs ${ivGrade(m)}${ranchLastChance(m) ? ' · <span class="warn">Last offseason here</span>' : ''}${m.ranch && m.ranch.how === 'banned' && m.leg ? ` · with ${m.ranch.fromName} until Season ${m.leg.until}` : ''}${m.ranch && m.ranch.how === 'banned' && !org(k).roster.some(id => ranchCanTake(T(id), m)) ? ' · <span class="muted">Nobody on your team can take it yet</span>' : ''}`)).join('')}</div>
     <p class="muted small">A Pokémon nobody takes in ${RANCH_STEPS} offseasons goes on display in the retired ranch. A season spent resting doesn't count, and Paradox Pokémon get ${RANCH_STEPS_PARADOX}.${featOn('banlist') ? ' A banned Pokémon nobody on the team can take doesn\'t count the season either; a banned legendary leaves when its time with its trainer runs out.' : ''}</p>` : '<p class="muted">Empty. The Champion\'s reward, farewell gifts and your retiring trainers\' Pokémon come here.</p>'}
     ${live && R.active.length ? (selM && !takers.length && ranchTakers(k).length ? `<p class="muted">None of your trainers can take ${selM.sp} right now.</p>` : takers.length ? `<div class="eyebrow">Send it to</div><div class="release">${takers.map(t => `<button class="rel${ranchTo === t.id ? ' on' : ''}" data-act="ranchto" data-id="${t.id}">${dn(t)} ${lgTag(t)}<span class="muted">${specName(t)} · OVR ${ovr(t)}</span></button>`).join('')}</div>
       <div class="confirm-row"><button class="btn primary" data-act="ranchgo" ${ranchSel != null && ranchTo != null ? '' : 'disabled'}>${ranchSel != null && ranchTo != null ? `Send ${R.active.find(m => m.uid === ranchSel).sp} to ${T(ranchTo).name}` : 'Pick a Pokémon and a trainer'}</button></div>` : '<p class="muted">Each of your trainers has had their handoff this offseason.</p>') : ''}
@@ -745,7 +745,7 @@ function viewRanch() {
   }).join('') : '';
   const restPanel = `<section class="panel"><div class="ph"><h3>Resting</h3><span class="muted">${resting.length} Pokémon</span></div>
     <p class="muted small">One Pokémon per trainer each offseason. A resting Pokémon sits out the whole next season, then comes back to the active ranch with better IVs (and a little more friendship), ready to go back to its trainer. It doesn't count toward registration while it rests.</p>
-    ${resting.length ? `<ul class="changes">${resting.map(m => `<li>${monFace(m.sp, m.shiny, 24)} <b>${m.sp}</b>${specialMonTags(m)} · ${m.rest.fromName} <span class="muted">· ${m.nat} · IVs ${ivGrade(m)}</span> <span class="muted">back after Season ${m.rest.back}</span></li>`).join('')}</ul>` : ''}
+    ${resting.length ? `<ul class="changes">${resting.map(m => `<li>${monFace(m.sp, m.shiny, 24)} <b>${m.sp}</b>${specialMonTags(m)} · ${m.rest.fromName} <span class="muted">· ${natLabel(m)} · IVs ${ivGrade(m)}</span> <span class="muted">back after Season ${m.rest.back}</span></li>`).join('')}</ul>` : ''}
     ${live ? restRows : (resting.length ? '' : '<p class="muted">Nothing is resting. You can rest a Pokémon in the offseason ranch step.</p>')}</section>`;
   const ret = R.retired, champs = (R.champs || []).filter(c => c.won);
   const monBit = m => `<span class="itemchip">${m.sp}${m.shiny ? ' ✦' : ''}${m.alpha ? ' (alpha)' : ''}${m.delta ? ' (Δ)' : ''} <span class="muted">Lv ${m.lvl}${m.ko ? ` · ${m.ko} KOs` : ''}</span></span>`;
@@ -865,13 +865,13 @@ const HOW = { glitch: 'Glitched onto the team', starter: 'Starting partner', cau
 function monProfile(m, former) {
   const ivOf = k => m.iv[k] ?? m.iv[k === 'spa' ? 'atk' : k === 'spd' ? 'def' : k] ?? 15;
   const ivRow = (k, l) => `<div class="rt"><span class="rt-k">${l}</span><span class="rt-bar"><i style="width:${ivOf(k) / 31 * 100}%"></i></span><span class="rt-v">${ivOf(k)}</span></div>`;
-  const s = SP[m.sp], lv = Math.floor(m.lvl);
+  const s = SP[m.sp], lv = Math.floor(m.lvl), ml = moveLv(m), early = ml - lv; // v197: Modest learns early
   const moves = (m.moves || []).map(n => MOVES[n]).filter(Boolean).map(mv => `<li>${chip(mv.type)} <b>${mv.name}</b> <span class="muted small">${moveLine(mv, m)}</span></li>`).join('') +
-    (m.cov || []).filter(c => lv < c.lv).map(c => `<li class="muted small">${covChip(c.t)} learns ${c.t}-type moves at Lv ${c.lv}</li>`).join('') +
-    (lv < MOVE_TIER_LV[3] ? `<li class="muted small">Stronger moves at Lv ${lv < MOVE_TIER_LV[2] ? MOVE_TIER_LV[2] : MOVE_TIER_LV[3]}</li>` : '');
+    (m.cov || []).filter(c => ml < c.lv).map(c => `<li class="muted small">${covChip(c.t)} learns ${c.t}-type moves at Lv ${c.lv - early}</li>`).join('') +
+    (ml < MOVE_TIER_LV[3] ? `<li class="muted small">Stronger moves at Lv ${(ml < MOVE_TIER_LV[2] ? MOVE_TIER_LV[2] : MOVE_TIER_LV[3]) - early}</li>` : '');
   const f = formTier(m.form || 0);
   return `<section class="panel"><div class="ph"><h3>Profile</h3></div><div class="prof">
-    <div>${abilityBlock(m)}${itemsOn() && !former ? `<div class="eyebrow">Held item</div><p>${m.item && ITEMS[m.item] ? `${itemChip(m.item)} <span class="muted small">· ${ITEMS[m.item].desc}</span>` : '<span class="muted">None</span>'}</p>` : ''}<div class="eyebrow">Nature</div><p><b>${m.nat}</b> <span class="muted">· ${natureText(m.nat)}</span></p>
+    <div>${abilityBlock(m)}${itemsOn() && !former ? `<div class="eyebrow">Held item</div><p>${m.item && ITEMS[m.item] ? `${itemChip(m.item)} <span class="muted small">· ${ITEMS[m.item].desc}</span>` : '<span class="muted">None</span>'}</p>` : ''}<div class="eyebrow">Nature</div><p><b>${m.nat}</b> <span class="muted">· ${natureText(m.nat)}</span></p>${former ? '' : temperLine(m)}
       <div class="eyebrow">Friendship</div><div class="frbar"><i style="width:${(m.fr ?? 70) / 255 * 100}%"></i></div><p class="small"><b>${frTier(m.fr ?? 70)}</b> <span class="muted">· ${m.fr ?? 70} / 255. Raises critical hits and the chance to hang on at 1 HP.</span></p>
       ${former ? '' : `<div class="eyebrow">Form</div><p><b>${f}</b> ${formBadge(m)} <span class="muted small">· ${(m.form || 0) >= 0 ? '+' : '−'}${Math.abs(Math.round((m.form || 0) * 2))}% damage. Wins and knockouts heat it up; fainting cools it down.</span></p>`}</div>
     <div><div class="eyebrow">Base stats · ${SP[m.sp].glitch ? 'scrambled' : attackStyle(m.sp)}</div>${SP[m.sp].glitch ? `<p class="small muted">Every battle deals out ${GLITCH_STATS.join(', ')} to its six stats at random.</p>` : ''}<div class="ratings basestats">${SP[m.sp].glitch ? STAT_KEYS.map(k => `<div class="rt"><span class="rt-k">${STAT_SHORT[k]}</span><span class="rt-bar"><i style="width:0%"></i></span><span class="rt-v">??</span></div>`).join('') : STAT_KEYS.map(k => { const v = Math.round(bsOf(m.sp)[k]); return `<div class="rt"><span class="rt-k">${STAT_SHORT[k]}</span><span class="rt-bar"><i style="width:${Math.min(100, v / 180 * 100)}%"></i></span><span class="rt-v">${v}</span></div>`; }).join('')}</div>
@@ -1019,7 +1019,8 @@ const GLOSS_TERMS = {
   ],
   mons: [
     ['IVs', "A Pokémon's hidden potential in each stat, graded from Poor to Perfect."],
-    ['Nature', 'Raises one stat by 10% and lowers another.'],
+    ['Nature', 'Raises one stat by 10% and lowers another, and gives a temperament: a small effect off the field (see Temperaments).'],
+    ['Temperament', 'What a nature does off the field: nerves on the big stage, faster learning, sulking after a trade and more. Each one is listed under Temperaments.'],
     ['Friendship', 'Grows with time on a team. High friendship helps in battle and is needed for Battle Bond.'],
     ['Form', 'Recent results make a Pokémon run hot (On fire, Hot) or cold (Cold, Slumping), which nudges its strength.'],
     ['Hidden ability', 'The rarer third ability slot. 25% of Pokémon have it, 50% of shinies, alphas and Deltas.'],
@@ -1063,16 +1064,17 @@ const GLOSS_TERMS = {
     ['Season awards', Object.values(AWARDS).map(a => a.name).join(', ') + '.'],
   ],
 };
-const GLOSS_SECS = [['all', 'All'], ['abilities', 'Abilities'], ['moves', 'Moves'], ['items', 'Items'], ['traits', 'Trainer traits'], ['ratings', 'Ratings'], ['plans', 'Weekly plans'], ['battle', 'Battle terms'], ['mons', 'Pokémon terms'], ['league', 'League & careers']];
+const GLOSS_SECS = [['all', 'All'], ['abilities', 'Abilities'], ['moves', 'Moves'], ['items', 'Items'], ['traits', 'Trainer traits'], ['tempers', 'Temperaments'], ['ratings', 'Ratings'], ['plans', 'Weekly plans'], ['battle', 'Battle terms'], ['mons', 'Pokémon terms'], ['league', 'League & careers']];
 let glossCache = null;
 function glossEntries() {
   if (glossCache) return glossCache;
-  const out = { abilities: [], moves: [], items: [], traits: [], ratings: [] };
+  const out = { abilities: [], moves: [], items: [], traits: [], ratings: [], tempers: [] };
   const holders = {}; for (const [sp, A] of Object.entries(SPECIES_AB)) for (const k of ['0', '1', 'H']) if (A[k]) (holders[A[k]] = holders[A[k]] || []).push(sp);
   for (const [a, d] of Object.entries(ABILITIES).sort((x, y) => x[0].localeCompare(y[0]))) { const h = (holders[a] || []).filter(sp => SP[sp] && !SP[sp].legend); const eg = (h.length ? h : holders[a] || []).slice(0, 4); out.abilities.push({ n: a, d, x: eg.length ? 'e.g. ' + eg.join(', ') : '' }); }
   for (const mv of Object.values(MOVES).sort((x, y) => x.name.localeCompare(y.name))) out.moves.push({ n: mv.name, d: moveLine(mv, null), chip: chip(mv.type), x: [mv.sig && SIG_MOVES[mv.name] ? 'Signature of ' + SIG_MOVES[mv.name].join(', ') : '', mv.tier >= 3 ? 'learned from Lv 40' : mv.tier === 2 ? 'learned from Lv 22' : ''].filter(Boolean).join(' · ') });
   for (const [k, it] of Object.entries(ITEMS).sort((x, y) => x[1].name.localeCompare(y[1].name))) out.items.push({ n: it.name, d: it.desc, x: it.tier === 3 ? 'Rare' : it.tier === 2 ? 'Uncommon' : 'Common' });
   for (const t of Object.values(TRAITS)) out.traits.push({ n: t.name, d: t.text });
+  for (const [n, x] of Object.entries(TEMPER)) out.tempers.push({ n: `${n} · ${x.name}`, d: x.d, x: natureText(n) });
   for (const k of RK) out.ratings.push({ n: RNAME[k], d: RATING_TEXT[k] });
   for (const [sec, list] of Object.entries(GLOSS_TERMS)) out[sec] = list.map(([n, d]) => ({ n, d }));
   return glossCache = out;

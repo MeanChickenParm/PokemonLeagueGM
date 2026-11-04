@@ -340,7 +340,7 @@ function gainLevels(t, amt) {
     const mult = m.lvl < top - PACE.catchUpGap ? PACE.catchUpMult : 1;
     const before = Math.floor(m.lvl);
     // Pokérus and Lucky Pokémon level faster
-    const a = amt * monGrowth(m) * timeWarp();
+    const a = amt * monGrowth(m) * temperGrowth(m, t.team) * timeWarp();
     // a Shadow Pokémon can't grow until it's purified: the levels it would have gained are stored
     if (m.shadow) {
       // grow a "virtual" level the same way a normal Pokémon would, and keep the difference in reserve
@@ -1614,12 +1614,14 @@ function doAction(t, act, userCatch) {
     evos = gainLevels(t, PACE.explore);
   } else {
     entry.act = 'train';
-    for (const m of t.team) if (m.shadow) openHeart(t, m, HEART_TRAIN); else m.fr = Math.min(255, (m.fr ?? 70) + 1 + Math.round(t.r.bnd / 50));
+    for (const m of t.team) if (m.shadow) openHeart(t, m, HEART_TRAIN); else m.fr = Math.min(255, (m.fr ?? 70) + Math.round((1 + Math.round(t.r.bnd / 50)) * temperFr(m)));
     evos = gainLevels(t, trainGain(t));
   }
   // v183: a Shadow Pokémon whose heart is fully open is purified at the end of the week, whatever the week was
   { const p = purifyWeek(t); if (p.length) entry.purified = p; }
   evos = evos.concat(gainLevels(t, PACE.travel));
+  // v197: a Lonely Pokémon's sulk after a trade wears off week by week
+  for (const m of t.team) if (m.sulk > 0) { m.sulk--; if (!m.sulk) delete m.sulk; }
   if (t.user) for (const [a, b] of evos) news(`${dn(t)}'s ${a} evolved into ${b}!`, 'you', t.id);
   entry.learned = (t.learned || []).map(([sp, n, old]) => `${sp}: ${n}${old ? ` (replaced ${old})` : ''}`);
   if (t.user) for (const [sp, n, old] of t.learned || []) news(`${dn(t)}'s ${sp} learned ${n}${old ? `, replacing ${old}` : ''}.`, 'you', t.id);

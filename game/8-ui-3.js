@@ -1,4 +1,14 @@
 const UPDATES = [
+  { id: 197, date: 'November 3, 2026', time: '8:39 PM ET', title: 'Temperaments', items: [
+    "New: temperaments. Every nature still raises one stat and lowers another in battle, and now also gives a small effect off the field. A Pokémon's profile shows its temperament under its nature.",
+    "Attack natures are fiery. Lonely bonds faster but sulks for 4 weeks after a trade. Brave hits 5% harder against a stronger team. Adamant levels 8% faster but gains less from resting. Naughty slacks off against the first three gyms but rises to face villain teams.",
+    "Defense natures are steady. Bold never loses form from a loss. Relaxed gets more from resting but levels slower. Impish hits 5% harder against its trainer's rival. Lax plays down to much weaker teams.",
+    "Speed natures are restless. Timid gets nervous in its first Elite Four or Championship battle each season. Hasty levels fast early in the season and fades late. Jolly lifts the whole team 3% during a win streak. Naive levels 25% faster in its first season with a new trainer.",
+    "Sp. Atk natures are thinkers. Modest learns moves 5 levels early. Mild shrugs off cold streaks. Quiet comes back from a season of rest 5 levels higher. Rash swings from −8% to +8% each battle.",
+    "Sp. Def natures are composed. Calm steadies Timid teammates. Gentle helps teammates 10+ levels below it level 15% faster. Sassy hits 5% harder after a loss. Careful loses half as much form from fainting.",
+    "Neutral natures are wildcards. Hardy never runs hot or cold. Docile keeps its friendship when traded. Serious hits 4% harder in Elite Four and Championship battles. Bashful starts each season shy and grows with every win. Quirky takes on a different temperament each season.",
+    "The glossary has a Temperaments section, ranch lists show each Pokémon's temperament next to its nature, and temperaments can be switched off in Advanced options (Events).",
+  ] },
   { id: 196, date: 'November 3, 2026', time: '8:05 PM ET', title: 'Class pictures', items: [
     "New: class pictures. One image can cover a whole trainer class, so every Hiker (or Lass, Swimmer, Ace Trainer and so on) shows it. A trainer's own portrait still comes first, so you can give one Hiker a unique look and let the rest share the class picture.",
     "Trainers keep their class picture after becoming a Gym Leader, Elite Four member or Champion, unless they have a portrait of their own.",

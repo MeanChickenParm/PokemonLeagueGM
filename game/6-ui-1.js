@@ -308,6 +308,14 @@ const pct = st => st.b ? Math.round(st.w / st.b * 100) + '%' : '—';
 const wl = st => `${st.w}–${st.l}`;
 const STAT_NAME = { hp: 'HP', atk: 'Attack', def: 'Defense', spa: 'Sp. Atk', spd: 'Sp. Def', spe: 'Speed' };
 const STAT_SHORT = { hp: 'HP', atk: 'Atk', def: 'Def', spa: 'SpA', spd: 'SpD', spe: 'Spe' };
+// v197: the temperament a nature gives, as a line for a Pokémon's profile (a Quirky one shows this season's)
+function temperLine(m) {
+  const n = temperOf(m); if (!n) return '';
+  const q = m.nat === 'Quirky';
+  return `<p class="small"><b>${TEMPER[m.nat].name}</b>${q ? ` <span class="muted">· this season ${TEMPER[n].name} (as if ${n})</span>` : ''} <span class="muted">· ${TEMPER[n].d}</span>${m.sulk > 0 ? ` <span class="warn">Sulking after a trade: ${m.sulk} week${m.sulk > 1 ? 's' : ''} left.</span>` : ''}</p>`;
+}
+// a nature with its temperament's name, for short lists
+const natLabel = m => { const n = temperOf(m); return n ? `${m.nat} (${TEMPER[n].name})` : m.nat; };
 function natureText(n) {
   const fx = natureFx(n);
   const up = Object.keys(fx).find(k => fx[k] > 1), down = Object.keys(fx).find(k => fx[k] < 1);
