@@ -7124,22 +7124,7 @@ function monTypes(m) {
 }
 // an unusual type: one that appears nowhere in the Pokémon's evolution line
 function rollDelta(sp) { const own = lineTypes(sp); const pool = TYPES.filter(t => !own.has(t)); return pick(pool.length ? pool : TYPES); }
-function makeDelta(o) { o.delta = rollDelta(o.sp); if (o.moves) refreshMoves(o); if (o.abSlot) o.abSlot = rollAbSlot(o); if (!o.shiny) o.iv = ivSet(() => ri(28, 31)); if (rand() < DELTA_AB_CHANCE) o.deltaAb = rollDeltaAbility(o); return o; }
-// A Delta Pokémon sometimes (15%) also has an unusual ability: a strong one its species never has, often one that suits
-// its unusual type (a Delta Water type might bring Drizzle). It replaces the Pokémon's own ability.
-const DELTA_AB_CHANCE = 0.15;
-const DELTA_AB_ANY = ['Adaptability', 'Multiscale', 'Speed Boost', 'Intimidate', 'Moxie', 'Sturdy', 'Regenerator', 'Sheer Force', 'Tough Claws', 'Unaware', 'Mold Breaker', 'Filter'];
-const DELTA_AB_TYPE = { Fire: ['Drought', 'Flash Fire'], Water: ['Drizzle', 'Swift Swim', 'Water Absorb'], Electric: ['Volt Absorb', 'Motor Drive', 'Lightning Rod'], Grass: ['Chlorophyll', 'Sap Sipper'],
-  Ice: ['Snow Warning', 'Slush Rush'], Ground: ['Sand Stream', 'Sand Force'], Rock: ['Sand Stream', 'Solid Rock'], Steel: ['Filter', 'Sturdy'], Ghost: ['Levitate', 'Unaware'], Psychic: ['Levitate', 'Unaware'],
-  Dragon: ['Multiscale', 'Intimidate'], Flying: ['Speed Boost', 'Intimidate'], Bug: ['Technician', 'Speed Boost'], Poison: ['Poison Heal', 'Regenerator'], Dark: ['Moxie', 'Intimidate'], Fighting: ['Guts', 'Moxie'],
-  Normal: ['Adaptability', 'Huge Power'], Fairy: ['Regenerator', 'Competitive'] };
-function rollDeltaAbility(o) {
-  const own = new Set(Object.values(SPECIES_AB[o.sp] || {}).filter(Boolean));
-  const b = bsOf(o.sp), phys = b.atk >= b.spa;
-  const fits = k => ABILITIES[k] && !own.has(k) && !(k === 'Huge Power' && !phys) && !(['Tough Claws', 'Guts', 'Moxie'].includes(k) && !phys);
-  const typed = (DELTA_AB_TYPE[o.delta] || []).filter(fits), any = DELTA_AB_ANY.filter(fits);
-  return typed.length && rand() < 0.6 ? pick(typed) : any.length ? pick(any) : typed.length ? pick(typed) : null;
-}
+function makeDelta(o) { o.delta = rollDelta(o.sp); if (o.moves) refreshMoves(o); if (o.abSlot) o.abSlot = rollAbSlot(o); if (!o.shiny) o.iv = ivSet(() => ri(28, 31)); return o; }
 // v200: Radiant Pokémon. Rarer than shinies. A Radiant wears its species' shiny image, always has at least Good IVs (every IV 16+),
 // and always has an ability its line never has that is stronger in battle than any of the line's own. It replaces the
 // Pokémon's own ability and stays through evolution.
@@ -13870,7 +13855,7 @@ const GLOSS_TERMS = {
     ['Alpha', 'A bigger, stronger wild Pokémon: outstanding IVs and already on a hot streak.'],
     ['Shiny (✦)', 'A rare wild Pokémon with perfect IVs that arrives on fire.'],
     ['Radiant (✧)', "Rarer than a shiny. It wears its species' shiny colors, always has at least Good IVs, and has an ability its species never gets that's stronger in battle than any it does. The ability stays through evolution."],
-    ['Delta (Δ)', 'A rare Pokémon with an unusual second type and outstanding IVs. Some have an unusual strong ability.'],
+    ['Delta (Δ)', 'A rare Pokémon with an unusual second type and outstanding IVs.'],
     ['Shadow', "A Pokémon closed off by Cipher. Snagged from Cipher, or very rarely found in the wild (about as rare as a shiny). Hits harder but can go into Hyper Mode, and can't level until purified."],
     ['Purified', 'A former Shadow Pokémon whose heart opened. It gets its stored levels back at once.'],
     ['Lucky (★)', 'Came in a trade with boosted IVs; levels 10% faster.'],
@@ -14034,7 +14019,7 @@ const UPDATES = [
     "Every Radiant has an ability its evolution line never has, and stronger in battle than any ability the line does have (a line that already has a top ability, like Dragonite's Multiscale, gets a different top one). Abilities that suit its type and attacking style come up more often. It replaces its own ability and stays through evolution. Signature abilities can turn up; only ones tied to a Pokémon's own forms (Zero to Hero, Schooling, Disguise, Stance Change and the like) can't.",
     "Radiants get a ✧ Radiant tag everywhere shinies get theirs, a glowing explore card, a ✧ ability chip, a Radiant filter in My Pokédex, a glossary entry and catch news. Trainers value them above shinies when choosing what to catch and keep.",
     "New option in Advanced options (Wild Pokémon): Radiant Pokémon. On by default, including in existing leagues.",
-    "Fix: a Delta Pokémon's unusual ability was lost when it was caught. It now stays.",
+    "Delta Pokémon no longer roll an unusual ability (they had a 15% chance). Radiants are now the Pokémon with abilities their species never gets. Deltas keep their unusual type and outstanding IVs.",
   ] },
   { id: 199, date: 'November 3, 2026', time: '9:08 PM ET', title: 'New trainer traits', items: [
     "Seven new trainer traits. Underdog: +5% against a stronger team. Front-runner: +4% against a weaker team, −3% against a stronger one. Comeback Kid: +4% in the battle after a loss. Home Turf: +4% when defending a Gym, Elite Four or Champion seat. Purist: +3% when every Pokémon on the team fits their specialty.",

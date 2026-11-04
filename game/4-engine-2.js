@@ -151,22 +151,7 @@ function monTypes(m) {
 }
 // an unusual type: one that appears nowhere in the Pokémon's evolution line
 function rollDelta(sp) { const own = lineTypes(sp); const pool = TYPES.filter(t => !own.has(t)); return pick(pool.length ? pool : TYPES); }
-function makeDelta(o) { o.delta = rollDelta(o.sp); if (o.moves) refreshMoves(o); if (o.abSlot) o.abSlot = rollAbSlot(o); if (!o.shiny) o.iv = ivSet(() => ri(28, 31)); if (rand() < DELTA_AB_CHANCE) o.deltaAb = rollDeltaAbility(o); return o; }
-// A Delta Pokémon sometimes (15%) also has an unusual ability: a strong one its species never has, often one that suits
-// its unusual type (a Delta Water type might bring Drizzle). It replaces the Pokémon's own ability.
-const DELTA_AB_CHANCE = 0.15;
-const DELTA_AB_ANY = ['Adaptability', 'Multiscale', 'Speed Boost', 'Intimidate', 'Moxie', 'Sturdy', 'Regenerator', 'Sheer Force', 'Tough Claws', 'Unaware', 'Mold Breaker', 'Filter'];
-const DELTA_AB_TYPE = { Fire: ['Drought', 'Flash Fire'], Water: ['Drizzle', 'Swift Swim', 'Water Absorb'], Electric: ['Volt Absorb', 'Motor Drive', 'Lightning Rod'], Grass: ['Chlorophyll', 'Sap Sipper'],
-  Ice: ['Snow Warning', 'Slush Rush'], Ground: ['Sand Stream', 'Sand Force'], Rock: ['Sand Stream', 'Solid Rock'], Steel: ['Filter', 'Sturdy'], Ghost: ['Levitate', 'Unaware'], Psychic: ['Levitate', 'Unaware'],
-  Dragon: ['Multiscale', 'Intimidate'], Flying: ['Speed Boost', 'Intimidate'], Bug: ['Technician', 'Speed Boost'], Poison: ['Poison Heal', 'Regenerator'], Dark: ['Moxie', 'Intimidate'], Fighting: ['Guts', 'Moxie'],
-  Normal: ['Adaptability', 'Huge Power'], Fairy: ['Regenerator', 'Competitive'] };
-function rollDeltaAbility(o) {
-  const own = new Set(Object.values(SPECIES_AB[o.sp] || {}).filter(Boolean));
-  const b = bsOf(o.sp), phys = b.atk >= b.spa;
-  const fits = k => ABILITIES[k] && !own.has(k) && !(k === 'Huge Power' && !phys) && !(['Tough Claws', 'Guts', 'Moxie'].includes(k) && !phys);
-  const typed = (DELTA_AB_TYPE[o.delta] || []).filter(fits), any = DELTA_AB_ANY.filter(fits);
-  return typed.length && rand() < 0.6 ? pick(typed) : any.length ? pick(any) : typed.length ? pick(typed) : null;
-}
+function makeDelta(o) { o.delta = rollDelta(o.sp); if (o.moves) refreshMoves(o); if (o.abSlot) o.abSlot = rollAbSlot(o); if (!o.shiny) o.iv = ivSet(() => ri(28, 31)); return o; }
 // v200: Radiant Pokémon. Rarer than shinies. A Radiant wears its species' shiny image, always has at least Good IVs (every IV 16+),
 // and always has an ability its line never has that is stronger in battle than any of the line's own. It replaces the
 // Pokémon's own ability and stays through evolution.

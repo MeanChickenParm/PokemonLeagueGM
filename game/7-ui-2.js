@@ -1027,7 +1027,7 @@ const GLOSS_TERMS = {
     ['Alpha', 'A bigger, stronger wild Pokémon: outstanding IVs and already on a hot streak.'],
     ['Shiny (✦)', 'A rare wild Pokémon with perfect IVs that arrives on fire.'],
     ['Radiant (✧)', "Rarer than a shiny. It wears its species' shiny colors, always has at least Good IVs, and has an ability its species never gets that's stronger in battle than any it does. The ability stays through evolution."],
-    ['Delta (Δ)', 'A rare Pokémon with an unusual second type and outstanding IVs. Some have an unusual strong ability.'],
+    ['Delta (Δ)', 'A rare Pokémon with an unusual second type and outstanding IVs.'],
     ['Shadow', "A Pokémon closed off by Cipher. Snagged from Cipher, or very rarely found in the wild (about as rare as a shiny). Hits harder but can go into Hyper Mode, and can't level until purified."],
     ['Purified', 'A former Shadow Pokémon whose heart opened. It gets its stored levels back at once.'],
     ['Lucky (★)', 'Came in a trade with boosted IVs; levels 10% faster.'],

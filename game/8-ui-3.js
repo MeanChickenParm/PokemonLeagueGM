@@ -5,7 +5,7 @@ const UPDATES = [
     "Every Radiant has an ability its evolution line never has, and stronger in battle than any ability the line does have (a line that already has a top ability, like Dragonite's Multiscale, gets a different top one). Abilities that suit its type and attacking style come up more often. It replaces its own ability and stays through evolution. Signature abilities can turn up; only ones tied to a Pokémon's own forms (Zero to Hero, Schooling, Disguise, Stance Change and the like) can't.",
     "Radiants get a ✧ Radiant tag everywhere shinies get theirs, a glowing explore card, a ✧ ability chip, a Radiant filter in My Pokédex, a glossary entry and catch news. Trainers value them above shinies when choosing what to catch and keep.",
     "New option in Advanced options (Wild Pokémon): Radiant Pokémon. On by default, including in existing leagues.",
-    "Fix: a Delta Pokémon's unusual ability was lost when it was caught. It now stays.",
+    "Delta Pokémon no longer roll an unusual ability (they had a 15% chance). Radiants are now the Pokémon with abilities their species never gets. Deltas keep their unusual type and outstanding IVs.",
   ] },
   { id: 199, date: 'November 3, 2026', time: '9:08 PM ET', title: 'New trainer traits', items: [
     "Seven new trainer traits. Underdog: +5% against a stronger team. Front-runner: +4% against a weaker team, −3% against a stronger one. Comeback Kid: +4% in the battle after a loss. Home Turf: +4% when defending a Gym, Elite Four or Champion seat. Purist: +3% when every Pokémon on the team fits their specialty.",
