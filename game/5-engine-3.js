@@ -1431,8 +1431,11 @@ function confirmRanch() {
 // partner clock. A season it can't be used anywhere on the team doesn't count toward that clock. It registers in the
 // usual three rather than on top of them, and if its time runs out in the ranch it moves on as usual. A banned Pokémon
 // can wait out at most BAN_HOLD offseasons with nobody able to take it; then a legendary moves on, and anything else goes on display.
-// v195: no separate limit on new bans a season beyond the ballot; a League holds at most five
-const BAN_POOL = 20, BAN_BALLOT = 5, BAN_MAX_NEW = BAN_BALLOT, BAN_CAP = 5, BAN_MAX_SEASONS = 3, BAN_MIN_B = 8, BAN_BALLOT_LEGENDS = 2, BAN_HOLD = 4;
+// v195: no separate limit on new bans a season beyond the ballot
+// v201: each ban's length (1 to BAN_MAX_SEASONS seasons) is voted on with the ban itself, and bans are no longer
+// reviewed each offseason: a ban runs its full length, then lifts. Up to five new bans a season, so a League holds at
+// most 15 at a time (five a season for three seasons); the cap can't actually bind, it's a safety net
+const BAN_POOL = 20, BAN_BALLOT = 5, BAN_MAX_NEW = BAN_BALLOT, BAN_MAX_SEASONS = 3, BAN_CAP = BAN_MAX_NEW * BAN_MAX_SEASONS, BAN_MIN_B = 8, BAN_BALLOT_LEGENDS = 2, BAN_HOLD = 4;
 let PREV_EVO = null, PREV_N = 0;
 function prevEvo(sp) {
   const n = Object.keys(SP).length;
@@ -1488,36 +1491,61 @@ function buildBanBallot() {
 function banVoters(i) { return ORG_KEYS.filter(k => org(k).roster.some(id => { const t = T(id); return t && t.role === 'challenger' && lgOf(t) === i; })); }
 const teamIn = (k, i) => org(k).roster.map(T).filter(t => t && t.role === 'challenger' && lgOf(t) === i);
 const teamUses = (k, i, mem) => teamIn(k, i).some(t => t.team.some(m => mem.includes(m.sp)));
-// a team with a stake in a ban: it holds one of the banned Pokémon in its ranch, or has a trainer of its type there
-const teamStake = (k, i, b) => (ranchOf(k) ? ranchOf(k).active : []).some(m => m.ranch && m.ranch.how === 'banned' && m.ranch.lg === i && b.members.includes(m.sp)) || teamIn(k, i).some(t => onSpec(t, b.sp));
-// AI teams never vote to ban what their own trainers use there, and go easier on their sponsor's favourite types
+// AI teams never vote to ban what their own trainers use there, and go easier on their sponsor's favourite types.
+// v201: a vote is a length, 0 (allow) to BAN_MAX_SEASONS; the stronger it was, the longer a team wants it out
 function aiBanVote(k, i, c, rank) {
-  if (teamUses(k, i, c.members)) return false;
+  if (teamUses(k, i, c.members)) return 0;
   let p = 0.35 + 0.1 * (BAN_BALLOT - 1 - rank);
-  if (SP[c.sp].types.some(ty => ORGS[k].likes.includes(ty))) p -= 0.25;
+  const liked = SP[c.sp].types.some(ty => ORGS[k].likes.includes(ty));
+  if (liked) p -= 0.25;
   if (c.leg) p += 0.1;
-  return rand() < p;
+  if (rand() >= p) return 0;
+  const q = 0.3 + 0.06 * (BAN_BALLOT - 1 - rank) + (c.leg ? 0.15 : 0) - (liked ? 0.15 : 0);
+  let len = 1; while (len < BAN_MAX_SEASONS && rand() < q) len++;
+  return len;
 }
-function aiKeepVote(k, i, b) {
-  if (teamStake(k, i, b)) return false;
-  return rand() < 0.8 - 0.2 * Math.max(0, S.season - b.season - 1);
+// v201: a ban's length is the longest one a majority of the voting teams backed (a vote for three seasons backs two and one)
+function banLength(votes, n) {
+  let len = 0;
+  for (let L = 1; L <= BAN_MAX_SEASONS; L++) if (votes.filter(v => v >= L).length * 2 > n) len = L;
+  return len;
+}
+// v201: seasons a ban covers (older saves' bans, made before lengths were voted on, run the full three)
+const banLen = b => b.len || BAN_MAX_SEASONS;
+const banLeft = b => Math.max(0, b.season + banLen(b) - S.season);
+const banLast = b => b.season + banLen(b);
+// lift every ban in League i whose time is up (each offseason, whether or not there's a vote there)
+function expireBans(i, changes) {
+  const L = lgState(i); if (!L || !(L.bans || []).length) return;
+  inLeague(i, () => {
+    const pre = nLeagues() > 1 ? `${lgShort(i)}: ` : '';
+    S.banLog = S.banLog || [];
+    for (const b of S.bans.filter(z => banLeft(z) <= 0)) {
+      const age = S.season - b.season;
+      S.bans = S.bans.filter(z => z !== b);
+      S.banLog.unshift({ season: S.season, sp: b.sp, act: 'lift', n: b.n, limit: true, len: banLen(b) });
+      changes.push(`${pre}The ban on ${b.sp} is lifted after ${age} season${age === 1 ? '' : 's'}.`);
+      news(`The ${S.lgName}'s ban on ${b.sp} is over. It can battle there again in Season ${S.season + 1}.`, 'league');
+    }
+  });
 }
 const banKey = (i, sp) => `${i}|${sp}`;
 // offseason step after League moves: the AI teams' votes are cast when the step resolves; the player votes on the Banlist screen
 function beginBanVote() {
   S.banVote = null;
   if (!featOn('banlist')) return beginReward();
+  const changes = S.changes = S.changes || [];
+  for (let i = 0; i < nLeagues(); i++) expireBans(i, changes);
   const lgs = [];
   for (let i = 0; i < nLeagues(); i++) {
     const L = lgState(i); if (!L) continue;
     const ballot = L.banBallot && L.banBallot.season === S.season ? L.banBallot.cands : [];
-    const reviews = (L.bans || []).filter(b => b.season < S.season).map(b => b.sp);
     const voters = banVoters(i);
-    if (voters.length < 2 || (!ballot.length && !reviews.length)) continue;
-    lgs.push({ lg: i, voters, cands: ballot.map(c => Object.assign({}, c)), reviews });
+    if (voters.length < 2 || !ballot.length) continue;
+    lgs.push({ lg: i, voters, cands: ballot.map(c => Object.assign({}, c)) });
   }
   if (!lgs.length) return beginReward();
-  S.banVote = { season: S.season, lgs, ban: {}, lift: {} };
+  S.banVote = { season: S.season, lgs, ban: {} };
   if (S.userOrg && lgs.some(x => x.voters.includes(S.userOrg))) { S.phase = 'banvote'; return; }
   confirmBanVote();
 }
@@ -1526,14 +1554,17 @@ function autoBanVote() {
   const V = S.banVote, k = S.userOrg; if (!V || !k) return;
   for (const x of V.lgs) if (x.voters.includes(k)) {
     x.cands.forEach((c, r) => { V.ban[banKey(x.lg, c.sp)] = aiBanVote(k, x.lg, c, r); });
-    for (const sp of x.reviews) { const b = bansIn(x.lg).find(z => z.sp === sp); if (b) V.lift[banKey(x.lg, sp)] = !aiKeepVote(k, x.lg, b); }
   }
 }
-function setBanVote(i, sp, kind, v) { const V = S.banVote; if (!V || S.phase !== 'banvote') return; (kind === 'lift' ? V.lift : V.ban)[banKey(i, sp)] = !!v; }
+// v201: the player's vote on a ballot entry is a length, 0 (allow) to BAN_MAX_SEASONS
+function setBanVote(i, sp, v) { const V = S.banVote; if (!V || S.phase !== 'banvote') return; V.ban[banKey(i, sp)] = Math.max(0, Math.min(BAN_MAX_SEASONS, Math.round(+v || 0))); }
+const banVoteOf = v => v === true ? 1 : Math.max(0, +v || 0);
 function confirmBanVote() {
   const V = S.banVote; if (!V) return beginReward();
   const changes = S.changes = S.changes || [];
   const out = [];
+  // a save from mid-vote before v201 hadn't lifted its finished bans yet (no effect otherwise)
+  for (let i = 0; i < nLeagues(); i++) expireBans(i, changes);
   for (const x of V.lgs) out.push(inLeague(x.lg, () => resolveBanVote(x, V, changes)));
   S.banResults = { season: S.season, lgs: out };
   S.banVote = null;
@@ -1548,40 +1579,28 @@ function banCounts() {
 }
 function resolveBanVote(x, V, changes) {
   const i = x.lg, n = x.voters.length, user = S.userOrg, pre = nLeagues() > 1 ? `${lgShort(i)}: ` : '';
-  const res = { lg: i, n, rows: [], reviews: [] };
+  const res = { lg: i, n, rows: [] };
   S.bans = S.bans || []; S.banLog = S.banLog || [];
-  for (const sp of x.reviews) {
-    const b = S.bans.find(z => z.sp === sp); if (!b) continue;
-    const age = S.season - b.season, how = {}; let keep = 0;
-    for (const k of x.voters) { const v = k === user ? !V.lift[banKey(i, sp)] : aiKeepVote(k, i, b); how[k] = v; if (v) keep++; }
-    const kept = age < BAN_MAX_SEASONS && keep * 2 > n;
-    res.reviews.push({ sp, keep, n, kept, how, age, limit: age >= BAN_MAX_SEASONS });
-    S.banLog.unshift({ season: S.season, sp, act: kept ? 'keep' : 'lift', keep, n, limit: age >= BAN_MAX_SEASONS });
-    if (kept) { b.kept = (b.kept || 0) + 1; changes.push(`${pre}${sp} stays banned for Season ${S.season + 1} (${keep} of ${n} teams voted to keep it).`); }
-    else {
-      S.bans = S.bans.filter(z => z !== b);
-      changes.push(`${pre}The ban on ${sp} is lifted${age >= BAN_MAX_SEASONS ? ` after ${age} seasons` : ` (${keep} of ${n} teams voted to keep it)`}.`);
-      news(`The ${S.lgName} lifted its ban on ${sp}. It can battle there again in Season ${S.season + 1}.`, 'league');
-    }
-  }
   const passed = [];
   x.cands.forEach((c, rank) => {
-    const how = {}; let yes = 0;
-    for (const k of x.voters) { const v = k === user ? !!V.ban[banKey(i, c.sp)] : aiBanVote(k, i, c, rank); how[k] = v; if (v) yes++; }
-    const row = { sp: c.sp, yes, n, how, passed: false, leg: c.leg };
+    const how = {}, votes = []; let yes = 0;
+    for (const k of x.voters) { const v = k === user ? banVoteOf(V.ban[banKey(i, c.sp)]) : aiBanVote(k, i, c, rank); how[k] = v; votes.push(v); if (v) yes++; }
+    const len = banLength(votes, n);
+    const row = { sp: c.sp, yes, n, how, passed: false, leg: c.leg, len };
     res.rows.push(row);
-    if (yes * 2 > n) passed.push({ row, c });
+    if (len) passed.push({ row, c });
   });
   passed.sort((a, b) => b.row.yes - a.row.yes || b.c.score - a.c.score);
   let room = Math.min(BAN_MAX_NEW, BAN_CAP - S.bans.length);
   for (const { row, c } of passed) {
     if (room <= 0) { row.capped = true; continue; }
     room--; row.passed = true;
-    S.bans.push({ sp: c.sp, members: c.members, season: S.season, yes: row.yes, n });
+    const len = row.len, thru = S.season + len, span = len === 1 ? `Season ${thru}` : `Seasons ${S.season + 1}–${thru}`;
+    S.bans.push({ sp: c.sp, members: c.members, season: S.season, yes: row.yes, n, len });
     const bc = banCounts(); bc[c.sp] = (bc[c.sp] || 0) + 1;
-    S.banLog.unshift({ season: S.season, sp: c.sp, act: 'ban', yes: row.yes, n });
-    changes.push(`${pre}${c.sp} is banned for Season ${S.season + 1} (${row.yes} of ${n} teams voted for it).`);
-    news(`The ${S.lgName} banned ${c.sp}${c.members.length > 1 ? ` (and ${c.members.filter(s => s !== c.sp).join(', ')})` : ''} for Season ${S.season + 1}, ${row.yes} of ${n} teams voting for it.`, 'league');
+    S.banLog.unshift({ season: S.season, sp: c.sp, act: 'ban', yes: row.yes, n, len });
+    changes.push(`${pre}${c.sp} is banned for ${len === 1 ? span : `${len} seasons (${span})`} (${row.yes} of ${n} teams voted for a ban).`);
+    news(`The ${S.lgName} banned ${c.sp}${c.members.length > 1 ? ` (and ${c.members.filter(s => s !== c.sp).join(', ')})` : ''} for ${len === 1 ? span : `${len} seasons, ${span}`}. ${row.yes} of ${n} teams voted for a ban.`, 'league');
   }
   if (S.banLog.length > BAN_LOG_MAX) S.banLog.length = BAN_LOG_MAX;
   enforceBans();
@@ -2008,4 +2027,4 @@ function foundingDraft(userOrg) {
   setupDraft(ROSTER * nLeagues());
 }
 
-if (typeof module !== 'undefined') module.exports = { BAN_BALLOT, BAN_CAP, BAN_MAX_NEW, BAN_MAX_SEASONS, banMembers, bansIn, banOf, bannedIn, buildBanBallot, beginBanVote, autoBanVote, setBanVote, confirmBanVote, enforceBans, ranchCanTake, returnBannedHome, ranchShelf, ageRanch, TOURNEY_RULES, tourneyRule, tourneyRuleKnown, drawTourneyRule, bringThree, startSeason, ranchLastChance, RANCH_STEPS, RANCH_STEPS_PARADOX, restMon, unrestMon, returnRested, aiRest, canRest, ranchChampionRoster, ranchOf, ranchHand, ranchAuto, beginRanch, confirmRanch, answerRanchPick, autoRanchPick, ranchTakers, addToRanch, settleRanchPick, ranchable, runTourney, tourneyPick, aiTourneyChoice, tourneySpecies, tourneySpOk, settleTourneyOffer, seedOrder, TOURNEY_WEEK, applyDex, dexImport, checkDexEntry, dexNorm, dexBaseStats, get dexLib() { return dexLib; }, set dexLib(v) { dexLib = v; }, BASE_STATS, SPECIES_AB, STARTERS, LINE, EVOLVED, GREAT_LEGENDS, makeMon, ROAMERS, STORMS, paradoxRewardPool, settleStorm, stormRank, ABILITIES, SPECIES_AB, abilityOf, rollAbSlot, ITEMS, TYPE_ITEMS, itemScore, autoEquip, eliteItems, gymItemOffer, takeItemOffer, setItem, bagAdd, heldItem, crossroads, reinvent, dryStreak, isGrandSlam, champLeaguesOf, checkGrandSlams, useLeague, inLeague, eachLeague, nLeagues, lgOf, lgRoster, openLeague, moveTrainer, leagueFit, aiLeagueMoves, worldChampionship, cupStandings, leagueName, startLegend, legendBattle, legendWeek, villainLegend, legendOffseason, joinLegend, answerLegend, weald, wantsLegend, recordGreat, GREAT_LEGENDS, REWARD_LEGENDS, FEATURES, featOn, legacyChance, scheduleLegacy, makeLegacy, legacyLine, metaMons, counterTypesFor, metaCounters, AWARDS, seasonAwards, seasonScore, VILLAIN_TEAMS, startVillainEvent, villainWeek, endVillainEvent, eventActive, eventFoe, eventTeam, gymClosed, raidBattle, answerSnag, offerSnag, snag, purify, purifyWeek, makeShadow, openHeart, wantsRaid, circuitLevel, bondBlocked, BOND_ROLES, checkBonds, bondMon, bondName, BOND_ATK, pokerusWeek, pkrsContact, infectPkrs, monGrowth, LUCKY_CHANCE, PKRS_WEEKS, titleOf, titleNameTaken, famName, famBase, chooseFamous, checkCustom, checkPackName, setCustomLib, parsePackText, prepImport, builtinSource, packExportText, uniquePackName, BUILTIN_SOURCES, ensureCustom, useCustom, customSpecies, newCustomKey, get customLib() { return customLib; }, MALE, FEMALE, FAMOUS_PACKS, BASE_FAMOUS, packOn, famousAvailable, TRADE_EVOS, findTrade, doTrade, roadTrades, answerTrade, MEGA, megaFor, hasMega, megaHolder, assignMegaStone, earnMega, rotateGyms, fitGymTeam, isSpecial, monTypes, makeDelta, DELTA_CHANCE, gymLost, adaptGym, activeOutbreak, maybeOutbreak, offerRejoin, rejoinChoice, simOneSeason, autoStep, fixHallOfFame, repairLevels, repairLeagues, homeLeague, backfillLeagueTags, isLegendLine, legendBlocked, pooledLegend, claimLegend, legendDepartures, adoptLegends, curSeason,  eliteSlot, TRAITS, traitOf, h2hOf, isRival, roadBattles, FAMOUS_TAG_LIST, FAMOUS_BY_NAME, ULTRA_BEASTS, BABY_LEGENDS, ownedLegends, freeBabies, PARADOX, DUAL_CLASSES, specTypes, specFit, applyCfg, ALL_ORG_KEYS, get ORG_KEYS() { return ORG_KEYS; }, get ROSTER() { return ROSTER; }, careerSpan, ageRetireChance, leadStyle, LEAD_STYLES, confirmGift, legacyOf, legacyPoints, coverOptions, MOVES, idealMoves, refreshMoves, estimate, battler, natureFx, NATURES, TEMPER, temperOf, temperMul, temperGrowth, moveLv, ensureMon, learnedCov, frTier, formTier, retireChance, trainerRec, blankStat, FAMOUS, confirmReward, confirmReassign, beginReassign, beginGifts, confirmGifts, giftTeammates, confirmGift, autoGift, canMoveNow, LEGENDS, champOrg, confirmRegistration, independents, ORGS, orgStandings, userTrainers, userRelease, draftCurrent, draftAvail, PACE, dn, CLASSES, setupDraft, get S() { return S; }, set S(v) { S = v; }, newWorld, simWeek, runLeague, userDraft, acceptOffer, aiAction, aiCatch, wildOffers, ovr, T, challengers, SP, BASES, battle };
+if (typeof module !== 'undefined') module.exports = { BAN_BALLOT, BAN_CAP, BAN_MAX_NEW, BAN_MAX_SEASONS, banLength, banLen, banLeft, banLast, expireBans, banMembers, bansIn, banOf, bannedIn, buildBanBallot, beginBanVote, autoBanVote, setBanVote, confirmBanVote, enforceBans, ranchCanTake, returnBannedHome, ranchShelf, ageRanch, TOURNEY_RULES, tourneyRule, tourneyRuleKnown, drawTourneyRule, bringThree, startSeason, ranchLastChance, RANCH_STEPS, RANCH_STEPS_PARADOX, restMon, unrestMon, returnRested, aiRest, canRest, ranchChampionRoster, ranchOf, ranchHand, ranchAuto, beginRanch, confirmRanch, answerRanchPick, autoRanchPick, ranchTakers, addToRanch, settleRanchPick, ranchable, runTourney, tourneyPick, aiTourneyChoice, tourneySpecies, tourneySpOk, settleTourneyOffer, seedOrder, TOURNEY_WEEK, applyDex, dexImport, checkDexEntry, dexNorm, dexBaseStats, get dexLib() { return dexLib; }, set dexLib(v) { dexLib = v; }, BASE_STATS, SPECIES_AB, STARTERS, LINE, EVOLVED, GREAT_LEGENDS, makeMon, ROAMERS, STORMS, paradoxRewardPool, settleStorm, stormRank, ABILITIES, SPECIES_AB, abilityOf, rollAbSlot, ITEMS, TYPE_ITEMS, itemScore, autoEquip, eliteItems, gymItemOffer, takeItemOffer, setItem, bagAdd, heldItem, crossroads, reinvent, dryStreak, isGrandSlam, champLeaguesOf, checkGrandSlams, useLeague, inLeague, eachLeague, nLeagues, lgOf, lgRoster, openLeague, moveTrainer, leagueFit, aiLeagueMoves, worldChampionship, cupStandings, leagueName, startLegend, legendBattle, legendWeek, villainLegend, legendOffseason, joinLegend, answerLegend, weald, wantsLegend, recordGreat, GREAT_LEGENDS, REWARD_LEGENDS, FEATURES, featOn, legacyChance, scheduleLegacy, makeLegacy, legacyLine, metaMons, counterTypesFor, metaCounters, AWARDS, seasonAwards, seasonScore, VILLAIN_TEAMS, startVillainEvent, villainWeek, endVillainEvent, eventActive, eventFoe, eventTeam, gymClosed, raidBattle, answerSnag, offerSnag, snag, purify, purifyWeek, makeShadow, openHeart, wantsRaid, circuitLevel, bondBlocked, BOND_ROLES, checkBonds, bondMon, bondName, BOND_ATK, pokerusWeek, pkrsContact, infectPkrs, monGrowth, LUCKY_CHANCE, PKRS_WEEKS, titleOf, titleNameTaken, famName, famBase, chooseFamous, checkCustom, checkPackName, setCustomLib, parsePackText, prepImport, builtinSource, packExportText, uniquePackName, BUILTIN_SOURCES, ensureCustom, useCustom, customSpecies, newCustomKey, get customLib() { return customLib; }, MALE, FEMALE, FAMOUS_PACKS, BASE_FAMOUS, packOn, famousAvailable, TRADE_EVOS, findTrade, doTrade, roadTrades, answerTrade, MEGA, megaFor, hasMega, megaHolder, assignMegaStone, earnMega, rotateGyms, fitGymTeam, isSpecial, monTypes, makeDelta, DELTA_CHANCE, gymLost, adaptGym, activeOutbreak, maybeOutbreak, offerRejoin, rejoinChoice, simOneSeason, autoStep, fixHallOfFame, repairLevels, repairLeagues, homeLeague, backfillLeagueTags, isLegendLine, legendBlocked, pooledLegend, claimLegend, legendDepartures, adoptLegends, curSeason,  eliteSlot, TRAITS, traitOf, h2hOf, isRival, roadBattles, FAMOUS_TAG_LIST, FAMOUS_BY_NAME, ULTRA_BEASTS, BABY_LEGENDS, ownedLegends, freeBabies, PARADOX, DUAL_CLASSES, specTypes, specFit, applyCfg, ALL_ORG_KEYS, get ORG_KEYS() { return ORG_KEYS; }, get ROSTER() { return ROSTER; }, careerSpan, ageRetireChance, leadStyle, LEAD_STYLES, confirmGift, legacyOf, legacyPoints, coverOptions, MOVES, idealMoves, refreshMoves, estimate, battler, natureFx, NATURES, TEMPER, temperOf, temperMul, temperGrowth, moveLv, ensureMon, learnedCov, frTier, formTier, retireChance, trainerRec, blankStat, FAMOUS, confirmReward, confirmReassign, beginReassign, beginGifts, confirmGifts, giftTeammates, confirmGift, autoGift, canMoveNow, LEGENDS, champOrg, confirmRegistration, independents, ORGS, orgStandings, userTrainers, userRelease, draftCurrent, draftAvail, PACE, dn, CLASSES, setupDraft, get S() { return S; }, set S(v) { S = v; }, newWorld, simWeek, runLeague, userDraft, acceptOffer, aiAction, aiCatch, wildOffers, ovr, T, challengers, SP, BASES, battle };

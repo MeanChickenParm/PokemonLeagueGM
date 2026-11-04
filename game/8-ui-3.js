@@ -1,4 +1,11 @@
 const UPDATES = [
+  { id: 201, date: 'November 3, 2026', time: '11:19 PM ET', title: 'Banlist lengths', items: [
+    "Banlist votes now set a ban's length up front. Each team votes Allow, 1 season, 2 seasons or 3 seasons for each Pokémon on the ballot. A majority of teams voting for any ban bans it, for the longest length a majority backed (a vote for 3 seasons also counts toward 2 and 1).",
+    "Bans are no longer voted on again each offseason. Each one runs its full length, then lifts on its own.",
+    "A League can now hold up to 15 bans at a time (up to five new ones a season, for up to three seasons each), up from five.",
+    "The Banlist vote screen shows what's still banned and for how long, the office Banlist card shows the last season of each ban, and Season history shows each ban's length.",
+    "Bans already in place in existing leagues run to the three-season limit.",
+  ] },
   { id: 200, date: 'November 3, 2026', time: '10:01 PM ET', title: 'Radiant Pokémon', items: [
     "New: Radiant Pokémon (✧). Rarer than shinies (about 0.3% of wild Pokémon, eight times that in a mass outbreak, double for Collectors). A Radiant wears its species' shiny image.",
     "Every Radiant has at least Good IVs: no stat below 16.",
@@ -769,7 +776,7 @@ document.addEventListener('click', ev => {
     case 'draftpass': userDraft(null); save(); afterDraft(); break;
     case 'giftsconfirm': if ((S.pendingGifts || []).length) break; confirmGifts(); save(); afterDraft(); break;
     case 'reassignconfirm': confirmReassign(); save(); afterDraft(); break;
-    case 'banset': setBanVote(+el.dataset.l, el.dataset.sp, el.dataset.k, el.dataset.k === 'lift' ? el.dataset.v !== '1' : el.dataset.v === '1'); save(); render(); break;
+    case 'banset': setBanVote(+el.dataset.l, el.dataset.sp, +el.dataset.v); save(); render(); break;
     case 'banconfirm': if (S.phase !== 'banvote') break; { confirmBanVote(); save(); const r = S.banResults, nb = r ? r.lgs.reduce((a, x) => a + x.rows.filter(y => y.passed).length, 0) : 0; afterDraft(); toast(nb ? `Votes are in: ${nb} new ban${nb === 1 ? '' : 's'}. See the news.` : 'Votes are in: no new bans.'); } break;
     case 'ranchkeep': ranchKeep = +el.dataset.u; render(); break;
     case 'ranchkeepgo': if (ranchKeep == null) break; { const m = answerRanchPick(+el.dataset.i, ranchKeep); ranchKeep = null; save(); render(); if (m) toast(`${m.sp} is in your ranch.`); } break;
