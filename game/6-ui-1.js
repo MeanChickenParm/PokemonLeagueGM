@@ -1099,7 +1099,7 @@ function profileBody(t, full) {
 // and one portrait per trainer. Each is stored once at 128 × 128 in this browser's IndexedDB, never in the save file, and
 // kept in memory as an object URL so the pages can draw it straight away. Anything without an image keeps its old look.
 const IMG_DB = 'plgm-images', IMG_STORE = 'images', IMG_PX = 128, IMG_MAX_FILE = 20 * 1024 * 1024;
-const IMGS = new Map(); // key -> { url, blob, at }; keys are p:<species>, s:<species> (shiny), t:<title name>
+const IMGS = new Map(); // key -> { url, blob, at }; keys are p:<species>, s:<species> (shiny), t:<title name>, c:<trainer class> (v196)
 let imgDbP = null, imgBootDone = false, imgQ = '', imgTab = 'mon', imgMsg = '', imgBusy = false, imgClearArm = false;
 function imgDb() {
   if (imgDbP) return imgDbP;
@@ -1136,8 +1136,23 @@ const IMG_SP = sp => 'p:' + sp, IMG_SHINY = sp => 's:' + sp;
 const trImgName = t => `${titleOf(t)} ${t.name}`;
 const IMG_TR = t => 't:' + trImgName(t);
 const imgUrl = k => { const x = IMGS.get(k); return x ? x.url : null; };
+// v196: a class picture covers every trainer of that class (all Hikers) who has no portrait of their own. A trainer keeps
+// it after becoming a Gym Leader, Elite Four member or Champion, since they keep their class underneath the title.
+const IMG_CLS = c => 'c:' + c;
+const trClsImg = t => t && t.cls ? imgUrl(IMG_CLS(t.cls)) : null;
+const trImg = t => t ? imgUrl(IMG_TR(t)) || trClsImg(t) : null;
+// every class the game hands out, then (in a league) any other class a trainer holds, such as a famous trainer's
+function imgClassList() {
+  const out = [], seen = new Set(), add = c => { if (c && !seen.has(c)) { seen.add(c); out.push(c); } };
+  for (const list of Object.values(CLASSES)) for (const [c] of list) add(c);
+  for (const d of DUAL_CLASSES) add(d[0]);
+  for (const [c] of GENERAL) add(c);
+  if (S) for (const t of Object.values(S.trainers)) add(t.cls);
+  for (const k of IMGS.keys()) if (k[0] === 'c') add(k.slice(2));
+  return out;
+}
 const monImg = (sp, shiny) => (shiny && imgUrl(IMG_SHINY(sp))) || imgUrl(IMG_SP(sp));
-function imgLabel(k) { return k[0] === 's' ? `Shiny ${k.slice(2)}` : k.slice(2); }
+function imgLabel(k) { return k[0] === 's' ? `Shiny ${k.slice(2)}` : k[0] === 'c' ? `every ${k.slice(2)}` : k.slice(2); }
 const fmtBytes = n => n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(n < 10240 ? 1 : 0)} KB` : `${(n / 1048576).toFixed(1)} MB`;
 // ---- drawing them ----
 // a Pokémon's picture at a size, or its type-colored dot when it has none (a Mega, Delta, alpha or Shadow uses the normal image)
@@ -1151,16 +1166,16 @@ function monFace(sp, shiny, px, dotCls = '', flip = false) {
 const monMini = (sp, shiny) => { const u = monImg(sp, shiny); return u ? `<img class="pic mini" src="${u}" alt="" width="22" height="22" decoding="async">` : ''; };
 const trInitials = t => String(t.name || '?').replace(/ V\d+$/, '').split(/\s+/).filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase();
 function trFace(t, px) {
-  const u = t && imgUrl(IMG_TR(t));
+  const u = trImg(t);
   return u ? `<img class="pic tpic" src="${u}" alt="" width="${px}" height="${px}" decoding="async">`
     : `<span class="tpic tinit" style="width:${px}px;height:${px}px;font-size:${Math.round(px * 0.38)}px" aria-hidden="true">${esc(trInitials(t || {}))}</span>`;
 }
-const trMini = (t, px = 22) => { const u = t && imgUrl(IMG_TR(t)); return u ? `<img class="pic tpic mini" src="${u}" alt="" width="${px}" height="${px}" decoding="async">` : ''; };
+const trMini = (t, px = 22) => { const u = trImg(t); return u ? `<img class="pic tpic mini" src="${u}" alt="" width="${px}" height="${px}" decoding="async">` : ''; };
 const CAM_SVG = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M9 4 7.2 6H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-3.2L15 4H9zm3 4.5a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9zm0 2a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z"/></svg>';
 // the portrait square on a trainer's card, with a camera badge to add or change it: the full 128 px image, or 64 px initials
 function trPortrait(t) {
-  const has = !!imgUrl(IMG_TR(t));
-  return `<div class="tport${has ? ' big' : ''}">${trFace(t, has ? IMG_PX : 64)}<button class="tcam" data-act="imgup" data-k="${esc(IMG_TR(t))}" title="${has ? 'Change' : 'Add'} portrait" aria-label="${has ? 'Change' : 'Add'} ${esc(t.name)}'s portrait">${CAM_SVG}</button></div>`;
+  const has = !!trImg(t), own = !!imgUrl(IMG_TR(t));
+  return `<div class="tport${has ? ' big' : ''}">${trFace(t, has ? IMG_PX : 64)}<button class="tcam" data-act="imgup" data-k="${esc(IMG_TR(t))}" data-c="${esc(t.cls || '')}" title="${own ? 'Change' : 'Add'} portrait" aria-label="${own ? 'Change' : 'Add'} ${esc(t.name)}'s portrait">${CAM_SVG}</button></div>`;
 }
 // the Add image / Add shiny image buttons on a Pokémon's page (they apply to the whole species)
 function monImgBtns(sp) {
@@ -1220,30 +1235,35 @@ async function imgPickFile(f) {
     await imgRedraft();
   } catch (e) { m.err = "That file isn't an image this browser can open."; renderModal(); }
 }
-function openImgUp(key) {
-  const back = modal ? (modal.kind === 'img' ? modal.back : modal) : null;
-  modal = { kind: 'img', key, back, draft: null, err: '' };
+function openImgUp(key, cls) {
+  // a class picture opened from a trainer's portrait window comes back to that window
+  const back = modal ? (modal.kind === 'img' && key[0] !== 'c' ? modal.back : modal) : null;
+  modal = { kind: 'img', key, back, draft: null, err: '', cls: key[0] === 't' && cls ? cls : null };
   renderModal();
 }
 function imgBody() {
-  const m = modal, d = m.draft, cur = IMGS.get(m.key), shown = d ? d.url : cur && cur.url, isTr = m.key[0] === 't';
-  const name = esc(imgLabel(m.key)), sp = isTr ? null : m.key.slice(2);
+  const m = modal, d = m.draft, cur = IMGS.get(m.key), isCls = m.key[0] === 'c', isTr = m.key[0] === 't' || isCls;
+  const clsUrl = m.cls ? imgUrl(IMG_CLS(m.cls)) : null, shown = d ? d.url : cur ? cur.url : clsUrl;
+  const name = esc(isCls ? m.key.slice(2) : imgLabel(m.key)), sp = isTr ? null : m.key.slice(2);
   const sizes = isTr ? [[32, 'In battle'], [64, 'Profile']] : [[22, 'Lists'], [40, 'Team'], [76, 'Battle']];
   const opt = (k, title, desc) => `<button class="adv-opt mini${d[k] ? ' on' : ''}" data-act="imgopt" data-k="${k}" role="switch" aria-checked="${!!d[k]}"><span class="adv-switch" aria-hidden="true"><i></i></span><span class="adv-text"><b>${title}</b><span class="muted small">${desc}</span></span></button>`;
-  const note = isTr ? `A portrait belongs to ${name}, in any league on this device.`
+  const note = isCls ? `Used for every ${name} without a portrait of their own, in any league on this device, and kept when one becomes a Gym Leader, Elite Four member or Champion.`
+    : isTr ? `A portrait belongs to ${name}, in any league on this device.${m.cls ? ` It takes the place of the ${esc(m.cls)} class picture for this trainer only.` : ''}`
     : m.key[0] === 's' ? `Used for every shiny ${esc(sp)}. Shinies without one use the normal image.` : `Used for every ${esc(sp)} (Delta, alpha, Shadow and Mega ${esc(sp)} too), on every team.`;
-  return `<div class="mh"><h2>${isTr ? 'Portrait' : 'Image'}: ${name}</h2><button class="btn icon" data-act="close" aria-label="Close">×</button></div>
+  return `<div class="mh"><h2>${isCls ? 'Class picture' : isTr ? 'Portrait' : 'Image'}: ${name}</h2><button class="btn icon" data-act="close" aria-label="Close">×</button></div>
   <div class="imgup">
     <div class="checker imgprev">${shown ? `<img src="${shown}" alt="Preview of ${name}" width="128" height="128">` : `<span class="muted small">No image yet</span>`}</div>
     <div class="imgup-meta">
       ${d ? `<b class="imgup-file">${esc(d.name)}</b><span class="muted small">${fmtBytes(d.size)} · ${d.w} × ${d.h}</span><span class="small">Saved as ${IMG_PX} × ${IMG_PX}${d.blob ? ` · ${fmtBytes(d.blob.size)}` : ''}</span>`
         : cur ? `<span class="small">Current image · ${IMG_PX} × ${IMG_PX} · ${fmtBytes(cur.blob.size)}</span><span class="muted small">Choose another file to replace it.</span>`
+        : clsUrl ? `<span class="small">Showing the ${esc(m.cls)} class picture.</span><span class="muted small">Choose a file to give this trainer a portrait of their own.</span>`
         : `<span class="muted small">PNG, WebP, GIF or JPEG. Empty margins are trimmed, and the picture is centered on a transparent ${IMG_PX} × ${IMG_PX} square.</span>`}
       ${shown ? `<div class="imgsizes">${sizes.map(([px, l]) => `<span class="imgsize"><span class="checker" style="width:${px}px;height:${px}px"><img src="${shown}" alt="" width="${px}" height="${px}"></span><small>${l}</small></span>`).join('')}</div>` : ''}
     </div>
   </div>
   ${d ? `<div class="adv-list">${opt('pixel', 'Pixel art (keep sharp)', 'Scales by whole steps with hard edges and saves as PNG. Turn off for drawings and photos.')}${opt('flip', 'Flip to face right', isTr ? 'Mirror the picture.' : "Your side of a battle shows it as saved; the opponent's side is mirrored automatically.")}</div>` : ''}
   ${m.err ? `<p class="warn">${m.err}</p>` : ''}
+  ${m.cls && !d ? `<p class="small"><button class="btn small" data-act="imgup" data-k="${esc(IMG_CLS(m.cls))}">${clsUrl ? 'Change' : 'Add'} the picture for every ${esc(m.cls)}</button></p>` : ''}
   <div class="confirm-row"><label class="btn${d ? '' : ' primary'}" for="imgfile" tabindex="0">${d || cur ? 'Choose another' : 'Choose an image'}</label><input id="imgfile" type="file" accept="image/*" class="sr">
     ${d && d.blob ? '<button class="btn primary" data-act="imgsave">Save image</button>' : ''}
     ${cur && !d ? `<button class="btn danger" data-act="imgdel">Remove</button>` : ''}
@@ -1260,13 +1280,22 @@ async function imgSaveDraft() {
 }
 // ---- the Images manager (Advanced options, and Images in the league menu) ----
 function imgCounts() {
-  let p = 0, s = 0, t = 0, bytes = 0;
-  for (const [k, v] of IMGS) { if (k[0] === 'p') p++; else if (k[0] === 's') s++; else t++; bytes += v.blob.size; }
-  return { p, s, t, bytes, all: IMGS.size };
+  let p = 0, s = 0, t = 0, c = 0, bytes = 0;
+  for (const [k, v] of IMGS) { if (k[0] === 'p') p++; else if (k[0] === 's') s++; else if (k[0] === 'c') c++; else t++; bytes += v.blob.size; }
+  return { p, s, t, c, bytes, all: IMGS.size };
 }
-function imgSummary() { const c = imgCounts(); return c.all ? `${c.p} Pokémon · ${c.s} shiny · ${c.t} trainer${c.t === 1 ? '' : 's'} · ${fmtBytes(c.bytes)}` : 'No images yet'; }
+function imgSummary() { const c = imgCounts(); return c.all ? `${c.p} Pokémon · ${c.s} shiny · ${c.t} trainer${c.t === 1 ? '' : 's'}${c.c ? ` · ${c.c} class${c.c === 1 ? '' : 'es'}` : ''} · ${fmtBytes(c.bytes)}` : 'No images yet'; }
 function imgGrid() {
   const q = fold(imgQ.trim());
+  if (imgTab === 'cls') {
+    const cnt = new Map(); if (S) for (const t of Object.values(S.trainers)) if (!t.retired && t.cls) cnt.set(t.cls, (cnt.get(t.cls) || 0) + 1);
+    let names = imgClassList().filter(c => !q || fold(c).includes(q));
+    names.sort((a, b) => (IMGS.has(IMG_CLS(b)) - IMGS.has(IMG_CLS(a))) || 0);
+    const total = names.length; names = names.slice(0, 60);
+    if (!names.length) return `<p class="muted small">No class matches that search.</p>`;
+    return `<div class="imggrid">${names.map(c => { const u = imgUrl(IMG_CLS(c)), n = cnt.get(c) || 0;
+      return `<button class="imgtile" data-act="imgup" data-k="${esc(IMG_CLS(c))}" title="${u ? 'Change' : 'Add'} the picture for every ${esc(c)}">${u ? `<img class="pic tpic" src="${u}" alt="" width="48" height="48">` : `<span class="tpic tinit" style="width:48px;height:48px;font-size:18px" aria-hidden="true">${esc(c.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase())}</span>`}<span class="small">${esc(c)}</span>${S ? `<span class="fine">${n} trainer${n === 1 ? '' : 's'}</span>` : ''}</button>`; }).join('')}</div>${total > 60 ? `<p class="fine">Showing 60 of ${total}. Search to narrow it down.</p>` : ''}`;
+  }
   if (imgTab === 'tr') {
     const have = [...IMGS.keys()].filter(k => k[0] === 't').map(k => k.slice(2));
     const live = S ? Object.values(S.trainers).filter(t => t.role !== 'prospect' || t.org) : [];
@@ -1287,12 +1316,13 @@ function imgGrid() {
 function imagesBody() {
   const c = imgCounts();
   return `<p class="muted small">The game comes with no Pokémon artwork. Add your own pictures: one per Pokémon (plus a shiny one if you like) and a portrait per trainer. They're kept in this browser on this device, never in the save file. Anything without a picture keeps its colored dot or initials.</p>
-    <div class="cupsum imgstats"><div><b>${c.p}</b><small>Pokémon</small></div><div><b>${c.s}</b><small>Shiny</small></div><div><b>${c.t}</b><small>Trainers</small></div><div><b>${fmtBytes(c.bytes)}</b><small>Space used</small></div></div>
-    <div class="filters"><button class="pill${imgTab === 'mon' ? ' on' : ''}" data-act="imgtab" data-v="mon">Pokémon</button><button class="pill${imgTab === 'tr' ? ' on' : ''}" data-act="imgtab" data-v="tr">Trainers</button></div>
-    ${searchBox('imgq', imgQ, imgTab === 'tr' ? 'Search trainers' : 'Search Pokémon', imgTab === 'tr' ? 'Search trainers by name' : 'Search by Pokémon name or type')}
+    <div class="cupsum imgstats"><div><b>${c.p}</b><small>Pokémon</small></div><div><b>${c.s}</b><small>Shiny</small></div><div><b>${c.t}</b><small>Trainers</small></div><div><b>${c.c}</b><small>Classes</small></div><div><b>${fmtBytes(c.bytes)}</b><small>Space used</small></div></div>
+    <div class="filters"><button class="pill${imgTab === 'mon' ? ' on' : ''}" data-act="imgtab" data-v="mon">Pokémon</button><button class="pill${imgTab === 'tr' ? ' on' : ''}" data-act="imgtab" data-v="tr">Trainers</button><button class="pill${imgTab === 'cls' ? ' on' : ''}" data-act="imgtab" data-v="cls">Classes</button></div>
+    ${imgTab === 'cls' ? '<p class="fine">A class picture is used for every trainer of that class (every Hiker, say) who has no portrait of their own.</p>' : ''}
+    ${searchBox('imgq', imgQ, imgTab === 'tr' ? 'Search trainers' : imgTab === 'cls' ? 'Search classes' : 'Search Pokémon', imgTab === 'tr' ? 'Search trainers by name' : imgTab === 'cls' ? 'Search trainer classes' : 'Search by Pokémon name or type')}
     <div id="imggrid">${imgGrid()}</div>
     <h3 class="imgpack-h">Image packs</h3>
-    <p class="muted small">Export pack saves every image as one zip file. Import pack takes a zip or a set of image files and matches them by name: <b>Sprout.png</b> is Sprout, <b>Sprout-shiny.png</b> its shiny image, and files in a <b>trainers</b> folder (or named like <b>Hiker Ben.png</b>) are trainer portraits. Imported images replace ones with the same name.</p>
+    <p class="muted small">Export pack saves every image as one zip file. Import pack takes a zip or a set of image files and matches them by name: <b>Sprout.png</b> is Sprout, <b>Sprout-shiny.png</b> its shiny image, and files in a <b>trainers</b> folder (or named like <b>Hiker Ben.png</b>) are trainer portraits, and files in a <b>classes</b> folder (like <b>classes/Hiker.png</b>) are class pictures. Imported images replace ones with the same name.</p>
     <div class="confirm-row"><button class="btn" data-act="imgexport"${c.all && !imgBusy ? '' : ' disabled'}>Export pack</button><label class="btn" for="imgpackfile" tabindex="0">Import pack</label><input id="imgpackfile" type="file" accept="image/*,.zip,application/zip" multiple class="sr">
       ${c.all ? (imgClearArm ? `<span class="small">Remove all ${c.all} images?</span><button class="btn danger small" data-act="imgclearyes">Remove all</button><button class="btn small" data-act="imgclearno">Keep them</button>` : `<button class="btn danger small" data-act="imgclear">Remove all images</button>`) : ''}</div>
     ${imgBusy ? '<p class="fine">Working on it…</p>' : imgMsg ? `<p class="cf-msg">${imgMsg}</p>` : ''}`;
@@ -1346,7 +1376,7 @@ async function imgExport() {
   try {
     const files = [], used = new Set();
     for (const [k, v] of [...IMGS].sort((a, b) => a[0].localeCompare(b[0]))) {
-      const ext = IMG_EXT[v.blob.type] || 'png', base = k[0] === 't' ? `trainers/${imgFileSafe(k.slice(2))}` : `pokemon/${imgFileSafe(k.slice(2))}${k[0] === 's' ? '-shiny' : ''}`;
+      const ext = IMG_EXT[v.blob.type] || 'png', base = k[0] === 't' ? `trainers/${imgFileSafe(k.slice(2))}` : k[0] === 'c' ? `classes/${imgFileSafe(k.slice(2))}` : `pokemon/${imgFileSafe(k.slice(2))}${k[0] === 's' ? '-shiny' : ''}`;
       let name = `${base}.${ext}`; for (let i = 2; used.has(name); i++) name = `${base} (${i}).${ext}`; used.add(name);
       files.push({ name, data: new Uint8Array(await v.blob.arrayBuffer()) });
     }
@@ -1367,11 +1397,13 @@ function imgMatcher() {
   const tr = new Map(), first = new Map();
   if (S) for (const t of Object.values(S.trainers)) { tr.set(imgNorm(trImgName(t)), trImgName(t)); const k = imgNorm(t.name); first.set(k, first.has(k) && first.get(k) !== trImgName(t) ? null : trImgName(t)); }
   for (const k of IMGS.keys()) if (k[0] === 't') tr.set(imgNorm(k.slice(2)), k.slice(2));
+  const cl = new Map(); for (const c of imgClassList()) cl.set(imgNorm(c), c);
   return path => {
     const parts = String(path).split('/'), file = parts.pop(), dir = fold(parts.pop() || '');
     const em = file.match(/^(.*)\.([a-z0-9]+)$/i); if (!em || !IMG_MIME[em[2].toLowerCase()]) return null;
     let base = em[1].replace(/ \(\d+\)$/, ''), shiny = false; const sm = base.match(/^(.*?)[-_ ]shiny$/i); if (sm) { shiny = true; base = sm[1]; }
     const k = imgNorm(base);
+    if (/^class(es)?$/.test(dir)) return shiny ? null : 'c:' + (cl.get(k) || base.trim());
     if (!/^trainers?$/.test(dir) && sp.has(k)) return (shiny ? 's:' : 'p:') + sp.get(k);
     if (shiny) return null;
     if (tr.has(k)) return 't:' + tr.get(k);
@@ -1389,7 +1421,7 @@ async function imgImport(fileList) {
       try { for (const z of await unzipFiles(await f.arrayBuffer())) items.push(z); } catch (e) { items.push({ name: f.name, bad: true }); }
     } else items.push({ name: f.webkitRelativePath || f.name, blob: f });
   }
-  const match = imgMatcher(), done = { p: 0, s: 0, t: 0 }, skipped = [];
+  const match = imgMatcher(), done = { p: 0, s: 0, t: 0, c: 0 }, skipped = [];
   let failed = 0, stored = true;
   for (const it of items) {
     const key = it.bad ? null : match(it.name);
@@ -1404,8 +1436,8 @@ async function imgImport(fileList) {
       done[key[0]]++;
     } catch (e) { failed++; }
   }
-  const n = done.p + done.s + done.t;
-  imgMsg = `Imported ${n} image${n === 1 ? '' : 's'}${n ? ` (${done.p} Pokémon, ${done.s} shiny, ${done.t} trainer${done.t === 1 ? '' : 's'})` : ''}.`
+  const n = done.p + done.s + done.t + done.c;
+  imgMsg = `Imported ${n} image${n === 1 ? '' : 's'}${n ? ` (${done.p} Pokémon, ${done.s} shiny, ${done.t} trainer${done.t === 1 ? '' : 's'}${done.c ? `, ${done.c} class${done.c === 1 ? '' : 'es'}` : ''})` : ''}.`
     + (skipped.length ? ` ${skipped.length} file${skipped.length === 1 ? '' : 's'} didn't match a Pokémon or trainer: ${skipped.slice(0, 6).map(esc).join(', ')}${skipped.length > 6 ? '…' : ''}.` : '')
     + (failed ? ` ${failed} couldn't be opened.` : '') + (stored ? '' : " This browser won't keep images, so they'll be gone when the page closes.");
   imgBusy = false; imgRefresh();

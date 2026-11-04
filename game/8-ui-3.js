@@ -1,4 +1,11 @@
 const UPDATES = [
+  { id: 196, date: 'November 3, 2026', time: '8:05 PM ET', title: 'Class pictures', items: [
+    "New: class pictures. One image can cover a whole trainer class, so every Hiker (or Lass, Swimmer, Ace Trainer and so on) shows it. A trainer's own portrait still comes first, so you can give one Hiker a unique look and let the rest share the class picture.",
+    "Trainers keep their class picture after becoming a Gym Leader, Elite Four member or Champion, unless they have a portrait of their own.",
+    "Images (in the league menu, and in Advanced options) has a new Classes tab listing every trainer class, with how many trainers hold each one in your league. Tap a class to add or change its picture.",
+    "A trainer's portrait window has a button to add or change the picture for their whole class, and shows the class picture when they have none of their own.",
+    "Image packs: files in a classes folder (like classes/Hiker.png) import as class pictures, and Export pack saves class pictures there too.",
+  ] },
   { id: 195, date: 'November 3, 2026', time: '7:15 PM ET', title: 'Historical and retired ranches, ban records', items: [
     "The team ranch's display shelf is now two panels. The historical ranch holds the title-winning rosters; retired Pokémon (retired with a trainer, not registered, or unused in the active ranch) have their own retired ranch below it.",
     "Each title roster in the historical ranch is collapsible: tap a season to open or close its roster. They're listed newest first and start closed.",
@@ -616,7 +623,7 @@ document.addEventListener('click', ev => {
   // an action on one of your trainers works in that trainer's League
   if (S && nLeagues() > 1 && el.dataset.id && T(+el.dataset.id) && !['draftpick', 'drel'].includes(a)) useLeague(lgOf(T(+el.dataset.id)));
   switch (a) {
-    case 'imgup': openImgUp(el.dataset.k); break;
+    case 'imgup': openImgUp(el.dataset.k, el.dataset.c); break;
     case 'imgopt': if (modal && modal.draft) { modal.draft[el.dataset.k] = !modal.draft[el.dataset.k]; imgRedraft(); } break;
     case 'imgsave': imgSaveDraft(); break;
     case 'imgdel': { const k = modal.key; imgDel(k).then(() => { modal = modal && modal.kind === 'img' ? modal.back || null : modal; renderModal(); render(); toast(`Removed the image for ${imgLabel(k)}.`); }); break; }
