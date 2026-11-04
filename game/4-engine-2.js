@@ -100,8 +100,8 @@ function backfillElite(t, gone) {
       const al = (t.alumni || []).filter(a => !a.legendRef && a.uid != null && !onTeam.has(a.uid) && fits(a.sp));
       const a = al.sort((x, y) => score(y.sp, y.st, y.left) - score(x.sp, x.st, x.left))[0];
       if (a) {
-        back = { uid: a.uid, sp: a.sp, lvl: a.lvl || slot.lvl, st: a.st || blankStat(), met: a.met, nat: a.nat, iv: a.iv, fr: Math.max(a.fr || 70, 120), cov: a.cov, abSlot: a.abSlot, deltaAb: a.deltaAb,
-          evoLog: a.evoLog, best: a.best, sweeps: a.sweeps, megas: a.megas, bonds: a.bonds, awards: a.awards, alpha: a.alpha, shiny: a.shiny, delta: a.delta, lucky: a.lucky, pkrs: a.pkrs };
+        back = { uid: a.uid, sp: a.sp, lvl: a.lvl || slot.lvl, st: a.st || blankStat(), met: a.met, nat: a.nat, iv: a.iv, fr: Math.max(a.fr || 70, 120), cov: a.cov, abSlot: a.abSlot, deltaAb: a.deltaAb, radAb: a.radAb,
+          evoLog: a.evoLog, best: a.best, sweeps: a.sweeps, megas: a.megas, bonds: a.bonds, awards: a.awards, alpha: a.alpha, shiny: a.shiny, radiant: a.radiant, delta: a.delta, lucky: a.lucky, pkrs: a.pkrs };
         for (const k of Object.keys(back)) if (back[k] === undefined) delete back[k];
         ensureMon(back);
         t.alumni = t.alumni.filter(x => x !== a); how = a.why ? `(${a.why} in Season ${a.left})` : '';
@@ -167,6 +167,47 @@ function rollDeltaAbility(o) {
   const typed = (DELTA_AB_TYPE[o.delta] || []).filter(fits), any = DELTA_AB_ANY.filter(fits);
   return typed.length && rand() < 0.6 ? pick(typed) : any.length ? pick(any) : typed.length ? pick(typed) : null;
 }
+// v200: Radiant Pokémon. Rarer than shinies. A Radiant wears its species' shiny image, always has at least Good IVs (every IV 16+),
+// and always has an ability its line never has that is stronger in battle than any of the line's own. It replaces the
+// Pokémon's own ability and stays through evolution.
+const RADIANT_CHANCE = 0.003;
+// how much an ability does in battle: 5 the strongest, 0 a drawback; anything unlisted is 2
+const AB_TIER = {};
+[[5, 'Huge Power,Pure Power,Speed Boost,Adaptability,Multiscale,Shadow Shield,Protean,Magic Guard,Beast Boost,Intrepid Sword,Gorilla Tactics,Protosynthesis,Quark Drive,Orichalcum Pulse,Hadron Engine,Tera Shell,Sword of Ruin,Beads of Ruin,Chilling Neigh,Grim Neigh'],
+ [4, "Intimidate,Regenerator,Moxie,Tough Claws,Sheer Force,Unaware,Drought,Drizzle,Sand Stream,Snow Warning,Electric Surge,Psychic Surge,Grassy Surge,Misty Surge,Fluffy,Ice Scales,Fur Coat,Prism Armor,Dauntless Shield,Tablets of Ruin,Vessel of Ruin,Soul-Heart,Simple,Contrary,Serene Grace,Good as Gold,Magic Bounce,Shadow Tag,Wonder Guard,Dragon's Maw,Steelworker,Transistor,Download,Fairy Aura,Dark Aura,Sharpness,Strong Jaw,Mega Launcher,Skill Link"],
+ [3, "Technician,Guts,Levitate,Thick Fat,Filter,Solid Rock,Sturdy,Mold Breaker,Teravolt,Turboblaze,Swift Swim,Chlorophyll,Sand Rush,Slush Rush,Sand Force,Solar Power,Flash Fire,Water Absorb,Volt Absorb,Sap Sipper,Lightning Rod,Storm Drain,Motor Drive,Dry Skin,Poison Heal,Prankster,Gale Wings,Victory Star,Natural Cure,Marvel Scale,Hustle,No Guard,Defiant,Competitive,Full Metal Body,Analytic,Berserk,Illusion,Toxic Chain,Poison Puppeteer,Mind's Eye,Iron Barbs,Rough Skin,Cursed Body,Flower Gift,Battery,Power Spot,Unseen Fist,Iron Fist,Punk Rock,Pixilate,Refrigerate,Galvanize,Reckless,Heatproof,Corrosion,Bad Dreams,Triage"],
+ [0, 'Truant,Slow Start,Defeatist,Run Away,Pickup,Rattled,Wimp Out,Emergency Exit,Wandering Spirit,Mummy,Aura Break,Klutz']].forEach(([n, l]) => l.split(',').forEach(k => { AB_TIER[k] = n; }));
+const abTier = k => AB_TIER[k] ?? 2;
+// abilities that only make sense with one Pokémon's own forms or body, so they never come as a Radiant ability
+const RADIANT_NEVER = new Set(['Glitch', 'Zero to Hero', 'Gulp Missile', 'Hunger Switch', 'Schooling', 'Shields Down', 'Disguise', 'Ice Face', 'Stance Change', 'Multitype', 'RKS System', 'Forecast', 'Mimicry']);
+// abilities that only pay off for a physical (or special) attacker, or for certain types
+const AB_PHYS = new Set(['Huge Power', 'Pure Power', 'Gorilla Tactics', 'Hustle', 'Moxie', 'Tough Claws', 'Guts', 'Intrepid Sword', 'Sword of Ruin', 'Chilling Neigh', 'Orichalcum Pulse', 'Sharpness', 'Strong Jaw', 'Iron Fist', 'Reckless', 'Unseen Fist', 'Anger Point']);
+const AB_SPEC = new Set(['Grim Neigh', 'Soul-Heart', 'Beads of Ruin', 'Solar Power', 'Mega Launcher', 'Berserk', 'Punk Rock']);
+const AB_TYPES = { Drought: ['Fire', 'Grass'], 'Orichalcum Pulse': ['Fire'], Chlorophyll: ['Grass', 'Fire'], 'Solar Power': ['Fire', 'Grass'], 'Flower Gift': ['Grass'],
+  Drizzle: ['Water'], 'Swift Swim': ['Water'], 'Sand Stream': ['Rock', 'Ground', 'Steel'], 'Sand Rush': ['Rock', 'Ground', 'Steel'], 'Sand Force': ['Rock', 'Ground', 'Steel'],
+  'Snow Warning': ['Ice'], 'Slush Rush': ['Ice'], 'Electric Surge': ['Electric'], 'Hadron Engine': ['Electric'], Transistor: ['Electric'], 'Psychic Surge': ['Psychic'],
+  'Grassy Surge': ['Grass'], 'Misty Surge': ['Fairy'], 'Fairy Aura': ['Fairy'], 'Dark Aura': ['Dark'], "Dragon's Maw": ['Dragon'], Steelworker: ['Steel'], 'Gale Wings': ['Flying'],
+  Corrosion: ['Poison'], 'Toxic Chain': ['Poison'], 'Poison Puppeteer': ['Poison'], 'Bad Dreams': ['Dark'], 'Battery': ['Electric'], Pixilate: ['Normal'], Refrigerate: ['Normal'], Galvanize: ['Normal'] };
+function lineAbilities(sp) { const root = LINE[sp] || sp, out = new Set(), q = [root]; while (q.length) { const n = q.shift(); Object.values(SPECIES_AB[n] || {}).forEach(a => a && out.add(a)); for (const e of SP[n].evos || []) q.push(e.to); } return out; }
+function rollRadiantAbility(o) {
+  const own = lineAbilities(o.sp), b = bsOf(o.sp), phys = b.atk >= b.spa, tys = monTypes(o);
+  const best = Math.max(0, ...[...own].filter(k => ABILITIES[k]).map(abTier));
+  const fits = k => ABILITIES[k] && !own.has(k) && !RADIANT_NEVER.has(k) && !(AB_PHYS.has(k) && !phys) && !(AB_SPEC.has(k) && phys) && !(AB_TYPES[k] && !AB_TYPES[k].some(t => tys.includes(t)));
+  const all = Object.keys(ABILITIES).filter(fits);
+  // stronger than anything its line has; a line that already has a top ability gets a different top one
+  let pool = all.filter(k => abTier(k) > best); if (!pool.length) pool = all.filter(k => abTier(k) >= Math.min(5, best));
+  if (!pool.length) return null;
+  // stronger abilities, and ones made for its type, turn up more often
+  const w = pool.map(k => (abTier(k) >= 5 ? 3 : abTier(k) === 4 ? 2 : 1) * (AB_TYPES[k] ? 3 : 1)); let r = rand() * w.reduce((a, x) => a + x, 0);
+  for (let i = 0; i < pool.length; i++) { r -= w[i]; if (r <= 0) return pool[i]; }
+  return pool[pool.length - 1];
+}
+function makeRadiant(o) {
+  o.radiant = true; o.shiny = undefined;
+  o.iv = Object.fromEntries(STAT_KEYS.map(k => [k, Math.max((o.iv && o.iv[k]) || 0, ri(16, 31))]));
+  o.radAb = rollRadiantAbility(o) || undefined;
+  return o;
+}
 const ALPHA_CHANCE = 0.015; // per wild Pokémon offered, before the Scouting bonus (up to +1%)
 function wildOffers(t) {
   const avg = t.team.length ? t.team.reduce((a, m) => a + m.lvl, 0) / t.team.length : 10;
@@ -197,6 +238,7 @@ function wildOffers(t) {
     else if (alpha) o = ensureMon({ sp: f, lvl: L, alpha: true, form: 1.5, iv: ivSet(() => ri(28, 31)) });
     else o = ensureMon({ sp: f, lvl: L });
     if (featOn('delta') && rand() < DELTA_CHANCE * luck) makeDelta(o);
+    if (featOn('radiant') && !o.shiny && rand() < RADIANT_CHANCE * luck) makeRadiant(o);
     if (featOn('shadow') && rand() < SHADOW_CHANCE * luck) o.shadow = true;
     return o;
   };
@@ -219,6 +261,7 @@ function wildOffers(t) {
       : alpha ? ensureMon({ sp: f, lvl: L, outbreak: true, alpha: true, form: 1.5, iv: ivSet(() => ri(28, 31)) })
       : ensureMon({ sp: f, lvl: L, outbreak: true });
     if (featOn('delta') && rand() < DELTA_CHANCE * luck * OUTBREAK_ALPHA) makeDelta(out[out.length - 1]);
+    if (featOn('radiant') && !out[out.length - 1].shiny && rand() < RADIANT_CHANCE * luck * OUTBREAK_SHINY) makeRadiant(out[out.length - 1]);
     if (featOn('shadow') && rand() < SHADOW_CHANCE * luck) out[out.length - 1].shadow = true;
   }
   // Cipher got away this season: Shadow Pokémon are loose in the wild
@@ -251,7 +294,7 @@ function addCatch(t, offer, releaseUid) {
   if (offer.roam && (!S.roamer || S.roamer.sp !== offer.sp || !greatFree(offer.sp))) return null;
   if (legendBlocked(t, offer.sp) || (isLegendLine(offer.sp) && legendFull(t))) return null;
   if (offer.legendFind && !greatFree(offer.sp)) return null;
-  let m = stamp(ensureMon({ uid: uid(), sp: offer.sp, lvl: offer.lvl, iv: offer.iv, nat: offer.nat, cov: offer.cov, alpha: offer.alpha || undefined, shiny: offer.shiny || undefined, delta: offer.delta || undefined, form: offer.alpha || offer.shiny ? offer.form : undefined }), 'caught');
+  let m = stamp(ensureMon({ uid: uid(), sp: offer.sp, lvl: offer.lvl, iv: offer.iv, nat: offer.nat, cov: offer.cov, alpha: offer.alpha || undefined, shiny: offer.shiny || undefined, radiant: offer.radiant || undefined, radAb: offer.radAb || undefined, delta: offer.delta || undefined, deltaAb: offer.deltaAb || undefined, form: offer.alpha || offer.shiny ? offer.form : undefined }), 'caught');
   if (t.team.length >= 6) {
     const idx = releaseUid != null ? t.team.findIndex(x => x.uid === releaseUid) : -1;
     if (idx < 0) return null;
@@ -286,7 +329,7 @@ function aiCatch(t) {
   const wild = wildcardOf(t);
   // specialists want one strong off-type Pokémon for coverage: until they have one, a strong off-type find rates like an on-type one
   const wildcardFit = o => t.specialty && !onT(o.sp) && !wild && linePeak(o.sp) >= WILDCARD_PEAK;
-  const val = o => (o.roam || o.wormhole ? 1000 : SP[o.sp].baby ? 900 : Math.max(SP[o.sp].bst, wildcardFit(o) ? (SP[o.sp].bst + linePeak(o.sp)) / 2 : 0)) * (specFit(t, o.sp) === 2 ? 1.45 : onT(o.sp) || wildcardFit(o) ? 1.35 : 1) * (o.shiny ? 1.4 : 1) * (o.delta ? 1.3 : 1) * (o.alpha ? 1.3 : 1);
+  const val = o => (o.roam || o.wormhole ? 1000 : SP[o.sp].baby ? 900 : Math.max(SP[o.sp].bst, wildcardFit(o) ? (SP[o.sp].bst + linePeak(o.sp)) / 2 : 0)) * (specFit(t, o.sp) === 2 ? 1.45 : onT(o.sp) || wildcardFit(o) ? 1.35 : 1) * (o.shiny ? 1.4 : 1) * (o.radiant ? 1.5 : 1) * (o.delta ? 1.3 : 1) * (o.alpha ? 1.3 : 1);
   const best = offers.reduce((a, b) => (val(a) > val(b) ? a : b));
   if (t.team.length < 6) return addCatch(t, best);
   // release off-type Pokémon first when the new catch fits the trainer's type, but keep the wildcard
@@ -548,7 +591,7 @@ function villainWeek() {
       for (const t of shuffle(ex)) {
         if (e.stolen.length >= VILLAIN_THEFTS || rand() >= 0.12) continue;
         const cand = t.team.filter(m => !SP[m.sp].legend && m.bond !== t.id && !(t.mega && t.mega.uid === m.uid));
-        const m = cand.find(x => x.shiny || x.delta || x.alpha || x.lucky) || pick(cand); if (!m) continue;
+        const m = cand.find(x => x.shiny || x.radiant || x.delta || x.alpha || x.lucky) || pick(cand); if (!m) continue;
         t.team = t.team.filter(x => x !== m); e.ladder[e.ladder.length - 1].team.push(m); e.stolen.push({ from: t.id, uid: m.uid, sp: m.sp });
         news(`${v.name} stole ${dn(t)}'s ${m.sp}! Beating ${v.boss[0]} would get it back.`, t.user ? 'you' : 'circuit', t.id);
       }
@@ -621,9 +664,9 @@ function seasonAwards(L) {
   for (const t of leagueTrainers()) if (!['retired', 'leader'].includes(t.role) && t.team) for (const m of t.team) mons.push({ t, m, v: monYear(m) });
   mons.sort((a, b) => b.v - a.v);
   if (mons[0] && mons[0].v > 0) { const { t, m } = mons[0]; out.push(giveAward('poy', t, m, `${m.ss.ko} KOs, ${m.ss.w}–${m.ss.l}`)); }
-  const rare = m => (m.shiny ? 14 : 0) + (m.delta ? 12 : 0) + (m.alpha ? 6 : 0) + (SP[m.sp].legend ? 10 : 0) + (SP[m.sp].baby || babyLine(m.sp) ? 10 : 0) + (m.shadow || (m.met && m.met.how === 'snag') ? 4 : 0);
+  const rare = m => (m.shiny ? 14 : 0) + (m.radiant ? 16 : 0) + (m.delta ? 12 : 0) + (m.alpha ? 6 : 0) + (SP[m.sp].legend ? 10 : 0) + (SP[m.sp].baby || babyLine(m.sp) ? 10 : 0) + (m.shadow || (m.met && m.met.how === 'snag') ? 4 : 0);
   const caught = mons.filter(x => x.m.met && x.m.met.season === S.season && ['caught', 'snag', 'wormhole'].includes(x.m.met.how)).map(x => ({ ...x, c: x.v + rare(x.m) })).sort((a, b) => b.c - a.c)[0];
-  if (caught) { const { t, m } = caught; const tag = [m.shiny && 'shiny', m.delta && 'Delta', m.alpha && 'alpha', m.met.how === 'snag' && 'snagged'].filter(Boolean).join(' '); out.push(giveAward('coy', t, m, `${tag ? tag + ', ' : ''}caught in week ${m.met.week}`)); }
+  if (caught) { const { t, m } = caught; const tag = [m.radiant && 'Radiant', m.shiny && 'shiny', m.delta && 'Delta', m.alpha && 'alpha', m.met.how === 'snag' && 'snagged'].filter(Boolean).join(' '); out.push(giveAward('coy', t, m, `${tag ? tag + ', ' : ''}caught in week ${m.met.week}`)); }
   return out;
 }
 // ================= LEGACY TRAINERS =================
@@ -1603,8 +1646,9 @@ function doAction(t, act, userCatch) {
     const m = userCatch === undefined ? aiCatch(t) : userCatch ? addCatch(t, userCatch.offer, userCatch.release) : null;
     const ob = activeOutbreak();
     if (m && ob && LINE[m.sp] === LINE[ob.sp]) { ob.caught++; if (m.alpha) ob.alpha++; if (m.shiny) ob.shiny++; if (t.user) ob.user = true; entry.outbreak = true; }
-    if (m) { entry.caught = m.sp; if (m.alpha) entry.alpha = true; if (m.shiny) entry.shiny = true; if (m.delta) entry.delta = m.delta;
+    if (m) { entry.caught = m.sp; if (m.alpha) entry.alpha = true; if (m.shiny) entry.shiny = true; if (m.radiant) entry.radiant = true; if (m.delta) entry.delta = m.delta;
       if (m.delta) catchNews(`${dn(t)} caught a Delta ${m.sp}, an unusual ${monTypes(m).join('/')} type${m.deltaAb && featOn('abilities') ? ` with an unusual ability, ${m.deltaAb}` : ''}!`, t.user ? 'you' : 'circuit', t.id);
+      if (m.radiant) catchNews(`${dn(t)} caught a Radiant ${m.alpha ? 'alpha ' : ''}${m.sp}${m.radAb && featOn('abilities') ? `, glowing with ${m.radAb}` : ''}!`, t.user ? 'you' : 'circuit', t.id);
       if (m.shiny) catchNews(`${dn(t)} caught a shiny ${m.alpha ? 'alpha ' : ''}${m.sp}!`, t.user ? 'you' : 'circuit', t.id);
       else if (m.alpha) catchNews(`${dn(t)} caught an alpha ${m.sp}!`, t.user ? 'you' : 'circuit', t.id); }
     { const found = exploreFind(t); if (found) { entry.found = found; if (t.user) news(`${dn(t)} found a ${itemName(found)} while exploring.`, 'you', t.id); } }

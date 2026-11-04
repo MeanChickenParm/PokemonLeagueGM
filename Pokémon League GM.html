@@ -538,6 +538,10 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 0; }
 .tag.shiny { border-color: #B8860B; background: linear-gradient(135deg, #FFE27A, #F5B82E); color: #4A3500; font-weight: 800; letter-spacing: 0.04em; }
 .offer-card.shiny { border-color: #E0A800; box-shadow: 0 0 0 3px color-mix(in srgb, #F5B82E 30%, transparent); }
 .shiny-note { color: #B8860B; font-weight: 700; }
+.tag.radiant { border-color: #7a5cc4; background: linear-gradient(135deg, #fff6c9, #f7c6ff 45%, #b9e8ff); color: #3b1f6b; font-weight: 800; letter-spacing: 0.04em; box-shadow: 0 0 6px color-mix(in srgb, #f7c6ff 60%, transparent); }
+.offer-card.radiant { border-color: #a57cf0; box-shadow: 0 0 0 3px color-mix(in srgb, #c9a6ff 35%, transparent), 0 0 14px color-mix(in srgb, #ffe27a 40%, transparent); }
+.radiant-note { color: #7a4fd0; font-weight: 700; }
+.abchip.radiant { background: linear-gradient(135deg, color-mix(in srgb, #ffe27a 30%, var(--surface)), color-mix(in srgb, #c9a6ff 30%, var(--surface))); font-weight: 700; }
 .tag.delta { border-color: #5B3FA8; background: linear-gradient(135deg, #2B1E57, #6B4BC8); color: #fff; font-weight: 800; letter-spacing: .04em; }
 .delta-note { color: #6B4BC8; font-weight: 700; }
 .tag.alpha { border-color: #C0392B; background: #C0392B; color: #fff; font-weight: 800; letter-spacing: 0.08em; }
@@ -4838,7 +4842,7 @@ const babyLine = sp => BABY_LEGENDS.includes(LINE[sp]);
 function isSpecial(m) {
   if (!m) return false;
   const s = SP[m.sp];
-  return !!(m.alpha || m.shiny || m.delta || s.legend || s.paradox || s.baby || babyLine(m.sp) || (m.met && (m.met.how === 'wormhole' || m.met.how === 'gift' || m.met.how === 'paradox')));
+  return !!(m.alpha || m.shiny || m.radiant || m.delta || s.legend || s.paradox || s.baby || babyLine(m.sp) || (m.met && (m.met.how === 'wormhole' || m.met.how === 'gift' || m.met.how === 'paradox')));
 }
 // legendaries (Ultra Beasts and mythicals included) and baby legendaries always start with at least Good IVs
 const needsGoodIVs = sp => !!(SP[sp].legend || SP[sp].baby || babyLine(sp));
@@ -4872,6 +4876,7 @@ function maybeOutbreak() {
 const FEATURES = [
   { group: 'Wild Pokémon', items: [
     ['shiny', 'Shiny Pokémon', 'Rare shinies with perfect IVs, arriving on fire.'],
+    ['radiant', 'Radiant Pokémon', 'Rarer than shinies: they wear the shiny colors, have at least Good IVs and a stronger ability than their species ever gets.'],
     ['delta', 'Delta Pokémon', 'Rarer than alphas, more common than shinies: an unusual second type and outstanding IVs.'],
     ['shadow', 'Wild Shadow Pokémon', 'About as rare as shinies: a Shadow Pokémon turns up in the wild. Its heart opens as its trainer trains, explores and challenges gyms.'],
     ['alpha', 'Alpha Pokémon', 'Uncommon alphas with outstanding IVs, already hot.'],
@@ -6270,7 +6275,7 @@ function battle(tA, tB, stakes, title, opts = {}) {
   recordBattle(sides.map(sd => sd.t), tally, winner, stakes);
   return {
     title, stakes, winner, ev, legend: !!opts.boss, bossHp: opts.boss ? sides[1].mons[0].hp / sides[1].mons[0].max : undefined,
-    sides: sides.map(s => ({ id: s.t.id, name: dn(s.t), team: s.mons.map((m, i) => ({ sp: m.sp, L: m.L, max: m.max, types: m.baseTypes || m.types, ab: m.ab || null, shiny: !!(s.t.team[i] && s.t.team[i].shiny) })), left: s.mons.filter(m => m.hp > 0).length })),
+    sides: sides.map(s => ({ id: s.t.id, name: dn(s.t), team: s.mons.map((m, i) => ({ sp: m.sp, L: m.L, max: m.max, types: m.baseTypes || m.types, ab: m.ab || null, shiny: !!(s.t.team[i] && (s.t.team[i].shiny || s.t.team[i].radiant)) })), left: s.mons.filter(m => m.hp > 0).length })),
   };
 }
 
@@ -6459,6 +6464,7 @@ const abilityName = k => k;
 // which ability a Pokémon has right now: its slot's ability on its current species, or another built one of the species'
 function abilityOf(m) {
   if (!m || !featOn('abilities')) return null;
+  if (m.radAb && ABILITIES[m.radAb]) return m.radAb;
   if (m.deltaAb && ABILITIES[m.deltaAb]) return m.deltaAb;
   const A = SPECIES_AB[m.sp] || (m.sp && SPECIES_AB[m.sp.replace(/^Mega /, '')]); if (!A) return null;
   const want = A[m.abSlot || 0];
@@ -6468,7 +6474,7 @@ function abilityOf(m) {
 }
 function rollAbSlot(m) {
   const A = SPECIES_AB[m.sp] || {};
-  const special = m.shiny || m.alpha || m.delta;
+  const special = m.shiny || m.radiant || m.alpha || m.delta;
   if (A.H && rand() < (special ? HIDDEN_CHANCE_SPECIAL : HIDDEN_CHANCE)) return 'H';
   return A[1] && rand() < 0.5 ? '1' : '0';
 }
@@ -6955,12 +6961,12 @@ function farewell(t, m, why) {
   if (m && m.partners && isLegendLine(m.sp) && t && t.id != null && S.trainers[t.id]) {
     releaseLegend(t, m, why);
     const p = m.partners.find(x => x.id === t.id && x.to != null && x.why === why);
-    if (p && p.st && p.st.b) { t.alumni = t.alumni || []; t.alumni.unshift({ uid: m.uid, sp: m.sp, lvl: Math.floor(m.lvl), st: Object.assign(blankStat(), p.st), met: m.met, left: S.season || 1, why, nat: m.nat, iv: m.iv, fr: m.fr, cov: m.cov, legendRef: true, shiny: m.shiny }); }
+    if (p && p.st && p.st.b) { t.alumni = t.alumni || []; t.alumni.unshift({ uid: m.uid, sp: m.sp, lvl: Math.floor(m.lvl), st: Object.assign(blankStat(), p.st), met: m.met, left: S.season || 1, why, nat: m.nat, iv: m.iv, fr: m.fr, cov: m.cov, legendRef: true, shiny: m.shiny, radiant: m.radiant }); }
     return;
   }
   if (!m || !m.st || !m.st.b) return;
   t.alumni = t.alumni || [];
-  t.alumni.unshift({ uid: m.uid, sp: m.sp, lvl: Math.floor(m.lvl), st: m.st, met: m.met, left: S.season || 1, why, nat: m.nat, iv: m.iv, fr: m.fr, cov: m.cov, abSlot: m.abSlot, deltaAb: m.deltaAb, evoLog: m.evoLog, best: m.best, sweeps: m.sweeps, megas: m.megas, bonds: m.bonds, awards: m.awards, alpha: m.alpha, shiny: m.shiny, delta: m.delta, lucky: m.lucky, pkrs: m.pkrs });
+  t.alumni.unshift({ uid: m.uid, sp: m.sp, lvl: Math.floor(m.lvl), st: m.st, met: m.met, left: S.season || 1, why, nat: m.nat, iv: m.iv, fr: m.fr, cov: m.cov, abSlot: m.abSlot, deltaAb: m.deltaAb, radAb: m.radAb, evoLog: m.evoLog, best: m.best, sweeps: m.sweeps, megas: m.megas, bonds: m.bonds, awards: m.awards, alpha: m.alpha, shiny: m.shiny, radiant: m.radiant, delta: m.delta, lucky: m.lucky, pkrs: m.pkrs });
   // keep the Pokémon that made a mark (3+ battles, up to 25) and the five most recent others
   if (t.alumni.length > 12) { let quiet = 0, kept = 0; t.alumni = t.alumni.filter(a => (a.st && a.st.b >= 3) ? ++kept <= 25 : ++quiet <= 5); }
 }
@@ -7067,8 +7073,8 @@ function backfillElite(t, gone) {
       const al = (t.alumni || []).filter(a => !a.legendRef && a.uid != null && !onTeam.has(a.uid) && fits(a.sp));
       const a = al.sort((x, y) => score(y.sp, y.st, y.left) - score(x.sp, x.st, x.left))[0];
       if (a) {
-        back = { uid: a.uid, sp: a.sp, lvl: a.lvl || slot.lvl, st: a.st || blankStat(), met: a.met, nat: a.nat, iv: a.iv, fr: Math.max(a.fr || 70, 120), cov: a.cov, abSlot: a.abSlot, deltaAb: a.deltaAb,
-          evoLog: a.evoLog, best: a.best, sweeps: a.sweeps, megas: a.megas, bonds: a.bonds, awards: a.awards, alpha: a.alpha, shiny: a.shiny, delta: a.delta, lucky: a.lucky, pkrs: a.pkrs };
+        back = { uid: a.uid, sp: a.sp, lvl: a.lvl || slot.lvl, st: a.st || blankStat(), met: a.met, nat: a.nat, iv: a.iv, fr: Math.max(a.fr || 70, 120), cov: a.cov, abSlot: a.abSlot, deltaAb: a.deltaAb, radAb: a.radAb,
+          evoLog: a.evoLog, best: a.best, sweeps: a.sweeps, megas: a.megas, bonds: a.bonds, awards: a.awards, alpha: a.alpha, shiny: a.shiny, radiant: a.radiant, delta: a.delta, lucky: a.lucky, pkrs: a.pkrs };
         for (const k of Object.keys(back)) if (back[k] === undefined) delete back[k];
         ensureMon(back);
         t.alumni = t.alumni.filter(x => x !== a); how = a.why ? `(${a.why} in Season ${a.left})` : '';
@@ -7134,6 +7140,47 @@ function rollDeltaAbility(o) {
   const typed = (DELTA_AB_TYPE[o.delta] || []).filter(fits), any = DELTA_AB_ANY.filter(fits);
   return typed.length && rand() < 0.6 ? pick(typed) : any.length ? pick(any) : typed.length ? pick(typed) : null;
 }
+// v200: Radiant Pokémon. Rarer than shinies. A Radiant wears its species' shiny image, always has at least Good IVs (every IV 16+),
+// and always has an ability its line never has that is stronger in battle than any of the line's own. It replaces the
+// Pokémon's own ability and stays through evolution.
+const RADIANT_CHANCE = 0.003;
+// how much an ability does in battle: 5 the strongest, 0 a drawback; anything unlisted is 2
+const AB_TIER = {};
+[[5, 'Huge Power,Pure Power,Speed Boost,Adaptability,Multiscale,Shadow Shield,Protean,Magic Guard,Beast Boost,Intrepid Sword,Gorilla Tactics,Protosynthesis,Quark Drive,Orichalcum Pulse,Hadron Engine,Tera Shell,Sword of Ruin,Beads of Ruin,Chilling Neigh,Grim Neigh'],
+ [4, "Intimidate,Regenerator,Moxie,Tough Claws,Sheer Force,Unaware,Drought,Drizzle,Sand Stream,Snow Warning,Electric Surge,Psychic Surge,Grassy Surge,Misty Surge,Fluffy,Ice Scales,Fur Coat,Prism Armor,Dauntless Shield,Tablets of Ruin,Vessel of Ruin,Soul-Heart,Simple,Contrary,Serene Grace,Good as Gold,Magic Bounce,Shadow Tag,Wonder Guard,Dragon's Maw,Steelworker,Transistor,Download,Fairy Aura,Dark Aura,Sharpness,Strong Jaw,Mega Launcher,Skill Link"],
+ [3, "Technician,Guts,Levitate,Thick Fat,Filter,Solid Rock,Sturdy,Mold Breaker,Teravolt,Turboblaze,Swift Swim,Chlorophyll,Sand Rush,Slush Rush,Sand Force,Solar Power,Flash Fire,Water Absorb,Volt Absorb,Sap Sipper,Lightning Rod,Storm Drain,Motor Drive,Dry Skin,Poison Heal,Prankster,Gale Wings,Victory Star,Natural Cure,Marvel Scale,Hustle,No Guard,Defiant,Competitive,Full Metal Body,Analytic,Berserk,Illusion,Toxic Chain,Poison Puppeteer,Mind's Eye,Iron Barbs,Rough Skin,Cursed Body,Flower Gift,Battery,Power Spot,Unseen Fist,Iron Fist,Punk Rock,Pixilate,Refrigerate,Galvanize,Reckless,Heatproof,Corrosion,Bad Dreams,Triage"],
+ [0, 'Truant,Slow Start,Defeatist,Run Away,Pickup,Rattled,Wimp Out,Emergency Exit,Wandering Spirit,Mummy,Aura Break,Klutz']].forEach(([n, l]) => l.split(',').forEach(k => { AB_TIER[k] = n; }));
+const abTier = k => AB_TIER[k] ?? 2;
+// abilities that only make sense with one Pokémon's own forms or body, so they never come as a Radiant ability
+const RADIANT_NEVER = new Set(['Glitch', 'Zero to Hero', 'Gulp Missile', 'Hunger Switch', 'Schooling', 'Shields Down', 'Disguise', 'Ice Face', 'Stance Change', 'Multitype', 'RKS System', 'Forecast', 'Mimicry']);
+// abilities that only pay off for a physical (or special) attacker, or for certain types
+const AB_PHYS = new Set(['Huge Power', 'Pure Power', 'Gorilla Tactics', 'Hustle', 'Moxie', 'Tough Claws', 'Guts', 'Intrepid Sword', 'Sword of Ruin', 'Chilling Neigh', 'Orichalcum Pulse', 'Sharpness', 'Strong Jaw', 'Iron Fist', 'Reckless', 'Unseen Fist', 'Anger Point']);
+const AB_SPEC = new Set(['Grim Neigh', 'Soul-Heart', 'Beads of Ruin', 'Solar Power', 'Mega Launcher', 'Berserk', 'Punk Rock']);
+const AB_TYPES = { Drought: ['Fire', 'Grass'], 'Orichalcum Pulse': ['Fire'], Chlorophyll: ['Grass', 'Fire'], 'Solar Power': ['Fire', 'Grass'], 'Flower Gift': ['Grass'],
+  Drizzle: ['Water'], 'Swift Swim': ['Water'], 'Sand Stream': ['Rock', 'Ground', 'Steel'], 'Sand Rush': ['Rock', 'Ground', 'Steel'], 'Sand Force': ['Rock', 'Ground', 'Steel'],
+  'Snow Warning': ['Ice'], 'Slush Rush': ['Ice'], 'Electric Surge': ['Electric'], 'Hadron Engine': ['Electric'], Transistor: ['Electric'], 'Psychic Surge': ['Psychic'],
+  'Grassy Surge': ['Grass'], 'Misty Surge': ['Fairy'], 'Fairy Aura': ['Fairy'], 'Dark Aura': ['Dark'], "Dragon's Maw": ['Dragon'], Steelworker: ['Steel'], 'Gale Wings': ['Flying'],
+  Corrosion: ['Poison'], 'Toxic Chain': ['Poison'], 'Poison Puppeteer': ['Poison'], 'Bad Dreams': ['Dark'], 'Battery': ['Electric'], Pixilate: ['Normal'], Refrigerate: ['Normal'], Galvanize: ['Normal'] };
+function lineAbilities(sp) { const root = LINE[sp] || sp, out = new Set(), q = [root]; while (q.length) { const n = q.shift(); Object.values(SPECIES_AB[n] || {}).forEach(a => a && out.add(a)); for (const e of SP[n].evos || []) q.push(e.to); } return out; }
+function rollRadiantAbility(o) {
+  const own = lineAbilities(o.sp), b = bsOf(o.sp), phys = b.atk >= b.spa, tys = monTypes(o);
+  const best = Math.max(0, ...[...own].filter(k => ABILITIES[k]).map(abTier));
+  const fits = k => ABILITIES[k] && !own.has(k) && !RADIANT_NEVER.has(k) && !(AB_PHYS.has(k) && !phys) && !(AB_SPEC.has(k) && phys) && !(AB_TYPES[k] && !AB_TYPES[k].some(t => tys.includes(t)));
+  const all = Object.keys(ABILITIES).filter(fits);
+  // stronger than anything its line has; a line that already has a top ability gets a different top one
+  let pool = all.filter(k => abTier(k) > best); if (!pool.length) pool = all.filter(k => abTier(k) >= Math.min(5, best));
+  if (!pool.length) return null;
+  // stronger abilities, and ones made for its type, turn up more often
+  const w = pool.map(k => (abTier(k) >= 5 ? 3 : abTier(k) === 4 ? 2 : 1) * (AB_TYPES[k] ? 3 : 1)); let r = rand() * w.reduce((a, x) => a + x, 0);
+  for (let i = 0; i < pool.length; i++) { r -= w[i]; if (r <= 0) return pool[i]; }
+  return pool[pool.length - 1];
+}
+function makeRadiant(o) {
+  o.radiant = true; o.shiny = undefined;
+  o.iv = Object.fromEntries(STAT_KEYS.map(k => [k, Math.max((o.iv && o.iv[k]) || 0, ri(16, 31))]));
+  o.radAb = rollRadiantAbility(o) || undefined;
+  return o;
+}
 const ALPHA_CHANCE = 0.015; // per wild Pokémon offered, before the Scouting bonus (up to +1%)
 function wildOffers(t) {
   const avg = t.team.length ? t.team.reduce((a, m) => a + m.lvl, 0) / t.team.length : 10;
@@ -7164,6 +7211,7 @@ function wildOffers(t) {
     else if (alpha) o = ensureMon({ sp: f, lvl: L, alpha: true, form: 1.5, iv: ivSet(() => ri(28, 31)) });
     else o = ensureMon({ sp: f, lvl: L });
     if (featOn('delta') && rand() < DELTA_CHANCE * luck) makeDelta(o);
+    if (featOn('radiant') && !o.shiny && rand() < RADIANT_CHANCE * luck) makeRadiant(o);
     if (featOn('shadow') && rand() < SHADOW_CHANCE * luck) o.shadow = true;
     return o;
   };
@@ -7186,6 +7234,7 @@ function wildOffers(t) {
       : alpha ? ensureMon({ sp: f, lvl: L, outbreak: true, alpha: true, form: 1.5, iv: ivSet(() => ri(28, 31)) })
       : ensureMon({ sp: f, lvl: L, outbreak: true });
     if (featOn('delta') && rand() < DELTA_CHANCE * luck * OUTBREAK_ALPHA) makeDelta(out[out.length - 1]);
+    if (featOn('radiant') && !out[out.length - 1].shiny && rand() < RADIANT_CHANCE * luck * OUTBREAK_SHINY) makeRadiant(out[out.length - 1]);
     if (featOn('shadow') && rand() < SHADOW_CHANCE * luck) out[out.length - 1].shadow = true;
   }
   // Cipher got away this season: Shadow Pokémon are loose in the wild
@@ -7218,7 +7267,7 @@ function addCatch(t, offer, releaseUid) {
   if (offer.roam && (!S.roamer || S.roamer.sp !== offer.sp || !greatFree(offer.sp))) return null;
   if (legendBlocked(t, offer.sp) || (isLegendLine(offer.sp) && legendFull(t))) return null;
   if (offer.legendFind && !greatFree(offer.sp)) return null;
-  let m = stamp(ensureMon({ uid: uid(), sp: offer.sp, lvl: offer.lvl, iv: offer.iv, nat: offer.nat, cov: offer.cov, alpha: offer.alpha || undefined, shiny: offer.shiny || undefined, delta: offer.delta || undefined, form: offer.alpha || offer.shiny ? offer.form : undefined }), 'caught');
+  let m = stamp(ensureMon({ uid: uid(), sp: offer.sp, lvl: offer.lvl, iv: offer.iv, nat: offer.nat, cov: offer.cov, alpha: offer.alpha || undefined, shiny: offer.shiny || undefined, radiant: offer.radiant || undefined, radAb: offer.radAb || undefined, delta: offer.delta || undefined, deltaAb: offer.deltaAb || undefined, form: offer.alpha || offer.shiny ? offer.form : undefined }), 'caught');
   if (t.team.length >= 6) {
     const idx = releaseUid != null ? t.team.findIndex(x => x.uid === releaseUid) : -1;
     if (idx < 0) return null;
@@ -7253,7 +7302,7 @@ function aiCatch(t) {
   const wild = wildcardOf(t);
   // specialists want one strong off-type Pokémon for coverage: until they have one, a strong off-type find rates like an on-type one
   const wildcardFit = o => t.specialty && !onT(o.sp) && !wild && linePeak(o.sp) >= WILDCARD_PEAK;
-  const val = o => (o.roam || o.wormhole ? 1000 : SP[o.sp].baby ? 900 : Math.max(SP[o.sp].bst, wildcardFit(o) ? (SP[o.sp].bst + linePeak(o.sp)) / 2 : 0)) * (specFit(t, o.sp) === 2 ? 1.45 : onT(o.sp) || wildcardFit(o) ? 1.35 : 1) * (o.shiny ? 1.4 : 1) * (o.delta ? 1.3 : 1) * (o.alpha ? 1.3 : 1);
+  const val = o => (o.roam || o.wormhole ? 1000 : SP[o.sp].baby ? 900 : Math.max(SP[o.sp].bst, wildcardFit(o) ? (SP[o.sp].bst + linePeak(o.sp)) / 2 : 0)) * (specFit(t, o.sp) === 2 ? 1.45 : onT(o.sp) || wildcardFit(o) ? 1.35 : 1) * (o.shiny ? 1.4 : 1) * (o.radiant ? 1.5 : 1) * (o.delta ? 1.3 : 1) * (o.alpha ? 1.3 : 1);
   const best = offers.reduce((a, b) => (val(a) > val(b) ? a : b));
   if (t.team.length < 6) return addCatch(t, best);
   // release off-type Pokémon first when the new catch fits the trainer's type, but keep the wildcard
@@ -7515,7 +7564,7 @@ function villainWeek() {
       for (const t of shuffle(ex)) {
         if (e.stolen.length >= VILLAIN_THEFTS || rand() >= 0.12) continue;
         const cand = t.team.filter(m => !SP[m.sp].legend && m.bond !== t.id && !(t.mega && t.mega.uid === m.uid));
-        const m = cand.find(x => x.shiny || x.delta || x.alpha || x.lucky) || pick(cand); if (!m) continue;
+        const m = cand.find(x => x.shiny || x.radiant || x.delta || x.alpha || x.lucky) || pick(cand); if (!m) continue;
         t.team = t.team.filter(x => x !== m); e.ladder[e.ladder.length - 1].team.push(m); e.stolen.push({ from: t.id, uid: m.uid, sp: m.sp });
         news(`${v.name} stole ${dn(t)}'s ${m.sp}! Beating ${v.boss[0]} would get it back.`, t.user ? 'you' : 'circuit', t.id);
       }
@@ -7588,9 +7637,9 @@ function seasonAwards(L) {
   for (const t of leagueTrainers()) if (!['retired', 'leader'].includes(t.role) && t.team) for (const m of t.team) mons.push({ t, m, v: monYear(m) });
   mons.sort((a, b) => b.v - a.v);
   if (mons[0] && mons[0].v > 0) { const { t, m } = mons[0]; out.push(giveAward('poy', t, m, `${m.ss.ko} KOs, ${m.ss.w}–${m.ss.l}`)); }
-  const rare = m => (m.shiny ? 14 : 0) + (m.delta ? 12 : 0) + (m.alpha ? 6 : 0) + (SP[m.sp].legend ? 10 : 0) + (SP[m.sp].baby || babyLine(m.sp) ? 10 : 0) + (m.shadow || (m.met && m.met.how === 'snag') ? 4 : 0);
+  const rare = m => (m.shiny ? 14 : 0) + (m.radiant ? 16 : 0) + (m.delta ? 12 : 0) + (m.alpha ? 6 : 0) + (SP[m.sp].legend ? 10 : 0) + (SP[m.sp].baby || babyLine(m.sp) ? 10 : 0) + (m.shadow || (m.met && m.met.how === 'snag') ? 4 : 0);
   const caught = mons.filter(x => x.m.met && x.m.met.season === S.season && ['caught', 'snag', 'wormhole'].includes(x.m.met.how)).map(x => ({ ...x, c: x.v + rare(x.m) })).sort((a, b) => b.c - a.c)[0];
-  if (caught) { const { t, m } = caught; const tag = [m.shiny && 'shiny', m.delta && 'Delta', m.alpha && 'alpha', m.met.how === 'snag' && 'snagged'].filter(Boolean).join(' '); out.push(giveAward('coy', t, m, `${tag ? tag + ', ' : ''}caught in week ${m.met.week}`)); }
+  if (caught) { const { t, m } = caught; const tag = [m.radiant && 'Radiant', m.shiny && 'shiny', m.delta && 'Delta', m.alpha && 'alpha', m.met.how === 'snag' && 'snagged'].filter(Boolean).join(' '); out.push(giveAward('coy', t, m, `${tag ? tag + ', ' : ''}caught in week ${m.met.week}`)); }
   return out;
 }
 // ================= LEGACY TRAINERS =================
@@ -8570,8 +8619,9 @@ function doAction(t, act, userCatch) {
     const m = userCatch === undefined ? aiCatch(t) : userCatch ? addCatch(t, userCatch.offer, userCatch.release) : null;
     const ob = activeOutbreak();
     if (m && ob && LINE[m.sp] === LINE[ob.sp]) { ob.caught++; if (m.alpha) ob.alpha++; if (m.shiny) ob.shiny++; if (t.user) ob.user = true; entry.outbreak = true; }
-    if (m) { entry.caught = m.sp; if (m.alpha) entry.alpha = true; if (m.shiny) entry.shiny = true; if (m.delta) entry.delta = m.delta;
+    if (m) { entry.caught = m.sp; if (m.alpha) entry.alpha = true; if (m.shiny) entry.shiny = true; if (m.radiant) entry.radiant = true; if (m.delta) entry.delta = m.delta;
       if (m.delta) catchNews(`${dn(t)} caught a Delta ${m.sp}, an unusual ${monTypes(m).join('/')} type${m.deltaAb && featOn('abilities') ? ` with an unusual ability, ${m.deltaAb}` : ''}!`, t.user ? 'you' : 'circuit', t.id);
+      if (m.radiant) catchNews(`${dn(t)} caught a Radiant ${m.alpha ? 'alpha ' : ''}${m.sp}${m.radAb && featOn('abilities') ? `, glowing with ${m.radAb}` : ''}!`, t.user ? 'you' : 'circuit', t.id);
       if (m.shiny) catchNews(`${dn(t)} caught a shiny ${m.alpha ? 'alpha ' : ''}${m.sp}!`, t.user ? 'you' : 'circuit', t.id);
       else if (m.alpha) catchNews(`${dn(t)} caught an alpha ${m.sp}!`, t.user ? 'you' : 'circuit', t.id); }
     { const found = exploreFind(t); if (found) { entry.found = found; if (t.user) news(`${dn(t)} found a ${itemName(found)} while exploring.`, 'you', t.id); } }
@@ -10500,16 +10550,16 @@ function ranchChampionRoster(k, c, won) {
   const R = ranchOf(k); if (!won || !R || !c || !c.team || !c.team.length) return;
   if (R.champs.some(x => x.season === S.season && x.id === c.id)) return;
   R.champs.unshift({ season: S.season, lg: S.lg || 0, lgName: S.lgName, id: c.id, name: `${c.cls} ${c.name}`, won: !!won,
-    mons: c.team.map(m => ({ sp: m.sp, lvl: Math.floor(m.lvl), ko: m.ss && m.ss.season === S.season ? m.ss.ko : 0, shiny: m.shiny || undefined, alpha: m.alpha || undefined, delta: m.delta || undefined })) });
+    mons: c.team.map(m => ({ sp: m.sp, lvl: Math.floor(m.lvl), ko: m.ss && m.ss.season === S.season ? m.ss.ko : 0, shiny: m.shiny || undefined, radiant: m.radiant || undefined, alpha: m.alpha || undefined, delta: m.delta || undefined })) });
   if (R.champs.length > RANCH_CHAMPS_MAX) R.champs.length = RANCH_CHAMPS_MAX;
 }
 const ranchable = sp => !!SP[sp] && !isLegendLine(sp) && !SP[sp].legend && !SP[sp].baby && !babyLine(sp) && !SP[sp].ub && !SP[sp].glitch;
 // how much a team values a ranch Pokémon (for AI choices and for which one makes room when the ranch is full)
-const ranchValue = (m, t) => SP[m.sp].bst * (t && onSpec(t, m.sp) ? 1.15 : 1) + (m.shiny ? 60 : 0) + (m.alpha ? 40 : 0) + (m.delta ? 40 : 0) + (SP[m.sp].paradox ? 40 : 0) + ivTotal(m) / 4;
+const ranchValue = (m, t) => SP[m.sp].bst * (t && onSpec(t, m.sp) ? 1.15 : 1) + (m.shiny ? 60 : 0) + (m.radiant ? 80 : 0) + (m.alpha ? 40 : 0) + (m.delta ? 40 : 0) + (SP[m.sp].paradox ? 40 : 0) + ivTotal(m) / 4;
 function ranchRecord(m, info) {
   const st = m.st || {};
   return { uid: m.uid, sp: m.sp, lvl: Math.floor(m.lvl || 1), season: info.season, from: info.from ?? null, fromName: info.fromName || '', why: info.why || '', nat: m.nat,
-    st: { b: st.b || 0, w: st.w || 0, l: st.l || 0, ko: st.ko || 0 }, shiny: m.shiny || undefined, alpha: m.alpha || undefined, delta: m.delta || undefined, paradox: SP[m.sp] && SP[m.sp].paradox ? true : undefined };
+    st: { b: st.b || 0, w: st.w || 0, l: st.l || 0, ko: st.ko || 0 }, shiny: m.shiny || undefined, radiant: m.radiant || undefined, alpha: m.alpha || undefined, delta: m.delta || undefined, paradox: SP[m.sp] && SP[m.sp].paradox ? true : undefined };
 }
 function toRetiredRanch(k, rec) {
   const R = ranchOf(k); if (!R) return;
@@ -11456,12 +11506,12 @@ function moveLine(mv, m) {
 }
 // ---------- abilities ----------
 const abOn = () => featOn('abilities');
-function abilityChip(m) { if (!abOn()) return ''; const a = abilityOf(m); return a ? `<span class="abchip${m.deltaAb === a ? ' delta' : m.abSlot === 'H' && SPECIES_AB[m.sp] && SPECIES_AB[m.sp].H === a ? ' hidden' : ''}" title="${esc(ABILITIES[a])}${m.deltaAb === a ? ' (unusual Delta ability)' : ''}">${m.deltaAb === a ? 'Δ ' : ''}${a}</span> ` : ''; }
+function abilityChip(m) { if (!abOn()) return ''; const a = abilityOf(m); if (a && m.radAb === a) return `<span class="abchip radiant" title="${esc(ABILITIES[a])} (Radiant ability)">✧ ${a}</span> `; return a ? `<span class="abchip${m.deltaAb === a ? ' delta' : m.abSlot === 'H' && SPECIES_AB[m.sp] && SPECIES_AB[m.sp].H === a ? ' hidden' : ''}" title="${esc(ABILITIES[a])}${m.deltaAb === a ? ' (unusual Delta ability)' : ''}">${m.deltaAb === a ? 'Δ ' : ''}${a}</span> ` : ''; }
 function abilityBlock(m) {
   if (!abOn()) return '';
   const a = abilityOf(m), A = SPECIES_AB[m.sp] || {};
-  const hid = a && A.H === a && m.abSlot === 'H', dab = a && m.deltaAb === a;
-  return `<div class="eyebrow">Ability</div><p>${a ? `<b>${a}</b>${dab ? ' <span class="tag delta" title="An ability its species never has, from its Delta nature">Δ Unusual ability</span>' : hid ? ' <span class="tag gold">Hidden ability</span>' : ''} <span class="muted small">· ${ABILITIES[a]}</span>` : `<span class="muted">No ability yet</span> <span class="muted small">(${[A[0], A[1], A.H].filter(Boolean).join(', ') || '—'} not in the game yet)</span>`}</p>`;
+  const hid = a && A.H === a && m.abSlot === 'H', dab = a && m.deltaAb === a, rab = a && m.radAb === a;
+  return `<div class="eyebrow">Ability</div><p>${a ? `<b>${a}</b>${rab ? ' <span class="tag radiant" title="An ability its species never has, stronger than any it does, from its Radiant nature">✧ Radiant ability</span>' : dab ? ' <span class="tag delta" title="An ability its species never has, from its Delta nature">Δ Unusual ability</span>' : hid ? ' <span class="tag gold">Hidden ability</span>' : ''} <span class="muted small">· ${ABILITIES[a]}</span>` : `<span class="muted">No ability yet</span> <span class="muted small">(${[A[0], A[1], A.H].filter(Boolean).join(', ') || '—'} not in the game yet)</span>`}</p>`;
 }
 const gymWeatherTag = L => abOn() && L && GYM_WEATHER[L.specialty] ? ` <span class="tag weather" title="Battles at this gym take place in this weather">${WEATHER_NAME[GYM_WEATHER[L.specialty]]}</span>` : '';
 // ---------- held items ----------
@@ -11538,13 +11588,13 @@ function legendBanner(t) {
 // v182: does this week's exploring hold anything out of the ordinary? (shiny, alpha, Delta, Shadow, a rare find,
 // an Ultra Beast or a roaming legendary). The wild Pokémon are rolled when the planner first shows the trainer, so
 // the Explore button can be highlighted before you choose it; the same Pokémon are offered if you do.
-const specialOffer = o => !!(o && (o.shiny || o.alpha || o.delta || o.shadow || o.roam || o.wormhole || SP[o.sp].baby || SP[o.sp].legend || SP[o.sp].ub));
+const specialOffer = o => !!(o && (o.shiny || o.radiant || o.alpha || o.delta || o.shadow || o.roam || o.wormhole || SP[o.sp].baby || SP[o.sp].legend || SP[o.sp].ub));
 function exploreSpecials(t) {
   if (S.phase !== 'season' || !t || !t.user || !['challenger', 'champion'].includes(t.role)) return [];
   if (!S.weekOffers[t.id]) { S.weekOffers[t.id] = wildOffers(t); save(); }
   return S.weekOffers[t.id].filter(specialOffer);
 }
-const specialWord = o => o.roam ? `${o.sp} (roaming legendary)` : o.legendFind ? `${o.sp} (legendary find)` : o.wormhole ? `${o.sp} (Ultra Wormhole)` : SP[o.sp].baby ? `${o.sp} (rare find)` : [o.shiny && 'shiny', o.alpha && 'alpha', o.delta && 'Delta', o.shadow && 'Shadow'].filter(Boolean).join(' ') + ' ' + o.sp;
+const specialWord = o => o.roam ? `${o.sp} (roaming legendary)` : o.legendFind ? `${o.sp} (legendary find)` : o.wormhole ? `${o.sp} (Ultra Wormhole)` : SP[o.sp].baby ? `${o.sp} (rare find)` : [o.radiant && 'Radiant', o.shiny && 'shiny', o.alpha && 'alpha', o.delta && 'Delta', o.shadow && 'Shadow'].filter(Boolean).join(' ') + ' ' + o.sp;
 // v182: a legendary roaming the region
 function roamBanner(t) {
   const R = S.roamer; if (S.phase !== 'season' || !R) return '';
@@ -11673,13 +11723,13 @@ function monRow(m, tid) {
   const evo = s.evos ? `<span class="evo">${evoText(s)}</span>` : '';
   const st = stOf(m);
   return `<button class="mon" data-act="mon" data-t="${tid}" data-u="${m.uid}" title="See ${m.sp}'s stats">
-    ${monFace(m.sp, m.shiny, 40)}
-    <span class="mon-main"><span class="mon-name">${m.sp}${s.legend ? ' <span class="tag legend">Legendary</span>' : ''}${s.paradox ? ' <span class="tag paradox">Paradox</span>' : ''}${babyTag(s)}${megaTag(m)}${itemTag(m)}${m.shiny ? ' <span class="tag shiny">✦ Shiny</span>' : ''}${m.delta ? ' <span class="tag delta" title="Delta Pokémon: an unusual ' + m.delta + ' type">Δ Delta</span>' : ''}${m.alpha ? ' <span class="tag alpha">Alpha</span>' : ''}${condTags(m)}${formBadge(m)}</span><span class="mon-sub">${chips(monTypes(m))} ${abilityChip(m)}<span class="muted">${m.nat}</span> ${evo}</span></span>
+    ${monFace(m.sp, m.shiny || m.radiant, 40)}
+    <span class="mon-main"><span class="mon-name">${m.sp}${s.legend ? ' <span class="tag legend">Legendary</span>' : ''}${s.paradox ? ' <span class="tag paradox">Paradox</span>' : ''}${babyTag(s)}${megaTag(m)}${itemTag(m)}${m.shiny ? ' <span class="tag shiny">✦ Shiny</span>' : ''}${m.radiant ? ' <span class="tag radiant" title="Radiant: shiny colors, at least Good IVs and a stronger ability than its species ever gets">✧ Radiant</span>' : ''}${m.delta ? ' <span class="tag delta" title="Delta Pokémon: an unusual ' + m.delta + ' type">Δ Delta</span>' : ''}${m.alpha ? ' <span class="tag alpha">Alpha</span>' : ''}${condTags(m)}${formBadge(m)}</span><span class="mon-sub">${chips(monTypes(m))} ${abilityChip(m)}<span class="muted">${m.nat}</span> ${evo}</span></span>
     <span class="mon-rec" title="${m.partners ? 'Lifetime record' : 'Career record on this team'}"><b>${wl(st)}</b><small>${st.ko} KO${m.leg && m.leg.until != null ? ` · until S${m.leg.until}` : ''}</small></span>
     <span class="mon-lv"><small>Lv</small>${lvShow(m)}</span>
   </button>`;
 }
-function teamDots(t) { return `<div class="tdots">${t.team.map(m => { const s = SP[m.sp], u = monImg(m.sp, m.shiny); return u ? `<img class="pic sm" src="${u}" alt="${esc(m.sp)}" title="${m.sp} Lv ${lvShow(m)}" width="22" height="22">` : `<span class="dot sm" title="${m.sp} Lv ${lvShow(m)}" style="--tc:${TYPE_COLOR[s.types[0]]};--tc2:${TYPE_COLOR[s.types[1] || s.types[0]]}"></span>`; }).join('')}${'<span class="dot sm empty"></span>'.repeat(Math.max(0, 6 - t.team.length))}</div>`; }
+function teamDots(t) { return `<div class="tdots">${t.team.map(m => { const s = SP[m.sp], u = monImg(m.sp, m.shiny || m.radiant); return u ? `<img class="pic sm" src="${u}" alt="${esc(m.sp)}" title="${m.sp} Lv ${lvShow(m)}" width="22" height="22">` : `<span class="dot sm" title="${m.sp} Lv ${lvShow(m)}" style="--tc:${TYPE_COLOR[s.types[0]]};--tc2:${TYPE_COLOR[s.types[1] || s.types[0]]}"></span>`; }).join('')}${'<span class="dot sm empty"></span>'.repeat(Math.max(0, 6 - t.team.length))}</div>`; }
 function ratingBars(t, prog) {
   return `<div class="ratings">${RK.map(k => {
     const v = t.r[k]; let d = '';
@@ -11689,7 +11739,7 @@ function ratingBars(t, prog) {
 }
 const RHELP = { str: 'Picks counters when sending out Pokémon', trn: 'Extra levels on training weeks', bnd: 'Critical hits and holding on at 1 HP', sct: 'Better and rarer Pokémon when exploring', nrv: 'Performance in League and title battles' };
 // older saves' catch news has no category yet, so it's recognized by its wording
-const CATCH_WORDS = /caught (a|an) (shiny|alpha|Delta)|caught the Ultra Beast|Ultra Wormhole|outbreak|spotted a .+ while exploring|only one in the league/i;
+const CATCH_WORDS = /caught (a|an) (Radiant|shiny|alpha|Delta)|caught the Ultra Beast|Ultra Wormhole|outbreak|spotted a .+ while exploring|only one in the league/i;
 const isCatchNews = n => n.cat === 'catch' || n.tag === 'catch' || CATCH_WORDS.test(n.text);
 function newsList(items) {
   if (!items.length) return '<p class="muted">Nothing yet.</p>';
@@ -12247,7 +12297,7 @@ function cupCard() {
 }
 // "a shiny alpha Delta", "an alpha", "a Delta"...
 function catchWords(e) {
-  const w = [e.shiny && 'shiny', e.alpha && 'alpha', e.delta && 'Delta'].filter(Boolean);
+  const w = [e.radiant && 'Radiant', e.shiny && 'shiny', e.alpha && 'alpha', e.delta && 'Delta'].filter(Boolean);
   return w.length ? `${/^[aeiou]/i.test(w[0]) ? 'an' : 'a'} <b>${w.join(' ')}</b> ` : '';
 }
 function lastEntryText(t) {
@@ -12338,7 +12388,7 @@ function viewTrainerScreen(id) {
     if (!S.weekOffers[t.id]) { S.weekOffers[t.id] = wildOffers(t); save(); }
     const offers = S.weekOffers[t.id]; const pk = S.catchPicks[t.id]; const full = t.team.length >= 6;
     detail = `<p class="muted">${offers.length ? `Three wild Pokémon are on the routes. Pick one to catch, or leave it and ${t.name} chooses.` : 'The routes are empty this week.'} Exploring still gives about +${(PACE.explore + PACE.travel).toFixed(1)} levels, and new catches level faster until they reach the team.</p>
-      <div class="offers">${offers.map((o, i) => { const sp = SP[o.sp]; return `<button class="offer-card${pk && pk.i === i ? ' on' : ''}${o.alpha ? ' alpha' : ''}${o.shiny ? ' shiny' : ''}${!o.alpha && !o.shiny && specialOffer(o) ? ' special' : ''}" data-act="csel" data-id="${t.id}" data-i="${i}">${monFace(o.sp, o.shiny, 48, 'big')}<div class="mon-name">${o.sp}${o.shadow ? ' <span class="tag shadow">Shadow</span>' : ''}${o.outbreak ? ' <span class="tag ob">Outbreak</span>' : ''}${o.shiny ? ' <span class="tag shiny">✦ Shiny</span>' : ''}${o.delta ? ' <span class="tag delta">Δ Delta</span>' : ''}${o.alpha ? ' <span class="tag alpha">Alpha</span>' : ''}${babyTag(sp)}${sp.legend && !sp.ub ? ' <span class="tag legend">Legendary</span>' : ''}</div>${o.wormhole ? '<div class="small alpha-note">Came through an Ultra Wormhole, already at full strength. Catch it before it\'s gone.</div>' : ''}${o.roam ? '<div class="small alpha-note">The roaming legendary, at full strength. Catch it now: it moves on, and anyone exploring nearby could find it too.</div>' : ''}${sp.baby ? `<div class="small alpha-note">Only one can exist in the league. ${sp.evos ? 'Evolves ' + babyChain(sp) : sp.label === 'Mythical' ? 'A mythical that never evolves' : 'It doesn\'t evolve, and there\'s only ever been one'}</div>` : ''}${o.shadow ? '<div class="small alpha-note">A Shadow Pokémon: hits 15% harder but may ignore orders, and can\'t level up until purified. Its heart opens as it trains, explores and battles.</div>' : ''}${o.delta ? `<div class="small delta-note">Δ An unusual ${o.delta} type, with outstanding IVs</div>` : ''}${o.shiny ? '<div class="small shiny-note">Perfect IVs, and it arrives on fire</div>' : o.alpha ? '<div class="small alpha-note">Outstanding IVs, already on a hot streak</div>' : ''}<div>${chips(monTypes(o))}</div><div class="muted">Lv ${o.lvl} · BST ${sp.bst}</div>${o.nat ? `<div class="small"><b>${o.nat}</b> <span class="muted">${natureText(o.nat)}</span></div><div class="small">IVs: <b>${ivGrade(o)}</b></div><div class="small muted">Learns ${(o.cov || []).map(c => `${c.t} (Lv ${c.lv})`).join(', ')}</div>` : ''}${sp.evos ? `<div class="evo">${evoText(sp)}</div>` : ''}${specFit(t, sp.name) === 2 ? '<div class="tag gold">Fits both their types</div>' : specFit(t, sp.name) ? '<div class="tag gold">Fits their type</div>' : ''}</button>`; }).join('')}</div>
+      <div class="offers">${offers.map((o, i) => { const sp = SP[o.sp]; return `<button class="offer-card${pk && pk.i === i ? ' on' : ''}${o.alpha ? ' alpha' : ''}${o.shiny || o.radiant ? ' shiny' : ''}${o.radiant ? ' radiant' : ''}${!o.alpha && !o.shiny && !o.radiant && specialOffer(o) ? ' special' : ''}" data-act="csel" data-id="${t.id}" data-i="${i}">${monFace(o.sp, o.shiny || o.radiant, 48, 'big')}<div class="mon-name">${o.sp}${o.shadow ? ' <span class="tag shadow">Shadow</span>' : ''}${o.outbreak ? ' <span class="tag ob">Outbreak</span>' : ''}${o.shiny ? ' <span class="tag shiny">✦ Shiny</span>' : ''}${o.radiant ? ' <span class="tag radiant" title="Radiant: shiny colors, at least Good IVs and a stronger ability than its species ever gets">✧ Radiant</span>' : ''}${o.delta ? ' <span class="tag delta">Δ Delta</span>' : ''}${o.alpha ? ' <span class="tag alpha">Alpha</span>' : ''}${babyTag(sp)}${sp.legend && !sp.ub ? ' <span class="tag legend">Legendary</span>' : ''}</div>${o.wormhole ? '<div class="small alpha-note">Came through an Ultra Wormhole, already at full strength. Catch it before it\'s gone.</div>' : ''}${o.roam ? '<div class="small alpha-note">The roaming legendary, at full strength. Catch it now: it moves on, and anyone exploring nearby could find it too.</div>' : ''}${sp.baby ? `<div class="small alpha-note">Only one can exist in the league. ${sp.evos ? 'Evolves ' + babyChain(sp) : sp.label === 'Mythical' ? 'A mythical that never evolves' : 'It doesn\'t evolve, and there\'s only ever been one'}</div>` : ''}${o.shadow ? '<div class="small alpha-note">A Shadow Pokémon: hits 15% harder but may ignore orders, and can\'t level up until purified. Its heart opens as it trains, explores and battles.</div>' : ''}${o.delta ? `<div class="small delta-note">Δ An unusual ${o.delta} type, with outstanding IVs</div>` : ''}${o.radiant ? `<div class="small radiant-note">✧ Radiant: at least Good IVs${o.radAb && abOn() ? `, and a stronger ability than its species ever gets: <b>${o.radAb}</b>` : ''}</div>` : ''}${o.shiny ? '<div class="small shiny-note">Perfect IVs, and it arrives on fire</div>' : o.alpha ? '<div class="small alpha-note">Outstanding IVs, already on a hot streak</div>' : ''}<div>${chips(monTypes(o))}</div><div class="muted">Lv ${o.lvl} · BST ${sp.bst}</div>${o.nat ? `<div class="small"><b>${o.nat}</b> <span class="muted">${natureText(o.nat)}</span></div><div class="small">IVs: <b>${ivGrade(o)}</b></div><div class="small muted">Learns ${(o.cov || []).map(c => `${c.t} (Lv ${c.lv})`).join(', ')}</div>` : ''}${sp.evos ? `<div class="evo">${evoText(sp)}</div>` : ''}${specFit(t, sp.name) === 2 ? '<div class="tag gold">Fits both their types</div>' : specFit(t, sp.name) ? '<div class="tag gold">Fits their type</div>' : ''}</button>`; }).join('')}</div>
       ${pk && full ? `<h3 class="rel-h">The team is full. Release one to make room:</h3><div class="release">${t.team.map(m => `<button class="rel${pk.release === m.uid ? ' on' : ''}" data-act="crel" data-id="${t.id}" data-u="${m.uid}">${m.sp} <span class="muted">Lv ${Math.floor(m.lvl)}</span></button>`).join('')}</div>${pk.release == null ? '<p class="warn">Choose who to release, or the catch is skipped.</p>' : ''}` : ''}
       ${pk ? `<button class="link" data-act="cclear" data-id="${t.id}">Clear my pick and let ${t.name} choose</button>` : ''}`;
   }
@@ -12807,7 +12857,7 @@ function viewCircuit() {
 }
 function eliteCard(t, label, extra = '') {
   return `<article class="elite"><div class="eyebrow">${label}</div><div class="elite-h">${tname(t.id)} ${ovrPill(t)}</div><div class="elite-s">${specChips(t)} <span class="muted">Age ${t.age}</span> ${extra}</div>
-    <ul class="mini">${t.team.slice().reverse().map(m => `<li><span>${monMini(m.sp, m.shiny)}<button class="tlink" data-act="mon" data-t="${t.id}" data-u="${m.uid}">${m.sp}</button></span><span class="num">${stOf(m).b ? wl(stOf(m)) + ' · ' : ''}Lv ${Math.floor(m.lvl)}</span></li>`).join('')}</ul></article>`;
+    <ul class="mini">${t.team.slice().reverse().map(m => `<li><span>${monMini(m.sp, m.shiny || m.radiant)}<button class="tlink" data-act="mon" data-t="${t.id}" data-u="${m.uid}">${m.sp}</button></span><span class="num">${stOf(m).b ? wl(stOf(m)) + ' · ' : ''}Lv ${Math.floor(m.lvl)}</span></li>`).join('')}</ul></article>`;
 }
 function viewGyms() {
   const ch = T(S.champion);
@@ -12930,11 +12980,11 @@ const kindOf = sp => { const s = SP[sp]; return s.ub ? 'ub' : s.paradox ? 'parad
 const kindOk = sp => dexKind === 'all' || kindOf(sp) === dexKind;
 // traits of individual Pokémon (not species): filter the roster and league-wide lists
 let dexTrait = 'any';
-const DEX_TRAITS = [['any', 'Any'], ['shiny', '✦ Shiny'], ['alpha', 'Alpha'], ['delta', 'Δ Delta'], ['shadow', 'Shadow'], ['purified', 'Purified'], ['lucky', '★ Lucky'], ['pkrs', 'Pokérus'], ['hidden', 'Hidden ability']];
+const DEX_TRAITS = [['any', 'Any'], ['radiant', '✧ Radiant'], ['shiny', '✦ Shiny'], ['alpha', 'Alpha'], ['delta', 'Δ Delta'], ['shadow', 'Shadow'], ['purified', 'Purified'], ['lucky', '★ Lucky'], ['pkrs', 'Pokérus'], ['hidden', 'Hidden ability']];
 const isHidden = m => { const A = SPECIES_AB[m.sp]; const a = abilityOf(m); return !!(a && A && m.abSlot === 'H' && A.H === a); };
-const TRAIT_TEST = { shiny: m => m.shiny, alpha: m => m.alpha, delta: m => m.delta, shadow: m => m.shadow, purified: m => m.purified, lucky: m => m.lucky, pkrs: m => m.pkrs > 0, hidden: isHidden };
+const TRAIT_TEST = { radiant: m => m.radiant, shiny: m => m.shiny, alpha: m => m.alpha, delta: m => m.delta, shadow: m => m.shadow, purified: m => m.purified, lucky: m => m.lucky, pkrs: m => m.pkrs > 0, hidden: isHidden };
 const traitOk = m => dexTrait === 'any' || !!TRAIT_TEST[dexTrait](m);
-const indivTags = m => `${m.shiny ? ' <span class="tag shiny">✦ Shiny</span>' : ''}${m.delta ? ` <span class="tag delta" title="Delta Pokémon: an unusual ${m.delta} type">Δ Delta</span>` : ''}${m.alpha ? ' <span class="tag alpha">Alpha</span>' : ''}${isHidden(m) ? ` <span class="tag gold" title="Hidden ability: ${esc(abilityOf(m))}">Hidden ability</span>` : ''}${condTags(m)}`;
+const indivTags = m => `${m.radiant ? ' <span class="tag radiant" title="Radiant: shiny colors, at least Good IVs and a stronger ability than its species ever gets">✧ Radiant</span>' : ''}${m.shiny ? ' <span class="tag shiny">✦ Shiny</span>' : ''}${m.radiant ? ' <span class="tag radiant" title="Radiant: shiny colors, at least Good IVs and a stronger ability than its species ever gets">✧ Radiant</span>' : ''}${m.delta ? ` <span class="tag delta" title="Delta Pokémon: an unusual ${m.delta} type">Δ Delta</span>` : ''}${m.alpha ? ' <span class="tag alpha">Alpha</span>' : ''}${isHidden(m) ? ` <span class="tag gold" title="Hidden ability: ${esc(abilityOf(m))}">Hidden ability</span>` : ''}${condTags(m)}`;
 const activeMons = () => { const out = []; for (const t of Object.values(S.trainers)) if (!['retired', 'prospect', 'free'].includes(t.role)) for (const m of t.team) out.push({ t, m }); return out; };
 const DEX_COLS = [['sp', 'Pokémon'], ['owned', 'On teams'], ['b', 'Battles'], ['w', 'W'], ['l', 'L'], ['pct', 'Win %'], ['ko', 'KOs'], ['kpb', 'KO / battle']];
 const monMatch = (sp, q) => fold(sp + ' ' + SP[sp].types.join(' ')).includes(q);
@@ -12976,14 +13026,14 @@ function dexResults() {
     found.sort((a, b) => stOf(b.m).w - stOf(a.m).w);
     owners = `<section class="panel"><div class="ph"><h2>Across the league</h2><span class="muted">${found.length}${trait ? ' ' + traitLabel : ''} on active trainers</span></div>
       ${found.length ? `<div class="scroll"><table class="tbl"><thead><tr><th>Pokémon</th><th>Trainer</th><th>Team</th><th>Lv</th><th>Season</th><th>Career</th><th>Win %</th><th>KOs</th></tr></thead><tbody>
-      ${found.slice(0, 80).map(({ t, m }) => { const ss = ssOf(m), st = stOf(m); return `<tr${t.user ? ' class="you-row"' : ''}><td>${monMini(m.sp, m.shiny)}<button class="tlink" data-act="mon" data-t="${t.id}" data-u="${m.uid}">${m.sp}</button> ${chips(monTypes(m))}${indivTags(m)}${(special || trait) && m.met ? ` <span class="muted small">${HOW[m.met.how] || ''}</span>` : ''}</td><td>${tname(t.id)}</td><td>${t.org ? ORGS[t.org].short : '<span class="muted">—</span>'}</td><td class="num">${Math.floor(m.lvl)}</td><td class="num">${wl(ss)}</td><td class="num">${wl(st)}</td><td class="num">${pct(st)}</td><td class="num">${st.ko}</td></tr>`; }).join('')}
+      ${found.slice(0, 80).map(({ t, m }) => { const ss = ssOf(m), st = stOf(m); return `<tr${t.user ? ' class="you-row"' : ''}><td>${monMini(m.sp, m.shiny || m.radiant)}<button class="tlink" data-act="mon" data-t="${t.id}" data-u="${m.uid}">${m.sp}</button> ${chips(monTypes(m))}${indivTags(m)}${(special || trait) && m.met ? ` <span class="muted small">${HOW[m.met.how] || ''}</span>` : ''}</td><td>${tname(t.id)}</td><td>${t.org ? ORGS[t.org].short : '<span class="muted">—</span>'}</td><td class="num">${Math.floor(m.lvl)}</td><td class="num">${wl(ss)}</td><td class="num">${wl(st)}</td><td class="num">${pct(st)}</td><td class="num">${st.ko}</td></tr>`; }).join('')}
       </tbody></table></div>${found.length > 80 ? `<p class="fine">Showing 80 of ${found.length}.</p>` : ''}` : '<p class="muted">No active trainer has one right now.</p>'}</section>`;
   }
   // individual traits don't apply to species stats, so the Pokédex steps aside while one is on
   const dexPanel = trait ? `<section class="panel"><p class="muted">The League Pokédex counts whole species, so it isn't filtered by ${traitLabel}. <button class="link" data-act="dextrait" data-v="any">Show all Pokémon</button></p></section>` : null;
   return `<section class="panel"><div class="ph"><h2>${ORGS[S.userOrg].short} Pokémon</h2><span class="muted">Season ${S.season || 1} and career, on their current trainer</span></div>
     ${mine.length ? `<div class="scroll"><table class="tbl"><thead><tr><th>Pokémon</th><th>Trainer</th><th>Lv</th><th>Season</th><th>Win %</th><th>KOs</th><th>Career</th><th>Career KOs</th></tr></thead><tbody>
-    ${mine.sort((a, b) => stOf(b.m).w - stOf(a.m).w).map(({ t, m }) => { const ss = ssOf(m), st = stOf(m); return `<tr><td>${monMini(m.sp, m.shiny)}<button class="tlink" data-act="mon" data-t="${t.id}" data-u="${m.uid}">${m.sp}</button> ${chips(monTypes(m))}${indivTags(m)}</td><td>${tname(t.id)}</td><td class="num">${Math.floor(m.lvl)}</td><td class="num">${wl(ss)}</td><td class="num">${pct(ss)}</td><td class="num">${ss.ko}</td><td class="num">${wl(st)}</td><td class="num">${st.ko}</td></tr>`; }).join('')}
+    ${mine.sort((a, b) => stOf(b.m).w - stOf(a.m).w).map(({ t, m }) => { const ss = ssOf(m), st = stOf(m); return `<tr><td>${monMini(m.sp, m.shiny || m.radiant)}<button class="tlink" data-act="mon" data-t="${t.id}" data-u="${m.uid}">${m.sp}</button> ${chips(monTypes(m))}${indivTags(m)}</td><td>${tname(t.id)}</td><td class="num">${Math.floor(m.lvl)}</td><td class="num">${wl(ss)}</td><td class="num">${pct(ss)}</td><td class="num">${ss.ko}</td><td class="num">${wl(st)}</td><td class="num">${st.ko}</td></tr>`; }).join('')}
     </tbody></table></div>` : `<p class="muted">${q || trait ? `None of your trainers has a Pokémon matching ${trait && !q ? 'that filter' : 'that search'}.` : 'No Pokémon on your roster.'}</p>`}</section>
   ${owners}
   ${dexPanel || `<section class="panel"><div class="ph"><h2>League Pokédex</h2><span class="muted">${q ? `Every species matching “${esc(dexQ.trim())}”${special ? ' (' + kindLabel + ')' : ''}, battled or not` : special ? `${kindLabel} that have been on a team or in a battle` : 'Every battle by every trainer, gyms and League included'}</span></div>
@@ -13019,9 +13069,9 @@ function findLegend(uid) {
 function allMons() {
   const out = [];
   for (const t of Object.values(S.trainers)) {
-    for (const m of t.team) if (m.st && m.st.b) out.push({ t, sp: m.sp, st: m.st, best: m.best || 0, sweeps: sweepsOf(m), megas: m.megas || 0, bonds: m.bonds || 0, uid: m.uid, cur: true, shiny: !!m.shiny });
+    for (const m of t.team) if (m.st && m.st.b) out.push({ t, sp: m.sp, st: m.st, best: m.best || 0, sweeps: sweepsOf(m), megas: m.megas || 0, bonds: m.bonds || 0, uid: m.uid, cur: true, shiny: !!m.shiny, radiant: !!m.radiant });
     // a legendary's old partners keep a pointer to it; the Pokémon itself is counted once, wherever it is now
-    (t.alumni || []).forEach((m, i) => { if (m.st && m.st.b && !m.legendRef) out.push({ t, sp: m.sp, st: m.st, best: m.best || 0, sweeps: sweepsOf(m), megas: m.megas || 0, bonds: m.bonds || 0, i, shiny: !!m.shiny }); });
+    (t.alumni || []).forEach((m, i) => { if (m.st && m.st.b && !m.legendRef) out.push({ t, sp: m.sp, st: m.st, best: m.best || 0, sweeps: sweepsOf(m), megas: m.megas || 0, bonds: m.bonds || 0, i, shiny: !!m.shiny, radiant: !!m.radiant }); });
   }
   // legendaries waiting for a partner: listed under the last partner they battled with
   for (const { m } of pooledLegends()) {
@@ -13054,7 +13104,7 @@ function recBoard(title, rows, note, key) {
   return `<div class="recboard"><div class="rec-h">${title}</div>${rows.length ? recRows(rows.slice(0, 5)) : '<p class="muted small">No one yet.</p>'}${note ? `<p class="fine">${note}</p>` : ''}${more}</div>`;
 }
 const topBy = (list, val, n = 5, min = 1) => list.map(x => [x, val(x)]).filter(([, v]) => v != null && v >= min).sort((a, b) => b[1] - a[1]).slice(0, n);
-const monLink = x => monMini(x.sp, x.shiny) + (x.cur ? `<button class="tlink" data-act="mon" data-t="${x.t.id}" data-u="${x.uid}">${x.sp}</button>` : `<button class="tlink" data-act="alum" data-t="${x.t.id}" data-i="${x.i}">${x.sp}</button>`);
+const monLink = x => monMini(x.sp, x.shiny || x.radiant) + (x.cur ? `<button class="tlink" data-act="mon" data-t="${x.t.id}" data-u="${x.uid}">${x.sp}</button>` : `<button class="tlink" data-act="alum" data-t="${x.t.id}" data-i="${x.i}">${x.sp}</button>`);
 // v195: Records board for the Pokémon banned most often in this League (by species, legendaries included)
 function banRecBoard() {
   if (!featOn('banlist') && !(S.banLog || []).length) return '';
@@ -13445,8 +13495,8 @@ function viewRegister() {
     return `<section class="panel"><div class="ph"><h3>${tname(id)}</h3><span class="${sel.length === START_TEAM ? 'good' : 'bad'}">${sel.length} of ${START_TEAM} chosen</span></div>
       ${t.team.filter(isGift).map(m => `<p class="good">${m.sp} is registered automatically (${m.met && m.met.how === 'farewell' ? 'farewell gift' : m.met && m.met.how === 'gift' ? "Champion's reward" : 'from the ranch'}).</p>`).join('')}
       <div class="regs">${regular(t).map(m => { const sp = SP[m.sp]; const on = sel.includes(m.uid); return `<button class="reg${on ? ' on' : ''}" data-act="regtoggle" data-id="${id}" data-u="${m.uid}" aria-pressed="${on}">
-        ${monFace(m.sp, m.shiny, 40)}
-        <span class="reg-main"><span class="mon-name">${m.sp}${megaTag(m)}${m.shiny ? ' <span class="tag shiny">✦ Shiny</span>' : ''}${m.delta ? ' <span class="tag delta" title="Delta Pokémon: an unusual ' + m.delta + ' type">Δ Delta</span>' : ''}${m.alpha ? ' <span class="tag alpha">Alpha</span>' : ''}${condTags(m)}${formBadge(m)}</span><span>${chips(monTypes(m))}${learnedCov(ensureMon(m)).map(covChip).join('')}</span><span class="small muted">${m.nat} · IVs ${ivGrade(m)} · ${frTier(m.fr ?? 70)} · ${wl(stOf(m))}</span></span>
+        ${monFace(m.sp, m.shiny || m.radiant, 40)}
+        <span class="reg-main"><span class="mon-name">${m.sp}${megaTag(m)}${m.shiny ? ' <span class="tag shiny">✦ Shiny</span>' : ''}${m.radiant ? ' <span class="tag radiant" title="Radiant: shiny colors, at least Good IVs and a stronger ability than its species ever gets">✧ Radiant</span>' : ''}${m.delta ? ' <span class="tag delta" title="Delta Pokémon: an unusual ' + m.delta + ' type">Δ Delta</span>' : ''}${m.alpha ? ' <span class="tag alpha">Alpha</span>' : ''}${condTags(m)}${formBadge(m)}</span><span>${chips(monTypes(m))}${learnedCov(ensureMon(m)).map(covChip).join('')}</span><span class="small muted">${m.nat} · IVs ${ivGrade(m)} · ${frTier(m.fr ?? 70)} · ${wl(stOf(m))}</span></span>
         <span class="mon-bst">${sp.bst}<small>BST</small></span><span class="reg-check" aria-hidden="true">${on ? '✓' : ''}</span></button>`; }).join('')}</div></section>`; }).join('')}
   <section class="panel"><div class="confirm-row"><button class="btn primary" data-act="regconfirm" ${ready ? '' : 'disabled'}>Register and start Season ${S.season + 1}</button>${ready ? '' : `<span class="warn">Pick exactly ${START_TEAM} for each trainer.</span>`}</div></section>`;
 }
@@ -13490,12 +13540,12 @@ let ranchSel = null, ranchTo = null, ranchKeep = null;
 function ranchMonBtn(m, on, act, sub) {
   const sp = SP[m.sp];
   return `<button class="reg${on ? ' on' : ''}" data-act="${act}" data-u="${m.uid}" aria-pressed="${on}">
-    ${monFace(m.sp, m.shiny, 40)}
-    <span class="reg-main"><span class="mon-name">${m.sp}${sp.paradox ? ' <span class="tag paradox">Paradox</span>' : ''}${m.shiny ? ' <span class="tag shiny">✦ Shiny</span>' : ''}${m.delta ? ' <span class="tag delta" title="Delta Pokémon: an unusual ' + m.delta + ' type">Δ Delta</span>' : ''}${m.alpha ? ' <span class="tag alpha">Alpha</span>' : ''}</span><span>${chips(monTypes(m))}</span><span class="small muted">${sub}</span></span>
+    ${monFace(m.sp, m.shiny || m.radiant, 40)}
+    <span class="reg-main"><span class="mon-name">${m.sp}${sp.paradox ? ' <span class="tag paradox">Paradox</span>' : ''}${m.shiny ? ' <span class="tag shiny">✦ Shiny</span>' : ''}${m.radiant ? ' <span class="tag radiant" title="Radiant: shiny colors, at least Good IVs and a stronger ability than its species ever gets">✧ Radiant</span>' : ''}${m.delta ? ' <span class="tag delta" title="Delta Pokémon: an unusual ' + m.delta + ' type">Δ Delta</span>' : ''}${m.alpha ? ' <span class="tag alpha">Alpha</span>' : ''}</span><span>${chips(monTypes(m))}</span><span class="small muted">${sub}</span></span>
     <span class="mon-bst">${sp.bst}<small>BST</small></span><span class="reg-check" aria-hidden="true">${on ? '✓' : ''}</span></button>`;
 }
 // v191: special conditions shown wherever a ranch Pokémon is listed (resting list, rest picker)
-const specialMonTags = m => { const sp = SP[m.sp] || {}; return `${sp.legend && !sp.ub && !sp.baby ? ' <span class="tag legend">Legendary</span>' : ''}${sp.paradox ? ' <span class="tag paradox">Paradox</span>' : ''}${babyTag(sp)}${m.shiny ? ' <span class="tag shiny">✦ Shiny</span>' : ''}${m.delta ? ' <span class="tag delta" title="Delta Pokémon: an unusual ' + m.delta + ' type">Δ Delta</span>' : ''}${m.alpha ? ' <span class="tag alpha">Alpha</span>' : ''}${condTags(m)}`; };
+const specialMonTags = m => { const sp = SP[m.sp] || {}; return `${sp.legend && !sp.ub && !sp.baby ? ' <span class="tag legend">Legendary</span>' : ''}${sp.paradox ? ' <span class="tag paradox">Paradox</span>' : ''}${babyTag(sp)}${m.shiny ? ' <span class="tag shiny">✦ Shiny</span>' : ''}${m.radiant ? ' <span class="tag radiant" title="Radiant: shiny colors, at least Good IVs and a stronger ability than its species ever gets">✧ Radiant</span>' : ''}${m.delta ? ' <span class="tag delta" title="Delta Pokémon: an unusual ' + m.delta + ' type">Δ Delta</span>' : ''}${m.alpha ? ' <span class="tag alpha">Alpha</span>' : ''}${condTags(m)}`; };
 const ranchSrc = r => r ? (r.how === 'banned' ? `Banned in the ${r.lgName || 'League'} · ${r.fromName}` : r.how === 'reward' ? `Champion's reward · ${r.fromName}` : r.how === 'farewell' ? `Farewell gift from ${r.fromName}` : r.how === 'surplus' ? `Passed on by ${r.fromName}` : r.fromName ? `Kept from ${r.fromName}` : 'From the ranch') : '';
 function ranchPickPanel(p, i, n) {
   const t = T(p.from); if (!t) return '';
@@ -13538,10 +13588,10 @@ function viewRanch() {
   }).join('') : '';
   const restPanel = `<section class="panel"><div class="ph"><h3>Resting</h3><span class="muted">${resting.length} Pokémon</span></div>
     <p class="muted small">One Pokémon per trainer each offseason. A resting Pokémon sits out the whole next season, then comes back to the active ranch with better IVs (and a little more friendship), ready to go back to its trainer. It doesn't count toward registration while it rests.</p>
-    ${resting.length ? `<ul class="changes">${resting.map(m => `<li>${monFace(m.sp, m.shiny, 24)} <b>${m.sp}</b>${specialMonTags(m)} · ${m.rest.fromName} <span class="muted">· ${natLabel(m)} · IVs ${ivGrade(m)}</span> <span class="muted">back after Season ${m.rest.back}</span></li>`).join('')}</ul>` : ''}
+    ${resting.length ? `<ul class="changes">${resting.map(m => `<li>${monFace(m.sp, m.shiny || m.radiant, 24)} <b>${m.sp}</b>${specialMonTags(m)} · ${m.rest.fromName} <span class="muted">· ${natLabel(m)} · IVs ${ivGrade(m)}</span> <span class="muted">back after Season ${m.rest.back}</span></li>`).join('')}</ul>` : ''}
     ${live ? restRows : (resting.length ? '' : '<p class="muted">Nothing is resting. You can rest a Pokémon in the offseason ranch step.</p>')}</section>`;
   const ret = R.retired, champs = (R.champs || []).filter(c => c.won);
-  const monBit = m => `<span class="itemchip">${m.sp}${m.shiny ? ' ✦' : ''}${m.alpha ? ' (alpha)' : ''}${m.delta ? ' (Δ)' : ''} <span class="muted">Lv ${m.lvl}${m.ko ? ` · ${m.ko} KOs` : ''}</span></span>`;
+  const monBit = m => `<span class="itemchip">${m.sp}${m.shiny ? ' ✦' : ''}${m.radiant ? ' ✧' : ''}${m.alpha ? ' (alpha)' : ''}${m.delta ? ' (Δ)' : ''} <span class="muted">Lv ${m.lvl}${m.ko ? ` · ${m.ko} KOs` : ''}</span></span>`;
   // v195: the historical ranch holds title rosters, each one collapsible; retired Pokémon have their own retired ranch
   const hist = `<section class="panel"><div class="ph"><h3>Historical ranch</h3><span class="muted">${champs.length} title roster${champs.length === 1 ? '' : 's'}</span></div>
     ${champs.length ? `<p class="muted small">The roster of each of your trainers who won the title. Tap a season to open it.</p><div class="histlist">${champs.slice().sort((a, b) => b.season - a.season).map(c => `<details class="hist"><summary><b>Season ${c.season}</b>${nLeagues() > 1 ? ` <span class="tag lg">${(c.lgName || leagueName(c.lg)).replace(/ League$/, '')}</span>` : ''} · <b>${c.name}</b> <span class="muted">won the title · ${c.mons.length} Pokémon</span></summary><div class="it-bag">${c.mons.map(monBit).join('')}</div></details>`).join('')}</div>` : '<p class="muted">None of your trainers has won the title yet.</p>'}</section>`;
@@ -13557,7 +13607,7 @@ const whyText = w => (w || '').replace('historical ranch', 'retired ranch');
 const RANCH_TOP = 10;
 const retRank = r => (r.st.ko || 0) * 1000 + (r.st.w || 0) * 10 + (r.lvl || 0) / 100;
 const ranchTopRetired = ret => ret.slice().sort((a, b) => retRank(b) - retRank(a)).slice(0, RANCH_TOP);
-const retTags = r => `${r.shiny ? ' <span class="tag shiny">✦</span>' : ''}${r.alpha ? ' <span class="tag alpha">Alpha</span>' : ''}${r.delta ? ' <span class="tag delta">Δ</span>' : ''}${r.paradox ? ' <span class="tag paradox">Paradox</span>' : ''}`;
+const retTags = r => `${r.shiny ? ' <span class="tag shiny">✦</span>' : ''}${r.radiant ? ' <span class="tag radiant">✧</span>' : ''}${r.alpha ? ' <span class="tag alpha">Alpha</span>' : ''}${r.delta ? ' <span class="tag delta">Δ</span>' : ''}${r.paradox ? ' <span class="tag paradox">Paradox</span>' : ''}`;
 const retWho = r => r.from != null && T(r.from) ? tname(r.from) : (r.fromName || '—');
 // v192: each retired Pokémon opens its page: the full card when its last trainer still has it among their former
 // Pokémon, otherwise a page built from the ranch record (species, level, record and why it's there)
@@ -13568,7 +13618,7 @@ function retLink(r) {
 }
 function ranchHistTable(rows, sortable) {
   const th = (k, l, num) => sortable ? `<th${num ? ' class="num"' : ''}><button class="sort${rhSort.k === k ? ' on' : ''}" data-act="rhsort" data-k="${k}">${l}${rhSort.k === k ? (rhSort.dir < 0 ? ' ↓' : ' ↑') : ''}</button></th>` : `<th>${l}</th>`;
-  return `<div class="scroll"><table class="tbl compact"><thead><tr>${th('sp', 'Pokémon')}${th('lvl', 'Lv', 1)}${th('from', 'Last with')}${th('season', 'Retired', 1)}${sortable ? th('why', 'Why') : ''}${th('w', 'Record', 1)}${th('ko', 'KOs', 1)}</tr></thead><tbody>${rows.map(r => `<tr><td>${monFace(r.sp, r.shiny, 24)} ${retLink(r)}${retTags(r)}</td><td class="num">${r.lvl}</td><td>${retWho(r)}</td><td class="num">${r.season}</td>${sortable ? `<td class="small muted">${whyText(r.why)}</td>` : ''}<td class="num">${r.st.w}–${r.st.l}</td><td class="num">${r.st.ko}</td></tr>`).join('')}</tbody></table></div>`;
+  return `<div class="scroll"><table class="tbl compact"><thead><tr>${th('sp', 'Pokémon')}${th('lvl', 'Lv', 1)}${th('from', 'Last with')}${th('season', 'Retired', 1)}${sortable ? th('why', 'Why') : ''}${th('w', 'Record', 1)}${th('ko', 'KOs', 1)}</tr></thead><tbody>${rows.map(r => `<tr><td>${monFace(r.sp, r.shiny || r.radiant, 24)} ${retLink(r)}${retTags(r)}</td><td class="num">${r.lvl}</td><td>${retWho(r)}</td><td class="num">${r.season}</td>${sortable ? `<td class="small muted">${whyText(r.why)}</td>` : ''}<td class="num">${r.st.w}–${r.st.l}</td><td class="num">${r.st.ko}</td></tr>`).join('')}</tbody></table></div>`;
 }
 let rhSort = { k: 'ko', dir: -1 }, rhShow = 100;
 function viewRanchHistory() {
@@ -13587,7 +13637,7 @@ function ranchRecBody() {
   if (!r) return `<div class="mh"><h2>Pokémon</h2><button class="btn icon" data-act="close" aria-label="Close">×</button></div><p class="muted">This Pokémon is no longer in the retired ranch.</p>`;
   const s = SP[r.sp], st = r.st || {}, t = r.from != null ? T(r.from) : null;
   return `<div class="mh"><h2>${r.sp}</h2><button class="btn icon" data-act="close" aria-label="Close">×</button></div>
-    <div class="moncard"><div class="monpic">${monFace(r.sp, r.shiny, IMG_PX, 'big')}</div>
+    <div class="moncard"><div class="monpic">${monFace(r.sp, r.shiny || r.radiant, IMG_PX, 'big')}</div>
       <div><div>${s ? chips(monTypes(r)) : ''}${retTags(r)}</div>
         <p>Lv ${r.lvl}${r.nat ? ` · ${r.nat} nature` : ''}</p>
         <p class="muted">In ${ORGS[S.userOrg].name}'s retired ranch since Season ${r.season}${r.why ? `: ${whyText(r.why)}` : ''}.</p></div></div>
@@ -13624,7 +13674,7 @@ function viewDraft() {
     <section class="panel"><div class="ph"><h3>Picks</h3></div><ol class="picks">${d.picks.map(p => `<li>${orgMark(p.org)} <span>${p.id ? tname(p.id) : '<span class="muted">Passed</span>'}</span><span class="muted small">${p.round === 'Fill' ? 'Fill' : p.round === 'Comp' ? 'Comp' : 'R' + p.round}</span></li>`).join('') || '<li class="muted">No picks yet.</li>'}</ol></section>
   </div></div>
   <section class="panel draftavail"><div class="ph"><h3>Available</h3><span class="muted">${avail.length} · ${draftSort.k === 'best' ? 'sorted by overall value (OVR + potential)' : '<button class="link" data-act="draftsort" data-k="best">Reset to overall value</button>'}</span></div><div class="scroll"><table class="tbl draft"><thead><tr>${dth('name', 'Trainer')}${dth('age', 'Age')}${dth('type', 'Type')}${dth('trait', 'Trait', 'Personality trait: hover a trait for what it does')}${dth('ovr', 'OVR')}${dth('pot', 'POT', "Potential: a scout's estimate, which can be off by several points")}${RK.map(k => dth(k, RNAME[k].slice(0, 3), RNAME[k])).join('')}${dth('mons', 'Pokémon', 'Sorts by the team’s combined base stat total')}<th class="dact"></th></tr></thead><tbody>
-  ${avail.map(t => `<tr><td class="dname">${tname(t.id)}${t.famous ? ' <span class="tag gold">famous</span>' : ''}${t.legacy ? ` <span class="tag legacy" title="Child of ${esc(t.legacy.name)}${t.legacy.org ? ', who was with ' + ORGS[t.legacy.org].name : ''}. Starts with a Pokémon from the parent's signature line; legendaries and other one-of-a-kind Pokémon can't be passed down.">legacy${t.legacy.org === S.userOrg ? ' · yours' : ''}</span>` : ''}${t.role === 'challenger' ? ' <span class="tag">indep.</span>' : t.role === 'free' ? ' <span class="tag">free agent</span>' : t.seasons > 0 ? ' <span class="tag">veteran</span>' : t.age >= 25 ? ' <span class="tag">late starter</span>' : ''}</td><td class="num">${t.age}</td><td>${specChips(t)}</td><td>${traitChip(t) || '<span class="muted">—</span>'}</td><td>${ovrPill(t)}</td><td class="num">${t.seasons > 1 ? '—' : scoutEst(t)}</td>${RK.map(k => `<td class="num">${t.r[k]}</td>`).join('')}<td class="dmons">${t.team.map(m => monMini(m.sp, m.shiny) + m.sp).join(', ')}</td><td class="dact">${mineTurn ? `<button class="btn small primary" data-act="draftpick" data-id="${t.id}" ${full && !draftRelease ? 'disabled title="Choose who to release first"' : ''}>Draft</button>` : ''}</td></tr>`).join('')}
+  ${avail.map(t => `<tr><td class="dname">${tname(t.id)}${t.famous ? ' <span class="tag gold">famous</span>' : ''}${t.legacy ? ` <span class="tag legacy" title="Child of ${esc(t.legacy.name)}${t.legacy.org ? ', who was with ' + ORGS[t.legacy.org].name : ''}. Starts with a Pokémon from the parent's signature line; legendaries and other one-of-a-kind Pokémon can't be passed down.">legacy${t.legacy.org === S.userOrg ? ' · yours' : ''}</span>` : ''}${t.role === 'challenger' ? ' <span class="tag">indep.</span>' : t.role === 'free' ? ' <span class="tag">free agent</span>' : t.seasons > 0 ? ' <span class="tag">veteran</span>' : t.age >= 25 ? ' <span class="tag">late starter</span>' : ''}</td><td class="num">${t.age}</td><td>${specChips(t)}</td><td>${traitChip(t) || '<span class="muted">—</span>'}</td><td>${ovrPill(t)}</td><td class="num">${t.seasons > 1 ? '—' : scoutEst(t)}</td>${RK.map(k => `<td class="num">${t.r[k]}</td>`).join('')}<td class="dmons">${t.team.map(m => monMini(m.sp, m.shiny || m.radiant) + m.sp).join(', ')}</td><td class="dact">${mineTurn ? `<button class="btn small primary" data-act="draftpick" data-id="${t.id}" ${full && !draftRelease ? 'disabled title="Choose who to release first"' : ''}>Draft</button>` : ''}</td></tr>`).join('')}
   </tbody></table></div></section>
 `;
 }
@@ -13695,8 +13745,8 @@ function monBody() {
   const met = m.met ? `${HOW[m.met.how] || m.met.how}${m.met.how === 'caught' ? ` in Season ${m.met.season}, week ${m.met.week}` : (m.met.how === 'farewell' || (m.met.how === 'ranch' && m.met.from)) ? ` from ${m.met.from} · Season ${m.met.season}` : ` · Season ${m.met.season}`}` : 'Origin not recorded';
   const metFull = met + (m.rejoined && m.rejoined.length ? m.rejoined.map(r => ` · back on the team in Season ${r.season} (for ${r.for})`).join('') : '');
   return `<div class="mh"><h2>${m.sp}</h2><button class="btn icon" data-act="close" aria-label="Close">×</button></div>
-    <div class="moncard"><div class="monpic">${monFace(m.sp, m.shiny, IMG_PX, 'big')}${monImgBtns(m.sp)}</div>
-      <div><div>${chips(monTypes(m))}${s.legend ? ' <span class="tag legend">Legendary</span>' : ''}${s.paradox ? ' <span class="tag paradox">Paradox</span>' : ''}${babyTag(s)}${megaTag(m)}${m.shiny ? ' <span class="tag shiny">✦ Shiny</span>' : ''}${m.delta ? ' <span class="tag delta" title="Delta Pokémon: an unusual ' + m.delta + ' type">Δ Delta</span>' : ''}${m.alpha ? ' <span class="tag alpha">Alpha</span>' : ''}${condTags(m)}</div><div class="muted small">${modal.alum != null ? 'Formerly with' : 'Lv ' + lvShow(m) + ' · with'} ${tname(t.id)} · BST ${s.bst}</div><div class="muted small">${metFull}${modal.alum != null ? ` · left in Season ${m.left} (${m.why})` : ''}</div></div></div>
+    <div class="moncard"><div class="monpic">${monFace(m.sp, m.shiny || m.radiant, IMG_PX, 'big')}${monImgBtns(m.sp)}</div>
+      <div><div>${chips(monTypes(m))}${s.legend ? ' <span class="tag legend">Legendary</span>' : ''}${s.paradox ? ' <span class="tag paradox">Paradox</span>' : ''}${babyTag(s)}${megaTag(m)}${m.shiny ? ' <span class="tag shiny">✦ Shiny</span>' : ''}${m.radiant ? ' <span class="tag radiant" title="Radiant: shiny colors, at least Good IVs and a stronger ability than its species ever gets">✧ Radiant</span>' : ''}${m.delta ? ' <span class="tag delta" title="Delta Pokémon: an unusual ' + m.delta + ' type">Δ Delta</span>' : ''}${m.alpha ? ' <span class="tag alpha">Alpha</span>' : ''}${condTags(m)}</div><div class="muted small">${modal.alum != null ? 'Formerly with' : 'Lv ' + lvShow(m) + ' · with'} ${tname(t.id)} · BST ${s.bst}</div><div class="muted small">${metFull}${modal.alum != null ? ` · left in Season ${m.left} (${m.why})` : ''}</div></div></div>
     ${m.iv ? monProfile(m, modal.alum != null && !here) : ''}
     ${here ? legendPartners(m, here) : ''}
     ${ss ? `<section class="panel"><div class="ph"><h3>Season ${S.season}</h3></div>${tiles(ss)}</section>` : ''}
@@ -13819,6 +13869,7 @@ const GLOSS_TERMS = {
     ['Hidden ability', 'The rarer third ability slot. 25% of Pokémon have it, 50% of shinies, alphas and Deltas.'],
     ['Alpha', 'A bigger, stronger wild Pokémon: outstanding IVs and already on a hot streak.'],
     ['Shiny (✦)', 'A rare wild Pokémon with perfect IVs that arrives on fire.'],
+    ['Radiant (✧)', "Rarer than a shiny. It wears its species' shiny colors, always has at least Good IVs, and has an ability its species never gets that's stronger in battle than any it does. The ability stays through evolution."],
     ['Delta (Δ)', 'A rare Pokémon with an unusual second type and outstanding IVs. Some have an unusual strong ability.'],
     ['Shadow', "A Pokémon closed off by Cipher. Snagged from Cipher, or very rarely found in the wild (about as rare as a shiny). Hits harder but can go into Hyper Mode, and can't level until purified."],
     ['Purified', 'A former Shadow Pokémon whose heart opened. It gets its stored levels back at once.'],
@@ -13977,6 +14028,14 @@ function viewTourney() {
 // Versioning rule (from v179 on): every new version gets the next id, a date AND a timestamp (Eastern Time),
 // and all changes made in one working session go into that one version's entry.
 const UPDATES = [
+  { id: 200, date: 'November 3, 2026', time: '10:01 PM ET', title: 'Radiant Pokémon', items: [
+    "New: Radiant Pokémon (✧). Rarer than shinies (about 0.3% of wild Pokémon, eight times that in a mass outbreak, double for Collectors). A Radiant wears its species' shiny image.",
+    "Every Radiant has at least Good IVs: no stat below 16.",
+    "Every Radiant has an ability its evolution line never has, and stronger in battle than any ability the line does have (a line that already has a top ability, like Dragonite's Multiscale, gets a different top one). Abilities that suit its type and attacking style come up more often. It replaces its own ability and stays through evolution. Signature abilities can turn up; only ones tied to a Pokémon's own forms (Zero to Hero, Schooling, Disguise, Stance Change and the like) can't.",
+    "Radiants get a ✧ Radiant tag everywhere shinies get theirs, a glowing explore card, a ✧ ability chip, a Radiant filter in My Pokédex, a glossary entry and catch news. Trainers value them above shinies when choosing what to catch and keep.",
+    "New option in Advanced options (Wild Pokémon): Radiant Pokémon. On by default, including in existing leagues.",
+    "Fix: a Delta Pokémon's unusual ability was lost when it was caught. It now stays.",
+  ] },
   { id: 199, date: 'November 3, 2026', time: '9:08 PM ET', title: 'New trainer traits', items: [
     "Seven new trainer traits. Underdog: +5% against a stronger team. Front-runner: +4% against a weaker team, −3% against a stronger one. Comeback Kid: +4% in the battle after a loss. Home Turf: +4% when defending a Gym, Elite Four or Champion seat. Purist: +3% when every Pokémon on the team fits their specialty.",
     "Hero: +6% against villain teams, and their Shadow Pokémon's hearts open 50% faster. Globetrotter: +5% in the World Championship; their team looks for a League move for them every offseason, takes smaller matchup gains to make one, and a Globetrotter chasing the Grand Slam feels twice the pull toward Leagues they haven't won.",
@@ -14412,7 +14471,7 @@ function startPlayback() {
   const mine = id => { const t = T(id); return t && t.org === S.userOrg; };
   function line(text, cls = '') { const li = document.createElement('li'); li.className = cls; li.innerHTML = text; logEl.appendChild(li); logEl.scrollTop = logEl.scrollHeight; }
   function updActive(si) { const i = act[si]; if (i < 0) return; const m = r.sides[si].team[i]; const box = $('#act-' + si);
-    { const pic = $('#apic-' + si), key = m.sp + (m.shiny ? '*' : ''); if (pic && pic.dataset.k !== key) { pic.dataset.k = key; const u = monImg(m.sp, m.shiny); pic.innerHTML = u ? `<img class="pic${si ? ' flip' : ''}" src="${u}" alt="" width="76" height="76">` : ''; } } box.querySelector('.a-name').textContent = m.sp; box.querySelector('.a-lv').textContent = 'Lv ' + (SP[m.sp] && SP[m.sp].glitch ? '??' : m.L); const pct = Math.max(0, hp[si][i] / m.max * 100); const bar = $('#hp-' + si); bar.style.width = pct + '%'; bar.className = pct < 25 ? 'red' : pct < 50 ? 'amb' : ''; }
+    { const pic = $('#apic-' + si), key = m.sp + (m.shiny ? '*' : ''); if (pic && pic.dataset.k !== key) { pic.dataset.k = key; const u = monImg(m.sp, m.shiny || m.radiant); pic.innerHTML = u ? `<img class="pic${si ? ' flip' : ''}" src="${u}" alt="" width="76" height="76">` : ''; } } box.querySelector('.a-name').textContent = m.sp; box.querySelector('.a-lv').textContent = 'Lv ' + (SP[m.sp] && SP[m.sp].glitch ? '??' : m.L); const pct = Math.max(0, hp[si][i] / m.max * 100); const bar = $('#hp-' + si); bar.style.width = pct + '%'; bar.className = pct < 25 ? 'red' : pct < 50 ? 'amb' : ''; }
   function step() {
     const e = r.ev[k++]; if (!e) { clearInterval(player); return false; }
     if (e.k === 'send') { act[e.s] = e.i; $(`#pip-${e.s}-${e.i}`)?.classList.add('out'); line(`<b>${r.sides[e.s].name}</b> sends out <b>${nm(e.s, e.i)}</b> (Lv ${SP[r.sides[e.s].team[e.i].sp] && SP[r.sides[e.s].team[e.i].sp].glitch ? '??' : r.sides[e.s].team[e.i].L}).`, 'send'); updActive(e.s); }
@@ -14596,7 +14655,7 @@ function finishWeek(choices, auto) {
   render();
   const found = userTrainers().map(t => t.weekLog[t.weekLog.length - 1]).filter(e => e && e.found && ITEMS[e.found]).map(e => ITEMS[e.found].name);
   const rewards = userTrainers().reduce((a, t) => a + (t.itemOffers || []).length, 0);
-  const caught = userTrainers().map(t => t.weekLog[t.weekLog.length - 1]).filter(e => e && e.caught).map(e => (e.shiny ? 'a shiny ' + (e.alpha ? 'alpha ' : '') : e.alpha ? 'an alpha ' : '') + e.caught);
+  const caught = userTrainers().map(t => t.weekLog[t.weekLog.length - 1]).filter(e => e && e.caught).map(e => (e.radiant ? 'a Radiant ' + (e.alpha ? 'alpha ' : '') : e.shiny ? 'a shiny ' + (e.alpha ? 'alpha ' : '') : e.alpha ? 'an alpha ' : '') + e.caught);
   // gym battles and road battles are reported separately; in a road battle your trainer may be either side
   const lb = eachLeague(() => S.lastBattles || []).flat();
   const gyms = lb.filter(r => r.stakes === 'gym'), roads = lb.filter(r => r.stakes === 'rival'), raids = lb.filter(r => r.stakes === 'raid' && !r.legend);

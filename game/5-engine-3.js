@@ -1173,16 +1173,16 @@ function ranchChampionRoster(k, c, won) {
   const R = ranchOf(k); if (!won || !R || !c || !c.team || !c.team.length) return;
   if (R.champs.some(x => x.season === S.season && x.id === c.id)) return;
   R.champs.unshift({ season: S.season, lg: S.lg || 0, lgName: S.lgName, id: c.id, name: `${c.cls} ${c.name}`, won: !!won,
-    mons: c.team.map(m => ({ sp: m.sp, lvl: Math.floor(m.lvl), ko: m.ss && m.ss.season === S.season ? m.ss.ko : 0, shiny: m.shiny || undefined, alpha: m.alpha || undefined, delta: m.delta || undefined })) });
+    mons: c.team.map(m => ({ sp: m.sp, lvl: Math.floor(m.lvl), ko: m.ss && m.ss.season === S.season ? m.ss.ko : 0, shiny: m.shiny || undefined, radiant: m.radiant || undefined, alpha: m.alpha || undefined, delta: m.delta || undefined })) });
   if (R.champs.length > RANCH_CHAMPS_MAX) R.champs.length = RANCH_CHAMPS_MAX;
 }
 const ranchable = sp => !!SP[sp] && !isLegendLine(sp) && !SP[sp].legend && !SP[sp].baby && !babyLine(sp) && !SP[sp].ub && !SP[sp].glitch;
 // how much a team values a ranch Pokémon (for AI choices and for which one makes room when the ranch is full)
-const ranchValue = (m, t) => SP[m.sp].bst * (t && onSpec(t, m.sp) ? 1.15 : 1) + (m.shiny ? 60 : 0) + (m.alpha ? 40 : 0) + (m.delta ? 40 : 0) + (SP[m.sp].paradox ? 40 : 0) + ivTotal(m) / 4;
+const ranchValue = (m, t) => SP[m.sp].bst * (t && onSpec(t, m.sp) ? 1.15 : 1) + (m.shiny ? 60 : 0) + (m.radiant ? 80 : 0) + (m.alpha ? 40 : 0) + (m.delta ? 40 : 0) + (SP[m.sp].paradox ? 40 : 0) + ivTotal(m) / 4;
 function ranchRecord(m, info) {
   const st = m.st || {};
   return { uid: m.uid, sp: m.sp, lvl: Math.floor(m.lvl || 1), season: info.season, from: info.from ?? null, fromName: info.fromName || '', why: info.why || '', nat: m.nat,
-    st: { b: st.b || 0, w: st.w || 0, l: st.l || 0, ko: st.ko || 0 }, shiny: m.shiny || undefined, alpha: m.alpha || undefined, delta: m.delta || undefined, paradox: SP[m.sp] && SP[m.sp].paradox ? true : undefined };
+    st: { b: st.b || 0, w: st.w || 0, l: st.l || 0, ko: st.ko || 0 }, shiny: m.shiny || undefined, radiant: m.radiant || undefined, alpha: m.alpha || undefined, delta: m.delta || undefined, paradox: SP[m.sp] && SP[m.sp].paradox ? true : undefined };
 }
 function toRetiredRanch(k, rec) {
   const R = ranchOf(k); if (!R) return;

@@ -111,7 +111,7 @@ const babyLine = sp => BABY_LEGENDS.includes(LINE[sp]);
 function isSpecial(m) {
   if (!m) return false;
   const s = SP[m.sp];
-  return !!(m.alpha || m.shiny || m.delta || s.legend || s.paradox || s.baby || babyLine(m.sp) || (m.met && (m.met.how === 'wormhole' || m.met.how === 'gift' || m.met.how === 'paradox')));
+  return !!(m.alpha || m.shiny || m.radiant || m.delta || s.legend || s.paradox || s.baby || babyLine(m.sp) || (m.met && (m.met.how === 'wormhole' || m.met.how === 'gift' || m.met.how === 'paradox')));
 }
 // legendaries (Ultra Beasts and mythicals included) and baby legendaries always start with at least Good IVs
 const needsGoodIVs = sp => !!(SP[sp].legend || SP[sp].baby || babyLine(sp));
@@ -145,6 +145,7 @@ function maybeOutbreak() {
 const FEATURES = [
   { group: 'Wild Pokémon', items: [
     ['shiny', 'Shiny Pokémon', 'Rare shinies with perfect IVs, arriving on fire.'],
+    ['radiant', 'Radiant Pokémon', 'Rarer than shinies: they wear the shiny colors, have at least Good IVs and a stronger ability than their species ever gets.'],
     ['delta', 'Delta Pokémon', 'Rarer than alphas, more common than shinies: an unusual second type and outstanding IVs.'],
     ['shadow', 'Wild Shadow Pokémon', 'About as rare as shinies: a Shadow Pokémon turns up in the wild. Its heart opens as its trainer trains, explores and challenges gyms.'],
     ['alpha', 'Alpha Pokémon', 'Uncommon alphas with outstanding IVs, already hot.'],
@@ -1543,7 +1544,7 @@ function battle(tA, tB, stakes, title, opts = {}) {
   recordBattle(sides.map(sd => sd.t), tally, winner, stakes);
   return {
     title, stakes, winner, ev, legend: !!opts.boss, bossHp: opts.boss ? sides[1].mons[0].hp / sides[1].mons[0].max : undefined,
-    sides: sides.map(s => ({ id: s.t.id, name: dn(s.t), team: s.mons.map((m, i) => ({ sp: m.sp, L: m.L, max: m.max, types: m.baseTypes || m.types, ab: m.ab || null, shiny: !!(s.t.team[i] && s.t.team[i].shiny) })), left: s.mons.filter(m => m.hp > 0).length })),
+    sides: sides.map(s => ({ id: s.t.id, name: dn(s.t), team: s.mons.map((m, i) => ({ sp: m.sp, L: m.L, max: m.max, types: m.baseTypes || m.types, ab: m.ab || null, shiny: !!(s.t.team[i] && (s.t.team[i].shiny || s.t.team[i].radiant)) })), left: s.mons.filter(m => m.hp > 0).length })),
   };
 }
 
@@ -1732,6 +1733,7 @@ const abilityName = k => k;
 // which ability a Pokémon has right now: its slot's ability on its current species, or another built one of the species'
 function abilityOf(m) {
   if (!m || !featOn('abilities')) return null;
+  if (m.radAb && ABILITIES[m.radAb]) return m.radAb;
   if (m.deltaAb && ABILITIES[m.deltaAb]) return m.deltaAb;
   const A = SPECIES_AB[m.sp] || (m.sp && SPECIES_AB[m.sp.replace(/^Mega /, '')]); if (!A) return null;
   const want = A[m.abSlot || 0];
@@ -1741,7 +1743,7 @@ function abilityOf(m) {
 }
 function rollAbSlot(m) {
   const A = SPECIES_AB[m.sp] || {};
-  const special = m.shiny || m.alpha || m.delta;
+  const special = m.shiny || m.radiant || m.alpha || m.delta;
   if (A.H && rand() < (special ? HIDDEN_CHANCE_SPECIAL : HIDDEN_CHANCE)) return 'H';
   return A[1] && rand() < 0.5 ? '1' : '0';
 }
@@ -2228,12 +2230,12 @@ function farewell(t, m, why) {
   if (m && m.partners && isLegendLine(m.sp) && t && t.id != null && S.trainers[t.id]) {
     releaseLegend(t, m, why);
     const p = m.partners.find(x => x.id === t.id && x.to != null && x.why === why);
-    if (p && p.st && p.st.b) { t.alumni = t.alumni || []; t.alumni.unshift({ uid: m.uid, sp: m.sp, lvl: Math.floor(m.lvl), st: Object.assign(blankStat(), p.st), met: m.met, left: S.season || 1, why, nat: m.nat, iv: m.iv, fr: m.fr, cov: m.cov, legendRef: true, shiny: m.shiny }); }
+    if (p && p.st && p.st.b) { t.alumni = t.alumni || []; t.alumni.unshift({ uid: m.uid, sp: m.sp, lvl: Math.floor(m.lvl), st: Object.assign(blankStat(), p.st), met: m.met, left: S.season || 1, why, nat: m.nat, iv: m.iv, fr: m.fr, cov: m.cov, legendRef: true, shiny: m.shiny, radiant: m.radiant }); }
     return;
   }
   if (!m || !m.st || !m.st.b) return;
   t.alumni = t.alumni || [];
-  t.alumni.unshift({ uid: m.uid, sp: m.sp, lvl: Math.floor(m.lvl), st: m.st, met: m.met, left: S.season || 1, why, nat: m.nat, iv: m.iv, fr: m.fr, cov: m.cov, abSlot: m.abSlot, deltaAb: m.deltaAb, evoLog: m.evoLog, best: m.best, sweeps: m.sweeps, megas: m.megas, bonds: m.bonds, awards: m.awards, alpha: m.alpha, shiny: m.shiny, delta: m.delta, lucky: m.lucky, pkrs: m.pkrs });
+  t.alumni.unshift({ uid: m.uid, sp: m.sp, lvl: Math.floor(m.lvl), st: m.st, met: m.met, left: S.season || 1, why, nat: m.nat, iv: m.iv, fr: m.fr, cov: m.cov, abSlot: m.abSlot, deltaAb: m.deltaAb, radAb: m.radAb, evoLog: m.evoLog, best: m.best, sweeps: m.sweeps, megas: m.megas, bonds: m.bonds, awards: m.awards, alpha: m.alpha, shiny: m.shiny, radiant: m.radiant, delta: m.delta, lucky: m.lucky, pkrs: m.pkrs });
   // keep the Pokémon that made a mark (3+ battles, up to 25) and the five most recent others
   if (t.alumni.length > 12) { let quiet = 0, kept = 0; t.alumni = t.alumni.filter(a => (a.st && a.st.b >= 3) ? ++kept <= 25 : ++quiet <= 5); }
 }

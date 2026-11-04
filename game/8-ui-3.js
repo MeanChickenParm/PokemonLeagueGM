@@ -1,4 +1,12 @@
 const UPDATES = [
+  { id: 200, date: 'November 3, 2026', time: '10:01 PM ET', title: 'Radiant Pokémon', items: [
+    "New: Radiant Pokémon (✧). Rarer than shinies (about 0.3% of wild Pokémon, eight times that in a mass outbreak, double for Collectors). A Radiant wears its species' shiny image.",
+    "Every Radiant has at least Good IVs: no stat below 16.",
+    "Every Radiant has an ability its evolution line never has, and stronger in battle than any ability the line does have (a line that already has a top ability, like Dragonite's Multiscale, gets a different top one). Abilities that suit its type and attacking style come up more often. It replaces its own ability and stays through evolution. Signature abilities can turn up; only ones tied to a Pokémon's own forms (Zero to Hero, Schooling, Disguise, Stance Change and the like) can't.",
+    "Radiants get a ✧ Radiant tag everywhere shinies get theirs, a glowing explore card, a ✧ ability chip, a Radiant filter in My Pokédex, a glossary entry and catch news. Trainers value them above shinies when choosing what to catch and keep.",
+    "New option in Advanced options (Wild Pokémon): Radiant Pokémon. On by default, including in existing leagues.",
+    "Fix: a Delta Pokémon's unusual ability was lost when it was caught. It now stays.",
+  ] },
   { id: 199, date: 'November 3, 2026', time: '9:08 PM ET', title: 'New trainer traits', items: [
     "Seven new trainer traits. Underdog: +5% against a stronger team. Front-runner: +4% against a weaker team, −3% against a stronger one. Comeback Kid: +4% in the battle after a loss. Home Turf: +4% when defending a Gym, Elite Four or Champion seat. Purist: +3% when every Pokémon on the team fits their specialty.",
     "Hero: +6% against villain teams, and their Shadow Pokémon's hearts open 50% faster. Globetrotter: +5% in the World Championship; their team looks for a League move for them every offseason, takes smaller matchup gains to make one, and a Globetrotter chasing the Grand Slam feels twice the pull toward Leagues they haven't won.",
@@ -434,7 +442,7 @@ function startPlayback() {
   const mine = id => { const t = T(id); return t && t.org === S.userOrg; };
   function line(text, cls = '') { const li = document.createElement('li'); li.className = cls; li.innerHTML = text; logEl.appendChild(li); logEl.scrollTop = logEl.scrollHeight; }
   function updActive(si) { const i = act[si]; if (i < 0) return; const m = r.sides[si].team[i]; const box = $('#act-' + si);
-    { const pic = $('#apic-' + si), key = m.sp + (m.shiny ? '*' : ''); if (pic && pic.dataset.k !== key) { pic.dataset.k = key; const u = monImg(m.sp, m.shiny); pic.innerHTML = u ? `<img class="pic${si ? ' flip' : ''}" src="${u}" alt="" width="76" height="76">` : ''; } } box.querySelector('.a-name').textContent = m.sp; box.querySelector('.a-lv').textContent = 'Lv ' + (SP[m.sp] && SP[m.sp].glitch ? '??' : m.L); const pct = Math.max(0, hp[si][i] / m.max * 100); const bar = $('#hp-' + si); bar.style.width = pct + '%'; bar.className = pct < 25 ? 'red' : pct < 50 ? 'amb' : ''; }
+    { const pic = $('#apic-' + si), key = m.sp + (m.shiny ? '*' : ''); if (pic && pic.dataset.k !== key) { pic.dataset.k = key; const u = monImg(m.sp, m.shiny || m.radiant); pic.innerHTML = u ? `<img class="pic${si ? ' flip' : ''}" src="${u}" alt="" width="76" height="76">` : ''; } } box.querySelector('.a-name').textContent = m.sp; box.querySelector('.a-lv').textContent = 'Lv ' + (SP[m.sp] && SP[m.sp].glitch ? '??' : m.L); const pct = Math.max(0, hp[si][i] / m.max * 100); const bar = $('#hp-' + si); bar.style.width = pct + '%'; bar.className = pct < 25 ? 'red' : pct < 50 ? 'amb' : ''; }
   function step() {
     const e = r.ev[k++]; if (!e) { clearInterval(player); return false; }
     if (e.k === 'send') { act[e.s] = e.i; $(`#pip-${e.s}-${e.i}`)?.classList.add('out'); line(`<b>${r.sides[e.s].name}</b> sends out <b>${nm(e.s, e.i)}</b> (Lv ${SP[r.sides[e.s].team[e.i].sp] && SP[r.sides[e.s].team[e.i].sp].glitch ? '??' : r.sides[e.s].team[e.i].L}).`, 'send'); updActive(e.s); }
@@ -618,7 +626,7 @@ function finishWeek(choices, auto) {
   render();
   const found = userTrainers().map(t => t.weekLog[t.weekLog.length - 1]).filter(e => e && e.found && ITEMS[e.found]).map(e => ITEMS[e.found].name);
   const rewards = userTrainers().reduce((a, t) => a + (t.itemOffers || []).length, 0);
-  const caught = userTrainers().map(t => t.weekLog[t.weekLog.length - 1]).filter(e => e && e.caught).map(e => (e.shiny ? 'a shiny ' + (e.alpha ? 'alpha ' : '') : e.alpha ? 'an alpha ' : '') + e.caught);
+  const caught = userTrainers().map(t => t.weekLog[t.weekLog.length - 1]).filter(e => e && e.caught).map(e => (e.radiant ? 'a Radiant ' + (e.alpha ? 'alpha ' : '') : e.shiny ? 'a shiny ' + (e.alpha ? 'alpha ' : '') : e.alpha ? 'an alpha ' : '') + e.caught);
   // gym battles and road battles are reported separately; in a road battle your trainer may be either side
   const lb = eachLeague(() => S.lastBattles || []).flat();
   const gyms = lb.filter(r => r.stakes === 'gym'), roads = lb.filter(r => r.stakes === 'rival'), raids = lb.filter(r => r.stakes === 'raid' && !r.legend);

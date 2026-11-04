@@ -116,12 +116,12 @@ function moveLine(mv, m) {
 }
 // ---------- abilities ----------
 const abOn = () => featOn('abilities');
-function abilityChip(m) { if (!abOn()) return ''; const a = abilityOf(m); return a ? `<span class="abchip${m.deltaAb === a ? ' delta' : m.abSlot === 'H' && SPECIES_AB[m.sp] && SPECIES_AB[m.sp].H === a ? ' hidden' : ''}" title="${esc(ABILITIES[a])}${m.deltaAb === a ? ' (unusual Delta ability)' : ''}">${m.deltaAb === a ? 'Δ ' : ''}${a}</span> ` : ''; }
+function abilityChip(m) { if (!abOn()) return ''; const a = abilityOf(m); if (a && m.radAb === a) return `<span class="abchip radiant" title="${esc(ABILITIES[a])} (Radiant ability)">✧ ${a}</span> `; return a ? `<span class="abchip${m.deltaAb === a ? ' delta' : m.abSlot === 'H' && SPECIES_AB[m.sp] && SPECIES_AB[m.sp].H === a ? ' hidden' : ''}" title="${esc(ABILITIES[a])}${m.deltaAb === a ? ' (unusual Delta ability)' : ''}">${m.deltaAb === a ? 'Δ ' : ''}${a}</span> ` : ''; }
 function abilityBlock(m) {
   if (!abOn()) return '';
   const a = abilityOf(m), A = SPECIES_AB[m.sp] || {};
-  const hid = a && A.H === a && m.abSlot === 'H', dab = a && m.deltaAb === a;
-  return `<div class="eyebrow">Ability</div><p>${a ? `<b>${a}</b>${dab ? ' <span class="tag delta" title="An ability its species never has, from its Delta nature">Δ Unusual ability</span>' : hid ? ' <span class="tag gold">Hidden ability</span>' : ''} <span class="muted small">· ${ABILITIES[a]}</span>` : `<span class="muted">No ability yet</span> <span class="muted small">(${[A[0], A[1], A.H].filter(Boolean).join(', ') || '—'} not in the game yet)</span>`}</p>`;
+  const hid = a && A.H === a && m.abSlot === 'H', dab = a && m.deltaAb === a, rab = a && m.radAb === a;
+  return `<div class="eyebrow">Ability</div><p>${a ? `<b>${a}</b>${rab ? ' <span class="tag radiant" title="An ability its species never has, stronger than any it does, from its Radiant nature">✧ Radiant ability</span>' : dab ? ' <span class="tag delta" title="An ability its species never has, from its Delta nature">Δ Unusual ability</span>' : hid ? ' <span class="tag gold">Hidden ability</span>' : ''} <span class="muted small">· ${ABILITIES[a]}</span>` : `<span class="muted">No ability yet</span> <span class="muted small">(${[A[0], A[1], A.H].filter(Boolean).join(', ') || '—'} not in the game yet)</span>`}</p>`;
 }
 const gymWeatherTag = L => abOn() && L && GYM_WEATHER[L.specialty] ? ` <span class="tag weather" title="Battles at this gym take place in this weather">${WEATHER_NAME[GYM_WEATHER[L.specialty]]}</span>` : '';
 // ---------- held items ----------
@@ -198,13 +198,13 @@ function legendBanner(t) {
 // v182: does this week's exploring hold anything out of the ordinary? (shiny, alpha, Delta, Shadow, a rare find,
 // an Ultra Beast or a roaming legendary). The wild Pokémon are rolled when the planner first shows the trainer, so
 // the Explore button can be highlighted before you choose it; the same Pokémon are offered if you do.
-const specialOffer = o => !!(o && (o.shiny || o.alpha || o.delta || o.shadow || o.roam || o.wormhole || SP[o.sp].baby || SP[o.sp].legend || SP[o.sp].ub));
+const specialOffer = o => !!(o && (o.shiny || o.radiant || o.alpha || o.delta || o.shadow || o.roam || o.wormhole || SP[o.sp].baby || SP[o.sp].legend || SP[o.sp].ub));
 function exploreSpecials(t) {
   if (S.phase !== 'season' || !t || !t.user || !['challenger', 'champion'].includes(t.role)) return [];
   if (!S.weekOffers[t.id]) { S.weekOffers[t.id] = wildOffers(t); save(); }
   return S.weekOffers[t.id].filter(specialOffer);
 }
-const specialWord = o => o.roam ? `${o.sp} (roaming legendary)` : o.legendFind ? `${o.sp} (legendary find)` : o.wormhole ? `${o.sp} (Ultra Wormhole)` : SP[o.sp].baby ? `${o.sp} (rare find)` : [o.shiny && 'shiny', o.alpha && 'alpha', o.delta && 'Delta', o.shadow && 'Shadow'].filter(Boolean).join(' ') + ' ' + o.sp;
+const specialWord = o => o.roam ? `${o.sp} (roaming legendary)` : o.legendFind ? `${o.sp} (legendary find)` : o.wormhole ? `${o.sp} (Ultra Wormhole)` : SP[o.sp].baby ? `${o.sp} (rare find)` : [o.radiant && 'Radiant', o.shiny && 'shiny', o.alpha && 'alpha', o.delta && 'Delta', o.shadow && 'Shadow'].filter(Boolean).join(' ') + ' ' + o.sp;
 // v182: a legendary roaming the region
 function roamBanner(t) {
   const R = S.roamer; if (S.phase !== 'season' || !R) return '';
@@ -333,13 +333,13 @@ function monRow(m, tid) {
   const evo = s.evos ? `<span class="evo">${evoText(s)}</span>` : '';
   const st = stOf(m);
   return `<button class="mon" data-act="mon" data-t="${tid}" data-u="${m.uid}" title="See ${m.sp}'s stats">
-    ${monFace(m.sp, m.shiny, 40)}
-    <span class="mon-main"><span class="mon-name">${m.sp}${s.legend ? ' <span class="tag legend">Legendary</span>' : ''}${s.paradox ? ' <span class="tag paradox">Paradox</span>' : ''}${babyTag(s)}${megaTag(m)}${itemTag(m)}${m.shiny ? ' <span class="tag shiny">✦ Shiny</span>' : ''}${m.delta ? ' <span class="tag delta" title="Delta Pokémon: an unusual ' + m.delta + ' type">Δ Delta</span>' : ''}${m.alpha ? ' <span class="tag alpha">Alpha</span>' : ''}${condTags(m)}${formBadge(m)}</span><span class="mon-sub">${chips(monTypes(m))} ${abilityChip(m)}<span class="muted">${m.nat}</span> ${evo}</span></span>
+    ${monFace(m.sp, m.shiny || m.radiant, 40)}
+    <span class="mon-main"><span class="mon-name">${m.sp}${s.legend ? ' <span class="tag legend">Legendary</span>' : ''}${s.paradox ? ' <span class="tag paradox">Paradox</span>' : ''}${babyTag(s)}${megaTag(m)}${itemTag(m)}${m.shiny ? ' <span class="tag shiny">✦ Shiny</span>' : ''}${m.radiant ? ' <span class="tag radiant" title="Radiant: shiny colors, at least Good IVs and a stronger ability than its species ever gets">✧ Radiant</span>' : ''}${m.delta ? ' <span class="tag delta" title="Delta Pokémon: an unusual ' + m.delta + ' type">Δ Delta</span>' : ''}${m.alpha ? ' <span class="tag alpha">Alpha</span>' : ''}${condTags(m)}${formBadge(m)}</span><span class="mon-sub">${chips(monTypes(m))} ${abilityChip(m)}<span class="muted">${m.nat}</span> ${evo}</span></span>
     <span class="mon-rec" title="${m.partners ? 'Lifetime record' : 'Career record on this team'}"><b>${wl(st)}</b><small>${st.ko} KO${m.leg && m.leg.until != null ? ` · until S${m.leg.until}` : ''}</small></span>
     <span class="mon-lv"><small>Lv</small>${lvShow(m)}</span>
   </button>`;
 }
-function teamDots(t) { return `<div class="tdots">${t.team.map(m => { const s = SP[m.sp], u = monImg(m.sp, m.shiny); return u ? `<img class="pic sm" src="${u}" alt="${esc(m.sp)}" title="${m.sp} Lv ${lvShow(m)}" width="22" height="22">` : `<span class="dot sm" title="${m.sp} Lv ${lvShow(m)}" style="--tc:${TYPE_COLOR[s.types[0]]};--tc2:${TYPE_COLOR[s.types[1] || s.types[0]]}"></span>`; }).join('')}${'<span class="dot sm empty"></span>'.repeat(Math.max(0, 6 - t.team.length))}</div>`; }
+function teamDots(t) { return `<div class="tdots">${t.team.map(m => { const s = SP[m.sp], u = monImg(m.sp, m.shiny || m.radiant); return u ? `<img class="pic sm" src="${u}" alt="${esc(m.sp)}" title="${m.sp} Lv ${lvShow(m)}" width="22" height="22">` : `<span class="dot sm" title="${m.sp} Lv ${lvShow(m)}" style="--tc:${TYPE_COLOR[s.types[0]]};--tc2:${TYPE_COLOR[s.types[1] || s.types[0]]}"></span>`; }).join('')}${'<span class="dot sm empty"></span>'.repeat(Math.max(0, 6 - t.team.length))}</div>`; }
 function ratingBars(t, prog) {
   return `<div class="ratings">${RK.map(k => {
     const v = t.r[k]; let d = '';
@@ -349,7 +349,7 @@ function ratingBars(t, prog) {
 }
 const RHELP = { str: 'Picks counters when sending out Pokémon', trn: 'Extra levels on training weeks', bnd: 'Critical hits and holding on at 1 HP', sct: 'Better and rarer Pokémon when exploring', nrv: 'Performance in League and title battles' };
 // older saves' catch news has no category yet, so it's recognized by its wording
-const CATCH_WORDS = /caught (a|an) (shiny|alpha|Delta)|caught the Ultra Beast|Ultra Wormhole|outbreak|spotted a .+ while exploring|only one in the league/i;
+const CATCH_WORDS = /caught (a|an) (Radiant|shiny|alpha|Delta)|caught the Ultra Beast|Ultra Wormhole|outbreak|spotted a .+ while exploring|only one in the league/i;
 const isCatchNews = n => n.cat === 'catch' || n.tag === 'catch' || CATCH_WORDS.test(n.text);
 function newsList(items) {
   if (!items.length) return '<p class="muted">Nothing yet.</p>';
@@ -907,7 +907,7 @@ function cupCard() {
 }
 // "a shiny alpha Delta", "an alpha", "a Delta"...
 function catchWords(e) {
-  const w = [e.shiny && 'shiny', e.alpha && 'alpha', e.delta && 'Delta'].filter(Boolean);
+  const w = [e.radiant && 'Radiant', e.shiny && 'shiny', e.alpha && 'alpha', e.delta && 'Delta'].filter(Boolean);
   return w.length ? `${/^[aeiou]/i.test(w[0]) ? 'an' : 'a'} <b>${w.join(' ')}</b> ` : '';
 }
 function lastEntryText(t) {
@@ -998,7 +998,7 @@ function viewTrainerScreen(id) {
     if (!S.weekOffers[t.id]) { S.weekOffers[t.id] = wildOffers(t); save(); }
     const offers = S.weekOffers[t.id]; const pk = S.catchPicks[t.id]; const full = t.team.length >= 6;
     detail = `<p class="muted">${offers.length ? `Three wild Pokémon are on the routes. Pick one to catch, or leave it and ${t.name} chooses.` : 'The routes are empty this week.'} Exploring still gives about +${(PACE.explore + PACE.travel).toFixed(1)} levels, and new catches level faster until they reach the team.</p>
-      <div class="offers">${offers.map((o, i) => { const sp = SP[o.sp]; return `<button class="offer-card${pk && pk.i === i ? ' on' : ''}${o.alpha ? ' alpha' : ''}${o.shiny ? ' shiny' : ''}${!o.alpha && !o.shiny && specialOffer(o) ? ' special' : ''}" data-act="csel" data-id="${t.id}" data-i="${i}">${monFace(o.sp, o.shiny, 48, 'big')}<div class="mon-name">${o.sp}${o.shadow ? ' <span class="tag shadow">Shadow</span>' : ''}${o.outbreak ? ' <span class="tag ob">Outbreak</span>' : ''}${o.shiny ? ' <span class="tag shiny">✦ Shiny</span>' : ''}${o.delta ? ' <span class="tag delta">Δ Delta</span>' : ''}${o.alpha ? ' <span class="tag alpha">Alpha</span>' : ''}${babyTag(sp)}${sp.legend && !sp.ub ? ' <span class="tag legend">Legendary</span>' : ''}</div>${o.wormhole ? '<div class="small alpha-note">Came through an Ultra Wormhole, already at full strength. Catch it before it\'s gone.</div>' : ''}${o.roam ? '<div class="small alpha-note">The roaming legendary, at full strength. Catch it now: it moves on, and anyone exploring nearby could find it too.</div>' : ''}${sp.baby ? `<div class="small alpha-note">Only one can exist in the league. ${sp.evos ? 'Evolves ' + babyChain(sp) : sp.label === 'Mythical' ? 'A mythical that never evolves' : 'It doesn\'t evolve, and there\'s only ever been one'}</div>` : ''}${o.shadow ? '<div class="small alpha-note">A Shadow Pokémon: hits 15% harder but may ignore orders, and can\'t level up until purified. Its heart opens as it trains, explores and battles.</div>' : ''}${o.delta ? `<div class="small delta-note">Δ An unusual ${o.delta} type, with outstanding IVs</div>` : ''}${o.shiny ? '<div class="small shiny-note">Perfect IVs, and it arrives on fire</div>' : o.alpha ? '<div class="small alpha-note">Outstanding IVs, already on a hot streak</div>' : ''}<div>${chips(monTypes(o))}</div><div class="muted">Lv ${o.lvl} · BST ${sp.bst}</div>${o.nat ? `<div class="small"><b>${o.nat}</b> <span class="muted">${natureText(o.nat)}</span></div><div class="small">IVs: <b>${ivGrade(o)}</b></div><div class="small muted">Learns ${(o.cov || []).map(c => `${c.t} (Lv ${c.lv})`).join(', ')}</div>` : ''}${sp.evos ? `<div class="evo">${evoText(sp)}</div>` : ''}${specFit(t, sp.name) === 2 ? '<div class="tag gold">Fits both their types</div>' : specFit(t, sp.name) ? '<div class="tag gold">Fits their type</div>' : ''}</button>`; }).join('')}</div>
+      <div class="offers">${offers.map((o, i) => { const sp = SP[o.sp]; return `<button class="offer-card${pk && pk.i === i ? ' on' : ''}${o.alpha ? ' alpha' : ''}${o.shiny || o.radiant ? ' shiny' : ''}${o.radiant ? ' radiant' : ''}${!o.alpha && !o.shiny && !o.radiant && specialOffer(o) ? ' special' : ''}" data-act="csel" data-id="${t.id}" data-i="${i}">${monFace(o.sp, o.shiny || o.radiant, 48, 'big')}<div class="mon-name">${o.sp}${o.shadow ? ' <span class="tag shadow">Shadow</span>' : ''}${o.outbreak ? ' <span class="tag ob">Outbreak</span>' : ''}${o.shiny ? ' <span class="tag shiny">✦ Shiny</span>' : ''}${o.radiant ? ' <span class="tag radiant" title="Radiant: shiny colors, at least Good IVs and a stronger ability than its species ever gets">✧ Radiant</span>' : ''}${o.delta ? ' <span class="tag delta">Δ Delta</span>' : ''}${o.alpha ? ' <span class="tag alpha">Alpha</span>' : ''}${babyTag(sp)}${sp.legend && !sp.ub ? ' <span class="tag legend">Legendary</span>' : ''}</div>${o.wormhole ? '<div class="small alpha-note">Came through an Ultra Wormhole, already at full strength. Catch it before it\'s gone.</div>' : ''}${o.roam ? '<div class="small alpha-note">The roaming legendary, at full strength. Catch it now: it moves on, and anyone exploring nearby could find it too.</div>' : ''}${sp.baby ? `<div class="small alpha-note">Only one can exist in the league. ${sp.evos ? 'Evolves ' + babyChain(sp) : sp.label === 'Mythical' ? 'A mythical that never evolves' : 'It doesn\'t evolve, and there\'s only ever been one'}</div>` : ''}${o.shadow ? '<div class="small alpha-note">A Shadow Pokémon: hits 15% harder but may ignore orders, and can\'t level up until purified. Its heart opens as it trains, explores and battles.</div>' : ''}${o.delta ? `<div class="small delta-note">Δ An unusual ${o.delta} type, with outstanding IVs</div>` : ''}${o.radiant ? `<div class="small radiant-note">✧ Radiant: at least Good IVs${o.radAb && abOn() ? `, and a stronger ability than its species ever gets: <b>${o.radAb}</b>` : ''}</div>` : ''}${o.shiny ? '<div class="small shiny-note">Perfect IVs, and it arrives on fire</div>' : o.alpha ? '<div class="small alpha-note">Outstanding IVs, already on a hot streak</div>' : ''}<div>${chips(monTypes(o))}</div><div class="muted">Lv ${o.lvl} · BST ${sp.bst}</div>${o.nat ? `<div class="small"><b>${o.nat}</b> <span class="muted">${natureText(o.nat)}</span></div><div class="small">IVs: <b>${ivGrade(o)}</b></div><div class="small muted">Learns ${(o.cov || []).map(c => `${c.t} (Lv ${c.lv})`).join(', ')}</div>` : ''}${sp.evos ? `<div class="evo">${evoText(sp)}</div>` : ''}${specFit(t, sp.name) === 2 ? '<div class="tag gold">Fits both their types</div>' : specFit(t, sp.name) ? '<div class="tag gold">Fits their type</div>' : ''}</button>`; }).join('')}</div>
       ${pk && full ? `<h3 class="rel-h">The team is full. Release one to make room:</h3><div class="release">${t.team.map(m => `<button class="rel${pk.release === m.uid ? ' on' : ''}" data-act="crel" data-id="${t.id}" data-u="${m.uid}">${m.sp} <span class="muted">Lv ${Math.floor(m.lvl)}</span></button>`).join('')}</div>${pk.release == null ? '<p class="warn">Choose who to release, or the catch is skipped.</p>' : ''}` : ''}
       ${pk ? `<button class="link" data-act="cclear" data-id="${t.id}">Clear my pick and let ${t.name} choose</button>` : ''}`;
   }
