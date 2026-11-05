@@ -328,6 +328,11 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 0; }
 .blog .s1 { padding-left: 14px; }
 .blog em { font-style: normal; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; margin-left: 4px; }
 .blog .se { color: var(--win); } .blog .nve { color: var(--muted); } .blog .crit { color: var(--amber); }
+.bspeed { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 8px 0; }
+.bspeed[hidden] { display: none; }
+.bspeed-l { font-size: 0.8rem; font-weight: 600; color: var(--muted); }
+.bspeed .segs.bspeed-segs { display: flex; gap: 4px; margin: 0; }
+.bspeed .bspeed-segs .seg { padding: 5px 10px; }
 .bresult { font-family: var(--font-display); font-weight: 800; font-size: 1.4rem; text-transform: uppercase; }
 @media (max-width: 560px) { .arena { grid-template-columns: 1fr; } .vs { display: none; } .bside.s1 { text-align: left; align-items: flex-start; } }
 
@@ -14032,6 +14037,11 @@ function viewTourney() {
 // Versioning rule (from v179 on): every new version gets the next id, a date AND a timestamp (Eastern Time),
 // and all changes made in one working session go into that one version's entry.
 const UPDATES = [
+  { id: 202, date: 'November 5, 2026', time: '6:31 PM ET', title: 'Battle speed', items: [
+    "Battle replays have a speed setting: Slow, Normal, Fast or Very fast. Change it any time during a battle and the replay speeds up or slows down on the spot.",
+    "New Pause button to stop a replay mid-battle and read the log, then Play to carry on. Skip to the result still jumps straight to the end.",
+    "Your speed is remembered for every battle after. Replays now start at Normal, a little over twice as slow as before; Fast is the old speed.",
+  ] },
   { id: 201, date: 'November 3, 2026', time: '11:19 PM ET', title: 'Banlist lengths', items: [
     "Banlist votes now set a ban's length up front. Each team votes Allow, 1 season, 2 seasons or 3 seasons for each Pokémon on the ballot. A majority of teams voting for any ban bans it, for the longest length a majority backed (a vote for 3 seasons also counts toward 2 and 1).",
     "Bans are no longer voted on again each offseason. Each one runs its full length, then lifts on its own.",
@@ -14469,7 +14479,23 @@ function battleShell() {
   return `<div class="mh"><h2>${r.title}</h2><button class="btn icon" data-act="close" aria-label="Close">×</button></div>
   <div class="arena">${side(r.sides[0], 0)}<div class="vs">VS</div>${side(r.sides[1], 1)}</div>
   <ol class="blog" id="blog"></ol>
+  <div class="bspeed" id="bspeed"><span class="bspeed-l">Speed</span><span class="segs bspeed-segs" role="group" aria-label="Battle speed">${BSPEEDS.map(([k, , label]) => `<button class="seg${bSpeed === k ? ' on' : ''}" data-act="bspeed" data-v="${k}" aria-pressed="${bSpeed === k}">${label}</button>`).join('')}</span><button class="btn small" data-act="bpause" id="bpause">Pause</button></div>
   <div class="confirm-row"><button class="btn" data-act="bskip" id="bskip">Skip to the result</button><span class="bresult" id="bres"></span></div>`;
+}
+// Battle speed (v202): milliseconds per line of the battle log; the choice is remembered in this browser.
+const BSPEEDS = [['slow', 1100, 'Slow'], ['normal', 600, 'Normal'], ['fast', 260, 'Fast'], ['vfast', 80, 'Very fast']];
+const BSPEED_KEY = 'plgm-battle-speed';
+let bSpeed = (() => { try { const v = localStorage.getItem(BSPEED_KEY); return BSPEEDS.some(b => b[0] === v) ? v : 'normal'; } catch (e) { return 'normal'; } })();
+const bSpeedMs = () => (BSPEEDS.find(b => b[0] === bSpeed) || BSPEEDS[1])[1];
+function setBattleSpeed(v) {
+  if (!BSPEEDS.some(b => b[0] === v)) return; bSpeed = v; try { localStorage.setItem(BSPEED_KEY, v); } catch (e) {}
+  document.querySelectorAll('[data-act="bspeed"]').forEach(b => { const on = b.dataset.v === v; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
+  if (modal && modal.kind === 'battle' && modal.resume && !modal.paused && !modal.done) modal.resume();
+}
+function toggleBattlePause() {
+  if (!modal || modal.kind !== 'battle' || modal.done) return;
+  modal.paused = !modal.paused; const b = $('#bpause'); if (b) b.textContent = modal.paused ? 'Play' : 'Pause';
+  if (modal.paused) clearInterval(player); else modal.resume && modal.resume();
 }
 function startPlayback() {
   clearInterval(player);
@@ -14502,12 +14528,14 @@ function startPlayback() {
     if (e.k === 'item') { const it = ITEMS[e.it] ? ITEMS[e.it].name : e.it; if (e.hp != null) { hp[e.s][e.i] = e.hp; updActive(e.s); }
       line(e.it === 'focussash' ? `${nm(e.s, e.i)} hung on with its <b>${it}</b>!` : e.it === 'sitrus' ? `${nm(e.s, e.i)} ate its <b>${it}</b> and restored some HP.` : e.it === 'leftovers' ? `${nm(e.s, e.i)} restored a little HP with its <b>${it}</b>.` : e.it === 'lifeorb' ? `${nm(e.s, e.i)} lost some HP to its <b>${it}</b>.` : `${nm(e.s, e.i)}'s ${it}.`, 'item'); }
     if (e.k === 'faint') { $(`#pip-${e.s}-${e.i}`)?.classList.add('down'); line(`${nm(e.s, e.i)} fainted.`, 'faint'); }
-    if (e.k === 'end') { const w = r.sides[e.w], l = r.sides[1 - e.w]; line(`<b>${w.name}</b> wins with ${w.left} Pokémon left.`, 'end'); $('#bres').textContent = mine(w.id) ? 'Victory' : mine(l.id) ? 'Defeat' : w.name + ' wins'; $('#bskip').hidden = true; }
+    if (e.k === 'end') { const w = r.sides[e.w], l = r.sides[1 - e.w]; line(`<b>${w.name}</b> wins with ${w.left} Pokémon left.`, 'end'); $('#bres').textContent = mine(w.id) ? 'Victory' : mine(l.id) ? 'Defeat' : w.name + ' wins'; $('#bskip').hidden = true; modal.done = true; const sp = $('#bspeed'); if (sp) sp.hidden = true; }
     return true;
   }
   modal.skip = () => { while (step()) {} };
   const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (reduce) modal.skip(); else player = setInterval(step, 260);
+  modal.paused = false; modal.done = false;
+  modal.resume = () => { clearInterval(player); player = setInterval(step, bSpeedMs()); };
+  if (reduce) modal.skip(); else modal.resume();
 }
 
 // ---------- render ----------
@@ -14838,6 +14866,8 @@ document.addEventListener('click', ev => {
     case 'watchworld': { const m = S.worlds && S.worlds.matches[+el.dataset.i]; if (m) { modal = { kind: 'battle', r: m.log }; renderModal(); } break; }
     case 'watch': { const r = el.dataset.src === 'week' ? S.lastBattles[+el.dataset.i] : S.league.logs[+el.dataset.i]; modal = { kind: 'battle', r }; renderModal(); break; }
     case 'bskip': clearInterval(player); modal.skip && modal.skip(); break;
+    case 'bspeed': setBattleSpeed(el.dataset.v); break;
+    case 'bpause': toggleBattlePause(); break;
     case 'nf': newsFilter = el.dataset.v; render(); break;
     case 'mon': modal = { kind: 'mon', t: +el.dataset.t, u: +el.dataset.u, back: recBack() }; renderModal(); break;
     case 'alum': modal = { kind: 'mon', t: +el.dataset.t, alum: +el.dataset.i, back: recBack() }; renderModal(); break;
