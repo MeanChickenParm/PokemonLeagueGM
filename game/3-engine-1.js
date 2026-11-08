@@ -2174,6 +2174,16 @@ function roadBattles() {
 function recordBattle(trainers, tally, winner, stakes) {
   S.dex = S.dex || {}; S.dexSeason = S.dexSeason || {};
   pkrsContact(trainers[0], trainers[1]);
+  // v203: each trainer remembers this season which Pokémon knocked theirs out, and in how many losses (for banlist votes)
+  if (S.season) trainers.forEach((t, si) => {
+    const o = trainers[1 - si]; if (!t || !o || t.role === 'villain' || o.role === 'villain') return;
+    const lost = winner !== si;
+    tally[1 - si].forEach((x, i) => {
+      const m = x && x.ko ? o.team[i] : null; if (!m) return;
+      if (!t.hurt || t.hurt.season !== S.season) t.hurt = { season: S.season, by: {} };
+      const e = t.hurt.by[m.sp] = t.hurt.by[m.sp] || [0, 0]; e[0] += x.ko; if (lost) e[1]++;
+    });
+  });
   trainers.forEach((t, si) => {
     // every battle counts toward the trainer's record, whichever side they were on
     const r = trainerRec(t), won = winner === si;

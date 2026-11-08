@@ -1,4 +1,12 @@
 const UPDATES = [
+  { id: 203, date: 'November 8, 2026', time: '11:28 AM ET', title: 'Trainers vote on bans', items: [
+    "Banlist votes are now weighted: half from the teams (GMs) and half from the League's trainers (challengers, Gym Leaders, the Elite Four and the Champion). A Pokémon is banned when over 50% of the weighted vote backs a ban, for the longest length that still has over 50%.",
+    "Trainers vote with their grudges. They push to ban Pokémon that beat them this season (more for each knockout and each loss it was part of), that hit their type or half their team super effectively, or that their rival uses. They never vote to ban a Pokémon on their own team and go easy on ones of their own type. Angrier trainers vote for longer bans.",
+    "Trainers vote when the vote opens, so the ballot shows how they lean before you vote: their share for a ban and their main reasons (lost to it, weak to it, rival uses it).",
+    "Expect more bans: about three new ones a season instead of about two, and longer ones, so more are in force at once. Teams also vote for longer bans than before.",
+    "Ban news names the trainer with the biggest grudge who led the push, and Season history shows each ban's share of the vote (hover for the team and trainer counts).",
+    "Each trainer now keeps track, for the season, of which Pokémon knocked theirs out and in how many of their losses.",
+  ] },
   { id: 202, date: 'November 5, 2026', time: '6:31 PM ET', title: 'Battle speed', items: [
     "Battle replays have a speed setting: Slow, Normal, Fast or Very fast. Change it any time during a battle and the replay speeds up or slows down on the spot.",
     "New Pause button to stop a replay mid-battle and read the log, then Play to carry on. Skip to the result still jumps straight to the end.",
