@@ -1,11 +1,19 @@
 const verName = u => u.ver || u.id;
 const UPDATES = [
-  { id: 204, ver: '2.0.0', date: 'November 11, 2026', time: '10:45 PM ET', title: '2.0 begins: trainers run themselves', items: [
+  { id: 204, ver: '2.0.0', date: 'November 11, 2026', time: '10:45 PM ET', title: '2.0 begins: self-running trainers and travelling parties', items: [
     "This is the first step of Pokémon League GM 2.0, a rework where you manage the team and your trainers make their own decisions.",
     "Your trainers now choose their own week: when to challenge a gym, train, explore, seek a legendary, confront villains or purify. There are no weekly plans to set.",
     "They also decide what to catch and who makes room, which gym reward to take, which items to hold, where the Mega Stone goes, whether to accept a road trade or snag a Shadow Pokémon, their Midseason Tournament prize, and which three Pokémon to register for the new season.",
     "One play control: Play week, or Play to League. The Office shows what each trainer did last week and how their season is going.",
     "You still run the draft, releases, League invitations, farewell gifts, League reassignment, the banlist vote, the Champion's reward and the team ranch.",
+    "Parties: your trainers in a League now travel together as a party of six: three title chasers, two companions and one apprentice. Teams are always six strong, so the trainers-per-team option is gone.",
+    "Only title chasers challenge gyms, enter the Midseason Tournament and the League, and score Team Cup points. If all three of a party's chasers complete the badge circuit, the team earns 3 bonus points.",
+    "Each companion fills a role that helps the party: Breeder (form), Scout (wild encounters), Researcher (an edge against gyms, the Elite Four and the Champion), Coach (growth), Coordinator (bonds) or Connoisseur (items). Coordinator and Connoisseur come from the anime.",
+    "Every trainer has their own aptitude for each role. A trainer's class makes almost no difference.",
+    "The apprentice has road battles only and grows faster from watching. Nobody can be an apprentice for more than two seasons.",
+    "The weakest chaser and the apprentice level up a little faster from sparring with their party, and a chaser at the League gets a small lift from the party in their corner.",
+    "After each draft there's a party step: new arrivals are placed for you, and you can swap anyone's place or change a companion's role before confirming. The Party page (Office menu) shows it any time.",
+    "Champions start four levels higher (95, or 96 with several Leagues), because a team's three best trainers are now the ones on the circuit.",
     "2.0 keeps its own save, separate from worlds made in earlier versions. Version numbers restart at 2.0.0.",
   ] },
   { id: 203, date: 'November 8, 2026', time: '11:28 AM ET', title: 'Trainers vote on bans', items: [
@@ -582,6 +590,7 @@ function render() {
   if (view === 'ranch') v = viewRanch();
   if (view === 'ranchhist') v = viewRanchHistory();
   if (view === 'reassign') v = viewReassign();
+  if (view === 'party') v = viewParty();
   if (view === 'banvote') v = viewBanVote();
   if (view === 'offers') v = viewOffers();
   if (view === 'gifts') v = viewGifts();
@@ -705,7 +714,7 @@ document.addEventListener('click', ev => {
     case 'setroster': setupRoster = +el.dataset.v; render(); break;
     case 'setleagues': setupLeagues = +el.dataset.v; render(); break;
     case 'lgview': viewLg = +el.dataset.v; render(); break;
-    case 'lgmove': { const why = moveTrainer(+el.dataset.id, +el.dataset.v, el.dataset.w ? +el.dataset.w : null); save(); render(); toast(why || 'Moved.'); break; }
+    case 'lgmove': { const why = moveTrainer(+el.dataset.id, +el.dataset.v, el.dataset.w ? +el.dataset.w : null); eachParty((k, i) => { if (k === S.userOrg) fixParty(k, i); }); save(); render(); toast(why || 'Moved.'); break; }
     case 'setuppage': setupPage = el.dataset.v; render(); window.scrollTo(0, 0); break;
     case 'advtoggle': setupAdv[el.dataset.k] = !setupAdv[el.dataset.k]; render(); break;
     case 'packlist': setupPackOpen[el.dataset.k] = !setupPackOpen[el.dataset.k]; render(); break;
@@ -806,7 +815,10 @@ document.addEventListener('click', ev => {
     case 'draftpick': userDraft(+el.dataset.id, draftRelease); draftRelease = null; save(); afterDraft(); break;
     case 'draftpass': userDraft(null); save(); afterDraft(); break;
     case 'giftsconfirm': if ((S.pendingGifts || []).length) break; confirmGifts(); save(); afterDraft(); break;
-    case 'reassignconfirm': confirmReassign(); save(); afterDraft(); break;
+    case 'reassignconfirm': if (confirmReassign() === false) { render(); toast('Settle the party first.'); break; } partySel = null; save(); afterDraft(); break;
+    case 'psel': partySel = partySel === +el.dataset.id ? null : +el.dataset.id; render(); break;
+    case 'pswap': { const why = swapSlots(+el.dataset.id, el.dataset.s || +el.dataset.w); partySel = null; save(); render(); if (why) toast(why); break; }
+    case 'prole': setPartyRole(+el.dataset.id, el.dataset.k); save(); render(); break;
     case 'banset': setBanVote(+el.dataset.l, el.dataset.sp, +el.dataset.v); save(); render(); break;
     case 'banconfirm': if (S.phase !== 'banvote') break; { confirmBanVote(); save(); const r = S.banResults, nb = r ? r.lgs.reduce((a, x) => a + x.rows.filter(y => y.passed).length, 0) : 0; afterDraft(); toast(nb ? `Votes are in: ${nb} new ban${nb === 1 ? '' : 's'}. See the news.` : 'Votes are in: no new bans.'); } break;
     case 'ranchkeep': ranchKeep = +el.dataset.u; render(); break;

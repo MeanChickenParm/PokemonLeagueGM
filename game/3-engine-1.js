@@ -225,14 +225,14 @@ let TOWNS = LEAGUE_SETS[0].towns.slice();
 const GYM_LV = [16, 24, 32, 41, 51, 61, 70, 77];
 const GYM_SIZE = [2, 3, 3, 4, 4, 5, 5, 6];
 const E4_LV = [77, 80, 83, 85];
-const CHAMP_LV = 91;
+const CHAMP_LV = 95; // 2.0: was 91 before parties
 // v142 (abilities, weather) used Lv 92; named moves (v146) made Champions stronger (title changes ~32%), so Lv 91 (~44%);
 // v151: Lv 90 after the v147–v150 abilities drifted it to ~42% (Lv 90: 50.2% over 960 seasons)
 // v166: legendaries moving on after 3–5 seasons pushed title changes to 54.6% (multi 53.8%), so back to Lv 91 / 92
 // (49.2% / 50.4% over 480 seasons each)
 const CHAMP_ACE_BONUS = 0;
 // with several Leagues titles changed hands more often in sims (~60% vs ~50%), so their Champions start a level higher
-const CHAMP_LV_MULTI = 92;
+const CHAMP_LV_MULTI = 96;
 const champLv = () => nLeagues() > 1 ? CHAMP_LV_MULTI : CHAMP_LV;
 const MALE = ['Logan','Doug','Joey','Ben','Calvin','Dennis','Mitch','Wade','Gordon','Ricky','Ted','Hank','Jeff','Lenny','Marty','Owen','Perry','Ray','Stan','Toby','Vince','Wes','Alvin','Brett','Carl','Darren','Eli','Frank','Gil','Herb','Ian','Jack','Kurt','Leon','Miles','Nate','Oscar','Phil','Russ','Sid','Tim','Ulric','Vic','Walt','Zach','Andy','Bert','Chad','Dale','Ernie','Floyd','Glen','Hugh','Jerry','Kenny','Lyle','Mack','Neil','Pete','Rod','Adam','Alec','Arnie','Barney','Barry','Benny','Bobby','Boyd','Brad','Bruce','Bud','Burt','Cal','Cecil','Chet','Chris','Clark','Cliff','Clint','Cody','Colin','Craig','Curt','Cy','Dan','Danny','Dave','Dean','Derek','Dewey','Don','Duane','Dwight','Earl','Ed','Eddie','Edgar','Elmer','Emil','Eric','Ethan','Evan','Felix','Fred','Gabe','Gene','Greg','Gus','Hal','Harvey','Hector','Homer','Howard','Hubert','Irv','Ivan','Jake','Jared','Jay','Jesse','Jim','Joel','Josh','Jude','Karl','Keith','Ken','Kevin','Kirk','Kyle','Lars','Lee','Leo','Lloyd','Lou','Luke','Marc','Mario','Mark','Mel','Mike','Monty','Morgan','Murray','Ned','Nick','Noel','Norm','Ollie','Otis','Pat','Ralph','Randy','Reggie','Rex','Rick','Rob','Roger','Ron','Ross','Rudy','Sam','Scott','Seth','Shane','Sonny','Spencer','Steve','Stu','Terry','Theo','Tom','Tony','Travis','Trent','Troy','Tyler','Vern','Victor','Warren','Wilbur','Woody','Zane','Abe','Alfie','Barton','Basil','Bjorn','Carlos','Dex','Dirk','Dom','Drew','Emmett','Ezra','Fergus','Finn','Garth','Hiro','Hugo','Igor','Jasper','Kai','Kendall','Knox','Lionel','Marco','Mason','Moe','Nico','Omar','Pablo','Quincy','Rafael','Remy','Rocco','Rufus','Sergio','Silas','Wyatt','Yusuf','Zeke','Amos','Angus','Arlo','Axel','Beau','Boris','Bram','Caleb','Casey','Clay','Conrad','Dallas','Dario','Desmond','Diego','Eamon','Enzo','Ford','Gideon','Gunnar','Ike','Jonah','Jules','Kenji','Lorenzo','Malik','Mateo','Mitchell','Nolan','Orson','Rhys','Ronan','Sal','Tariq','Thad','Ulysses','Vaughn','Wendell'];
 const FEMALE = ['Abby','Beth','Cara','Dana','Ella','Fay','Gina','Holly','Iris','Jill','Kate','Lori','Megan','Nora','Olive','Paige','Rosa','Sally','Tina','Uma','Vicky','Wendy','Yvonne','Zoe','Amy','Bree','Cindy','Dawn','Erin','Fern','Gwen','Hazel','Ivy','Joan','Kim','Lacey','Mona','Nina','Opal','Penny','Robin','Sue','Tara','Val','April','Becca','Carly','Daisy','Edna','Flora','Grace','Heidi','Jenna','Kara','Liz','Mandy','Nell','Pam','Quinn','Rita','Ada','Agnes','Alice','Alma','Angie','Anna','Annie','Ava','Barb','Bella','Bonnie','Brenda','Bridget','Brooke','Camila','Carmen','Carol','Cassie','Celia','Claire','Clara','Connie','Cora','Debbie','Dee','Delia','Diane','Dina','Dora','Doris','Elaine','Eliza','Ellie','Elsie','Emma','Esther','Eva','Faith','Fiona','Freya','Gail','Georgia','Gloria','Hannah','Harriet','Helen','Hope','Ida','Ingrid','Irene','Isla','Jackie','Jane','Janet','Jean','Jess','Josie','Judy','June','Katie','Kelly','Kit','Laura','Lena','Lily','Linda','Lisa','Lola','Luna','Mabel','Maggie','Mara','Maria','Marie','Martha','Mavis','Maxine','Millie','Molly','Nadia','Nancy','Naomi','Nicole','Norma','Olga','Patty','Pearl','Peggy','Petra','Polly','Rachel','Ramona','Rhea','Rosie','Ruby','Ruth','Sadie','Sara','Selma','Shelby','Sofia','Stella','Susie','Tess','Thea','Trudy','Vera','Violet','Wanda','Willa','Yara','Zelda','Zara','Alicia','Cleo','Della','Elena','Gemma','Imogen','Juno','Lark','Leila','Mira','Noelle','Odette','Priya','Rae','Saffron','Sierra','Tamsin','Una','Wren','Yuki','Adele','Alba','Aurora','Beatrix','Bethany','Blair','Callie','Celeste','Daphne','Delphine','Elise','Esme','Etta','Frida','Gia','Hattie','Ines','Joy','Keiko','Leah','Mae','Marisol','Octavia','Pippa','Rhoda','Talia','Tilly','Ursula','Vivian','Winnie','Ximena','Yolanda','Zadie'];
@@ -1022,7 +1022,8 @@ function styledPick(t, av, mons, opening) {
 const SEAT_ROLES = { gym: ['leader'], league: ['e4', 'champion'], title: ['e4', 'champion'] };
 // v199: a team "stronger" or "weaker" than another by more than this share of its power
 const TRAIT_EDGE = 0.05;
-function traitMod(t, foe, stakes, opts = {}, side = 0) {
+function traitMod(t, foe, stakes, opts, side) { return traitModBase(t, foe, stakes, opts, side) * partyEdge(t, stakes); }
+function traitModBase(t, foe, stakes, opts = {}, side = 0) {
   const tr = traitOf(t);
   if (tr === 'clutch' && (stakes === 'league' || stakes === 'title')) return 1.04;
   if (tr === 'competitor' && (stakes === 'rival' || isRival(t, foe))) return 1.05;
@@ -1911,7 +1912,8 @@ function gymItemOffer(t, g, leader) {
   const tier = g < 3 ? 1 : g < 6 ? 2 : 3;
   const opts = [];
   const ty = leader && leader.specialty; if (ty && TYPE_ITEMS[ty]) opts.push('tb' + ty);
-  let guard = 0; while (opts.length < 3 && guard++ < 30) { const k = rollItem(tier, ty); if (!opts.includes(k)) opts.push(k); }
+  const wide = 3 + (rand() < roleStr(t, 'connoisseur') ? 1 : 0); // a Connoisseur gets the party a fourth choice
+  let guard = 0; while (opts.length < wide && guard++ < 30) { const k = rollItem(tier, ty); if (!opts.includes(k)) opts.push(k); }
   const best = opts.slice().sort((a, b) => itemGain(t, b) - itemGain(t, a))[0];
   bagAdd(t, best); autoEquip(t);
 }
@@ -1930,7 +1932,7 @@ const ITEM_FIND = 0.06;
 function exploreFind(t) {
   // a Pokémon with Pickup doubles the chance
   // (Run Away: 1.5x)
-  if (!itemsOn() || rand() >= ITEM_FIND * (t.team.some(m => abilityOf(m) === 'Pickup') ? 2 : t.team.some(m => abilityOf(m) === 'Run Away') ? 1.5 : 1)) return null;
+  if (!itemsOn() || rand() >= ITEM_FIND * (1 + roleStr(t, 'connoisseur')) * (t.team.some(m => abilityOf(m) === 'Pickup') ? 2 : t.team.some(m => abilityOf(m) === 'Run Away') ? 1.5 : 1)) return null;
   const k = rollItem(S.week >= 16 ? 3 : S.week >= 8 ? 2 : 1);
   bagAdd(t, k); if (!t.itemsManual) autoEquip(t);
   return k;
@@ -2146,7 +2148,7 @@ const ROAD_CHANCE = 0.08;
 function roadBattles() {
   if (!featOn('road')) return;
   const done = new Set();
-  const pool = challengers().filter(t => t.team.length >= 2);
+  const pool = challengers().filter(t => t.team.length >= 2 && (isChaser(t) || slotOf(t) === 'apprentice'));
   for (const t of shuffle(pool.slice())) {
     if (done.has(t.id)) continue;
     const comp = hasTrait(t, 'competitor');
@@ -2215,13 +2217,15 @@ function recordBattle(trainers, tally, winner, stakes) {
       if (r.bond) { m.bonds = (m.bonds || 0) + 1; t.career.bondForms = (t.career.bondForms || 0) + 1; }
       // friendship grows with time in battle, faster for trainers with a high Bond rating
       if (m.shadow) openHeart(t, m, HEART_BATTLE);
-      else m.fr = Math.min(255, (m.fr ?? 70) + Math.round((2 + (won ? 2 : 0)) * (0.5 + t.r.bnd / 100) * (heldItem(m) === 'soothebell' ? 1.5 : 1) * temperFr(m)));
+      else m.fr = Math.min(255, (m.fr ?? 70) + Math.round((2 + (won ? 2 : 0)) * (0.5 + t.r.bnd / 100) * (heldItem(m) === 'soothebell' ? 1.5 : 1) * temperFr(m) * (1 + 0.5 * roleStr(t, 'coordinator'))));
       // form: wins and knockouts heat a Pokémon up, fainting cools it down, with some drift
       const tr = traitOf(t), swing = tr === 'streaky' ? 1.5 : tr === 'steady' ? 0.5 : 1;
       // v197: Bold shrugs off a loss, Careful cools half as much from fainting, Hardy never runs hot or cold
       const bold = isTemper(m, 'Bold') && !won, careful = isTemper(m, 'Careful') ? 0.5 : 1;
       const delta = ((won ? 0.35 : bold ? 0 : -0.35) + r.ko * 0.3 - r.f * 0.35 * careful + (rand() - 0.5) * 0.5) * swing - (tr === 'hothead' && !won && !bold ? 0.3 : 0);
-      m.form = isTemper(m, 'Hardy') ? 0 : clamp((m.form || 0) * 0.92 + delta, -3, 3);
+      // 2.0: a Breeder in the party softens whatever cools a Pokémon off
+      const eased = delta < 0 ? delta * (1 - 0.4 * roleStr(t, 'breeder')) : delta;
+      m.form = isTemper(m, 'Hardy') ? 0 : clamp((m.form || 0) * 0.92 + eased, -3, 3);
     });
   });
 }

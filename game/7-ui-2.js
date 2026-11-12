@@ -627,7 +627,13 @@ function viewReassign() {
   const start = (S.reassign && S.reassign.start) || {};
   const ours = mine.filter(t => start[t.id] != null && start[t.id] !== lgOf(t)).map(t => ({ org: k, id: t.id, from: start[t.id], to: lgOf(t) }));
   const line = m => `<li>${tname(m.id)}: ${leagueName(m.from)} → ${leagueName(m.to)}${m.swap ? `, swapping with ${tname(m.swap)}` : ''}</li>`;
-  return `<section class="panel callout"><div class="eyebrow">Season ${S.season + 1} · after the draft</div><h2>League reassignment</h2>
+  const parties = Array.from({ length: NL }, (_, i) => partyPanel(k, i, true)).join('');
+  const probs = partyProblems();
+  const partyIntro = `<p>Your trainers in a League travel together as a party of six: three title chasers, two companions and one apprentice. Only chasers take on gyms and the League and score Team Cup points (plus ${PARTY_BONUS} if all three complete the badge circuit). Each companion fills a role that helps the others. The apprentice has road battles and grows from watching, for two seasons at most.</p><p class="muted small">New arrivals have been placed for you. Tap Move on a trainer, then choose who they swap with. The number beside a role is that trainer's aptitude for it.</p>`;
+  const confirmBox = `<section class="panel">${probs.length ? `<ul class="changes">${probs.map(p => `<li class="warn">${p}</li>`).join('')}</ul>` : ''}<div class="confirm-row"><button class="btn primary" data-act="reassignconfirm" ${probs.length ? 'disabled' : ''}>Confirm ${NL > 1 ? 'parties and Leagues' : 'the party'} and continue</button><span class="muted small">Next: ${champOrgsNext()}</span></div></section>`;
+  if (NL < 2) return `<section class="panel callout"><div class="eyebrow">Season ${S.season + 1} · after the draft</div><h2>Set your party</h2>${partyIntro}</section>${parties}${confirmBox}`;
+  return `<section class="panel callout"><div class="eyebrow">Season ${S.season + 1} · after the draft</div><h2>Parties and Leagues</h2>${partyIntro}</section>${parties}
+  <section class="panel callout"><h2>League reassignment</h2>
     <p>Each team has ${ROSTER} trainer${ROSTER > 1 ? 's' : ''} in every League. Before the season, teams can move trainers to the League where their Pokémon line up best. Moving into a full League means swapping with a teammate there. A legendary can't go to a League where someone already holds one.</p>
     <p class="muted small">Matchup: how well a trainer's team hits that League's Champion (counted double), its Elite Four and the meta, minus what hits it back. Above zero favours them.${mine.some(slamChaser) ? ' <b>Unwon</b> marks a League a former Champion still needs for the Grand Slam.' : ''}</p></section>
   <section class="panel"><div class="ph"><h3>Your trainers</h3><span class="muted">${ours.length ? `${ours.length} move${ours.length > 1 ? 's' : ''} made` : 'No moves yet'}</span></div>
@@ -635,9 +641,9 @@ function viewReassign() {
     ${mine.length ? `<div class="ra-grid">${cards}</div>` : '<p class="muted">You have no trainers on the circuit.</p>'}
     ${ours.length ? `<ul class="changes">${ours.map(line).join('')}</ul>` : ''}</section>
   <section class="panel"><div class="ph"><h3>Other teams' moves</h3></div>${theirs.length ? `<ul class="changes">${theirs.map(line).join('')}</ul>` : '<p class="muted">No other team moved a trainer this offseason.</p>'}</section>
-  <section class="panel"><div class="confirm-row"><button class="btn primary" data-act="reassignconfirm">Confirm Leagues and continue</button><span class="muted small">Next: ${champOrgsNext()}</span></div></section>`;
+  ${confirmBox}`;
 }
-const champOrgsNext = () => eachLeague(() => champOrg()).includes(S.userOrg) ? "the Champion's reward, then registration" : 'registration, then the season';
+const champOrgsNext = () => eachLeague(() => champOrg()).includes(S.userOrg) ? "the banlist vote, the Champion's reward and the ranch" : 'the banlist vote and the ranch, then the season';
 // ---------- champion's reward ----------
 function viewReward() {
   const r = S.reward; if (S.phase !== 'reward' || !r) return viewOffice();
@@ -996,6 +1002,13 @@ const GLOSS_TERMS = {
     ['Confront', "Fight a villain team's Grunts, Admins and Boss while they're in the region."],
     ['Purification', "Shadow Pokémon's hearts open during training (most), exploring and gym challenges, and with every battle. One whose heart opens fully is purified at the end of that week."],
     ['Who decides', 'Every trainer chooses their own week, yours included. As the GM you shape the team around them.'],
+    ['Party', "A team's six trainers in one League, who travel together: three title chasers, two companions and one apprentice. Set in the offseason, after the draft."],
+    ['Title chaser', 'A party member who challenges gyms, enters the Midseason Tournament and the League, and scores Team Cup points. If all three of a party complete the badge circuit, the team gets a bonus.'],
+    ['Companion', "A party member who supports the others through a role instead of chasing badges. Keeps a full team and fights when villains turn up. Scores no Team Cup points."],
+    ['Apprentice', "A party's developing trainer: road battles only, and faster growth from watching the chasers. Two seasons at most, then they must chase, support or move on."],
+    ['Aptitude', 'How good a trainer is at each companion role, from 5 to 99. Every trainer has their own; their class makes almost no difference.'],
+    ['Sparring', 'The weakest chaser in a party and its apprentice level up a little faster from travelling with stronger trainers.'],
+    ...ROLE_KEYS.map(k => [PARTY_ROLES[k].name + ' (role)', PARTY_ROLES[k].text]),
   ],
   battle: [
     ['Same-type attack', "A move that matches one of the user's types hits 50% harder."],
@@ -1192,3 +1205,39 @@ function viewTourney() {
 // newest first; add an entry with every published change.
 // Versioning rule (from v179 on): every new version gets the next id, a date AND a timestamp (Eastern Time),
 // and all changes made in one working session go into that one version's entry.
+
+// ---------- parties (2.0) ----------
+let partySel = null; // the trainer being moved on the party editor
+function aptLine(t, n = 3) { const a = aptOf(t); return ROLE_KEYS.slice().sort((x, y) => a[y] - a[x]).slice(0, n).map(k => `${PARTY_ROLES[k].name} <span class="num">${a[k]}</span>`).join(' · '); }
+function partyPanel(k, i, edit) {
+  return inLeague(i, () => {
+    const P = partyOf(k, i);
+    const sel = edit && partySel != null ? P.find(t => t.id === partySel) : null;
+    const row = t => {
+      const s = slotOf(t), me = sel === t;
+      const act = !edit ? '' : me ? `<button class="btn small" data-act="psel" data-id="${t.id}">Cancel</button>` : sel ? `<button class="btn small primary" data-act="pswap" data-id="${sel.id}" data-w="${t.id}">Swap with ${sel.name}</button>` : `<button class="btn small" data-act="psel" data-id="${t.id}">Move</button>`;
+      const roles = edit && s === 'companion' && !sel ? `<div class="pt-roles">${ROLE_KEYS.map(r => `<button class="rel${t.prole === r ? ' on' : ''}" data-act="prole" data-id="${t.id}" data-k="${r}" title="${esc(PARTY_ROLES[r].text)}">${PARTY_ROLES[r].name} <span class="num muted">${aptOf(t)[r]}</span></button>`).join('')}</div>` : '';
+      const note = s === 'companion' ? (t.prole ? `<b>${PARTY_ROLES[t.prole].name}</b> <span class="num">${aptOf(t)[t.prole]}</span> · ${PARTY_ROLES[t.prole].text}` : 'No role yet')
+        : s === 'apprentice' ? `Season ${(t.appSeasons || 0) + 1} of ${APPRENTICE_SEASONS} as an apprentice · best support roles: ${aptLine(t, 2)}`
+        : s === 'bench' ? `<span class="warn">No place in the party${canApprentice(t) ? '' : ': two seasons as an apprentice are up'}</span>`
+        : `Best support roles: ${aptLine(t, 2)}`;
+      return `<div class="pt-row${me ? ' sel' : ''}"><div class="pt-id">${tname(t.id)} ${ovrPill(t)} <span class="muted small">age ${t.age} · POT ${t.pot}</span> <span class="small">${specChips(t)}</span></div><div class="pt-act">${act}</div><div class="pt-note small muted">${note}</div>${roles}</div>`;
+    };
+    const grp = (s, cap, label) => {
+      const rows = P.filter(t => slotOf(t) === s), open = cap - rows.length;
+      const openRow = open <= 0 ? '' : sel && slotOf(sel) !== s ? `<div class="pt-row open"><span class="muted">Open spot</span><div class="pt-act"><button class="btn small primary" data-act="pswap" data-id="${sel.id}" data-s="${s}">Move ${sel.name} here</button></div></div>` : `<div class="pt-row open"><span class="muted">${open} open spot${open > 1 ? 's' : ''}</span></div>`;
+      return `<div class="pt-grp"><div class="eyebrow">${label} · ${rows.length}/${cap}</div>${rows.map(row).join('')}${openRow}</div>`;
+    };
+    const bench = P.filter(t => slotOf(t) === 'bench');
+    const cover = ROLE_KEYS.filter(r => P.some(t => t.slot === 'companion' && t.prole === r)).map(r => PARTY_ROLES[r].name);
+    return `<section class="panel"><div class="ph"><h3>${nLeagues() > 1 ? leagueName(i) + ' party' : 'Your party'}</h3><span class="muted">${P.length}/${PARTY_SIZE}${cover.length ? ' · ' + cover.join(' + ') : ''}</span></div>
+      ${P.length ? grp('chaser', PARTY_CHASERS, 'Title chasers') + grp('companion', PARTY_COMPANIONS, 'Companions') + grp('apprentice', PARTY_APPRENTICES, 'Apprentice') + (bench.length ? `<div class="pt-grp"><div class="eyebrow">No place · ${bench.length}</div>${bench.map(row).join('')}</div>` : '') : '<p class="muted">No trainers in this League.</p>'}</section>`;
+  });
+}
+function viewParty() {
+  const edit = canEditParty();
+  return `<section class="panel callout"><div class="eyebrow">${orgName(S.userOrg)}</div><h2>${nLeagues() > 1 ? 'Parties' : 'Party'}</h2>
+    <p>Your trainers in a League travel together as a party of six: three title chasers, two companions and one apprentice. Only chasers take on gyms and the League and score Team Cup points (plus ${PARTY_BONUS} if all three complete the badge circuit). Each companion fills a role that helps the others. The apprentice has road battles and grows from watching, for two seasons at most.</p>
+    <p class="muted small">${edit ? "Tap Move on a trainer, then choose who they swap with. The number beside a role is that trainer's aptitude for it." : 'Parties are set in the offseason, after the draft.'}</p></section>
+    ${Array.from({ length: nLeagues() }, (_, i) => partyPanel(S.userOrg, i, edit)).join('')}`;
+}

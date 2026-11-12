@@ -268,7 +268,7 @@ function roleLabel(t) {
 }
 function roleHere(t) {
   if (t.role === 'leader') return inLeague(lgOf(t), () => { const i = S.gyms.findIndex(g => g.leader === t.id); return `${TOWNS[i]} Gym Leader`; });
-  if (t.role === 'challenger') return t.org ? `${ORGS[t.org].name} challenger` : 'Independent challenger';
+  if (t.role === 'challenger') { const s = slotOf(t); return !t.org ? 'Independent challenger' : `${ORGS[t.org].name} ${s === 'chaser' ? 'title chaser' : s === 'companion' ? 'companion' + (t.prole ? ' (' + PARTY_ROLES[t.prole].name + ')' : '') : s === 'apprentice' ? 'apprentice' : 'trainer'}`; }
   return { e4: 'Elite Four', champion: t.champOrg ? `Champion · represents ${ORGS[t.champOrg].name}` : 'Champion', retired: 'Retired', exchamp: 'Former Champion', prospect: 'Draft prospect', free: 'Free agent' }[t.role] || t.role;
 }
 function badgeRow(t, big) { return inLeague(lgOf(t), () => badgeRowHere(t, big)); }
@@ -347,7 +347,7 @@ function liveStandings() { return orgStandings(S.phase === 'offseason' || S.phas
 function header() {
   let status = '', btn = '';
   if (S.phase === 'draft') { status = `Season ${S.season + 1} · ${S.draft && S.draft.founding ? 'Founding draft' : 'Draft'}`; btn = view !== 'draft' ? `<button class="btn primary" data-act="nav" data-v="draft">Go to the draft</button>` : ''; }
-  if (S.phase === 'reassign') { status = `Season ${S.season + 1} · League reassignment`; btn = view !== 'reassign' ? `<button class="btn primary" data-act="nav" data-v="reassign">Reassign trainers</button>` : ''; }
+  if (S.phase === 'reassign') { status = `Season ${S.season + 1} · Parties`; btn = view !== 'reassign' ? `<button class="btn primary" data-act="nav" data-v="reassign">Set your ${nLeagues() > 1 ? 'parties' : 'party'}</button>` : ''; }
   if (S.phase === 'banvote') { status = `Season ${S.season + 1} · Banlist vote`; btn = view !== 'banvote' ? `<button class="btn primary" data-act="nav" data-v="banvote">Vote on the banlist</button>` : ''; }
   if (S.phase === 'reward') { status = `Season ${S.season + 1} · Champion's reward`; btn = view !== 'reward' ? `<button class="btn primary" data-act="nav" data-v="reward">Choose the Paradox Pokémon</button>` : ''; }
   if (S.phase === 'ranch') { status = `Season ${S.season + 1} · Team ranch`; btn = view !== 'ranch' ? `<button class="btn primary" data-act="nav" data-v="ranch">Go to the ranch</button>` : ''; }
@@ -381,7 +381,7 @@ function navGroups() {
     return ['t' + t.id, `${orgMark(t.org)}<span class="ttab-n">${t.cls} ${t.name}</span>${pip}`];
   });
   return [
-    { k: 'office', label: 'Office', items: office },
+    { k: 'office', label: 'Office', items: [...office, ['party', nLeagues() > 1 ? 'Parties' : 'Party']] },
     { k: 'trainers', label: 'Trainers', items: mine.length ? [...mine, null, ['trainers', 'All trainers']] : [['trainers', 'All trainers']] },
     { k: 'league', label: 'League', items: [['circuit', 'Standings'], ['gyms', 'Gyms & Elite'], ...(featOn('tourney') || (S.tourneyHist || []).length ? [['tourney', 'Midseason Tournament']] : []), ['history', 'History']] },
     { k: 'stats', label: 'Stats', items: [['records', 'Records'], ['dex', 'Pokémon'], ['hof', 'Hall of Fame']] },
@@ -414,7 +414,7 @@ const stopTourneyOpt = () => `<button class="adv-opt${simStopTourney ? ' on' : '
 function simToTourney() { let g = 0; while (S.phase === 'season' && S.week < TOURNEY_WEEK - 1 && g++ < 60) simWeek({}, {}); }
 
 // ---------- setup ----------
-let setupLeagues = 1, setupTeams = 4, setupRoster = 3, setupPage = 'main', setupAdv = { allFamous: false }, setupBaseOff = false, setupPacks = {}, setupPackOpen = {}, setupOff = {}, setupTourneyRule = 'rotate';
+let setupLeagues = 1, setupTeams = 4, setupRoster = 6, setupPage = 'main', setupAdv = { allFamous: false }, setupBaseOff = false, setupPacks = {}, setupPackOpen = {}, setupOff = {}, setupTourneyRule = 'rotate';
 // every section on the Advanced page folds; folded sections show a one-line summary
 let setupFold = {};
 function foldSec(key, title, sub, summary, body, extra = '') {
@@ -849,7 +849,7 @@ function viewSetup() {
     ${oldSaveFound ? '<p class="warn">Your earlier single-trainer league can\'t carry over to the team format, so this starts a fresh league.</p>' : ''}
     <div class="setup-opts">
       <div><div class="eyebrow">Teams</div><div class="segs setup-segs">${opt('setteams', 4, setupTeams, '4 teams')}${opt('setteams', 8, setupTeams, '8 teams')}</div></div>
-      <div><div class="eyebrow">Trainers per team${setupLeagues > 1 ? ', per League' : ''}</div><div class="segs setup-segs three">${[1, 2, 3].map(n => opt('setroster', n, setupRoster, n + (n === 1 ? ' trainer' : ' trainers'))).join('')}</div></div>
+      <div><div class="eyebrow">Party${setupLeagues > 1 ? ', in each League' : ''}</div><p class="muted small" style="margin:4px 0 0">Six trainers travel together: 3 title chasers, 2 companions and 1 apprentice.</p></div>
       <div><div class="eyebrow">Leagues</div><div class="segs setup-segs three">${[1, 2, 4].map(n => opt('setleagues', n, setupLeagues, n + (n === 1 ? ' League' : ' Leagues'))).join('')}</div></div>
     </div>
     <p class="muted small">${setupLeagues > 1 ? `${setupLeagues === 4 ? 'All four regions (Kanto, Johto, Hoenn and Sinnoh)' : `${setupLeagues} regions drawn at random from Kanto, Johto, Hoenn and Sinnoh`}, each with its own gyms, Elite Four and Champion. In each one: ` : 'The region is drawn at random from Kanto, Johto, Hoenn and Sinnoh. '}${total} team trainers plus ${Math.max(8, 24 - total)} independents on the circuit. The founding draft is ${setupRoster * setupLeagues} round${setupRoster * setupLeagues > 1 ? 's' : ''}.${setupLeagues > 1 ? ' The Team Cup counts every League, and the Champions meet in a World Championship after the Leagues. Teams can move trainers between Leagues in the offseason.' : ''}</p>
@@ -862,15 +862,16 @@ function viewSetup() {
 const ordinal = n => n + (n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th');
 
 // ---------- office (team overview) ----------
+const SLOT_RANK = { chaser: 0, companion: 1, apprentice: 2, bench: 3 };
 function viewOffice() {
-  const roster = userTrainers();
+  const roster = userTrainers().slice().sort((a, b) => lgOf(a) - lgOf(b) || (SLOT_RANK[slotOf(a)] ?? -1) - (SLOT_RANK[slotOf(b)] ?? -1));
   let main = '';
   if (S.phase === 'season' && tourneyPaused()) main = `<section class="panel callout"><div class="eyebrow">Season ${S.season} · after week ${TOURNEY_WEEK}</div><h2>The Midseason Tournament is complete</h2><p>${tname(S.tourney.winner)} won it${S.tourney.runner ? `, beating ${tname(S.tourney.runner)} in the final` : ''}. See the bracket and how your trainers did before the season goes on.</p><div class="confirm-row"><button class="btn primary" data-act="nav" data-v="tourney">See the Midseason Tournament</button><button class="btn" data-act="tourneydone">Continue to week ${S.week + 1}</button></div></section>`;
   else if (S.phase === 'season') main = legendBanner() + roamBanner() + stormBanner() + villainBanner() + outbreakBanner() + teamOverview(roster) + skyPanel();
   else if (S.phase === 'league') main = `<section class="panel callout"><h2>The regular season is over</h2><p>${challengers().filter(t => t.badges.length === 8).length} trainers completed the badge circuit. Qualifiers face the four Elite Four members in order, then the Champion. One loss ends the run. If someone takes the title, every challenger after them faces the new Champion.</p><button class="btn primary" data-act="runleague">Run the Pokémon League</button></section>`;
   else if (S.phase === 'offseason') main = `<section class="panel callout"><h2>Season ${S.season} is in the books</h2><p>${orgName(S.history[S.history.length - 1].cup)} won the Team Cup and ${tname(S.champion)} is Champion. Read the recap before the draft.</p><button class="btn primary" data-act="nav" data-v="recap">Read the season recap</button></section>`;
   else if (S.phase === 'gifts') main = `<section class="panel callout"><h2>Farewell gifts</h2><p>The draft is done. Teams that lost a trainer to a post hand over their farewell gifts.</p><button class="btn primary" data-act="nav" data-v="gifts">See the farewell gifts</button></section>`;
-  else if (S.phase === 'reassign') main = `<section class="panel callout"><h2>League reassignment</h2><p>The draft is done. Teams can now move their trainers between Leagues before the Champion's reward and registration.</p><button class="btn primary" data-act="nav" data-v="reassign">Reassign trainers</button></section>`;
+  else if (S.phase === 'reassign') main = `<section class="panel callout"><h2>Set your ${nLeagues() > 1 ? 'parties' : 'party'}</h2><p>The draft is done. Decide who chases the title, who travels as a companion and who is the apprentice${nLeagues() > 1 ? ', and which League each trainer is in' : ''}.</p><button class="btn primary" data-act="nav" data-v="reassign">Set your ${nLeagues() > 1 ? 'parties' : 'party'}</button></section>`;
   else if (S.phase === 'banvote') main = `<section class="panel callout"><h2>Banlist vote</h2><p>The teams vote on banning last season's top performers before the Champion's reward and the ranch.</p><button class="btn primary" data-act="nav" data-v="banvote">Vote on the banlist</button></section>`;
   else if (S.phase === 'ranch') main = `<section class="panel callout"><h2>Team ranch</h2><p>Hand Pokémon from your ranch to your trainers before registration${(S.ranchPicks || []).some(p => p.org === S.userOrg) ? ', and choose what to keep from a retiring trainer' : ''}.</p><button class="btn primary" data-act="nav" data-v="ranch">Go to the ranch</button></section>`;
   else if (S.phase === 'draft') main = `<section class="panel callout"><h2>Draft day</h2><p>The four teams are picking.</p><button class="btn primary" data-act="nav" data-v="draft">Go to the draft</button></section>`;
@@ -889,7 +890,7 @@ function cupCard() {
   const max = Math.max(1, ...st.map(r => r.pts));
   return `<section class="panel"><div class="ph"><h3>Team Cup</h3><span class="muted">Season ${S.season || 1}${S.phase === 'season' ? ', live' : ''}</span></div>
     <div class="cup">${st.map((r, i) => `<div class="cup-row${r.key === S.userOrg ? ' mine' : ''}"><span class="num">${i + 1}</span>${orgMark(r.key)}<span class="cup-n">${ORGS[r.key].short}</span><span class="cup-bar"><i style="width:${r.pts / max * 100}%;background:${ORGS[r.key].color}"></i></span><span class="num">${r.pts}</span></div>`).join('')}</div>
-    <p class="fine">${nLeagues() > 1 ? `Every League counts. World Championship: ${WORLD_PTS.win} for the winner's team, ${WORLD_PTS.final} for the runner-up's. ` : ''}1 point per badge, 3 for reaching the League, 2 per Elite Four win, 10 for winning the title. Each title defense earns 3 for the team the Champion represents. Legacy: +1 per Gym Leader and +2 per Elite Four member promoted from the team (up to 4 a season).</p></section>`;
+    <p class="fine">${nLeagues() > 1 ? `Every League counts. World Championship: ${WORLD_PTS.win} for the winner's team, ${WORLD_PTS.final} for the runner-up's. ` : ''}1 point per badge, 3 for reaching the League, 2 per Elite Four win, 10 for winning the title. Only title chasers score; ${PARTY_BONUS} more if all three of a party's chasers complete the badge circuit. Each title defense earns 3 for the team the Champion represents. Legacy: +1 per Gym Leader and +2 per Elite Four member promoted from the team (up to 4 a season).</p></section>`;
 }
 // "a shiny alpha Delta", "an alpha", "a Delta"...
 function catchWords(e) {
@@ -915,14 +916,14 @@ function teamOverview(roster) {
   return `<section class="panel">
     <div class="ph"><h2>Week ${S.week + 1} of ${SEASON_WEEKS}</h2><span class="muted">${SEASON_WEEKS - S.week} weeks until the League</span></div>
     <div class="progress"><i style="width:${S.week / SEASON_WEEKS * 100}%"></i></div>
-    <p class="muted">Your trainers make their own calls each week. Play the week, then see what each of them did.</p>
+    <p class="muted">Your trainers make their own calls each week. Play the week, then see what each of them did. <button class="link" data-act="nav" data-v="party">See the party</button></p>
     <div class="ovw">${roster.map(t => inLeague(lgOf(t), () => {
       const b = t.badges.length;
-      const status = t.role === 'champion' ? 'Champion · defending the title' : b >= 8 ? 'Qualified for the League' : `Next: ${TOWNS[b]} Gym (ace Lv ${Math.floor(gymAceLevel(b))})`;
+      const status = !isChaser(t) ? (slotOf(t) === 'companion' ? `Companion · ${t.prole ? PARTY_ROLES[t.prole].name : 'no role yet'}` : slotOf(t) === 'apprentice' ? `Apprentice · season ${(t.appSeasons || 0) + 1} of ${APPRENTICE_SEASONS}` : 'No place in the party') : t.role === 'champion' ? 'Champion · defending the title' : b >= 8 ? 'Qualified for the League' : `Next: ${TOWNS[b]} Gym (ace Lv ${Math.floor(gymAceLevel(b))})`;
       return `<button class="ovw-row" data-act="nav" data-v="t${t.id}">
         <span class="ovw-name"><span class="tlink${t.user ? ' you' : ''}">${dn(t)}</span><span class="muted small">${lgTag(t)}${status}</span></span>
-        <span class="ovw-badges">${t.role === 'champion' ? '' : badgeRow(t)}${teamDots(t)}</span>
-        <span class="ovw-plan"><span class="eyebrow">Season</span>${t.role === 'champion' ? 'Holding the title' : `${t.weekLog.filter(w => w.won).length}–${t.weekLog.filter(w => w.won === false).length} at gyms · ${t.weekLog.filter(w => w.caught).length} caught`}</span>
+        <span class="ovw-badges">${t.role === 'champion' || !isChaser(t) ? '' : badgeRow(t)}${teamDots(t)}</span>
+        <span class="ovw-plan"><span class="eyebrow">Season</span>${t.role === 'champion' ? 'Holding the title' : !isChaser(t) ? `${t.weekLog.filter(w => w.caught).length} caught` : `${t.weekLog.filter(w => w.won).length}–${t.weekLog.filter(w => w.won === false).length} at gyms · ${t.weekLog.filter(w => w.caught).length} caught`}</span>
         <span class="ovw-last"><span class="eyebrow">Last week</span>${lastEntryText(t, true)}</span>
         <span class="ovw-go" aria-hidden="true">›</span></button>`;
     })).join('') || '<p class="muted">No trainers on your roster.</p>'}</div>
@@ -967,7 +968,7 @@ function viewTrainerScreen(id) {
   const b = t.badges.length;
   const plan = 'auto'; // 2.0: trainers always decide for themselves
   const sx = exploreSpecials(t);
-  const canChallenge = !isChamp && b < 8 && !gymClosed(b);
+  const canChallenge = !isChamp && isChaser(t) && b < 8 && !gymClosed(b);
   const canRaid = !isChamp && t.role === 'challenger' && !!eventFoe(), canPurify = t.team.some(m => m.shadow), canSeek = !isChamp && t.role === 'challenger' && !!S.legend && !legendBlocked(t, S.legend.sp);
   const need = 8 - b, left = SEASON_WEEKS - S.week;
   // the plan's details
@@ -980,11 +981,12 @@ function viewTrainerScreen(id) {
   }
   if (canPurify) detail += `<div class="villain"><span class="vl-k">Shadow</span> Shadow Pokémon's hearts open as ${t.name} trains (most), explores or challenges a gym, and a little more with every battle. A higher Bond rating opens them faster. Once a heart is fully open, that Pokémon is purified at the end of the week and gets all its held-back levels at once.
     <ul class="mini">${t.team.filter(m => m.shadow).map(m => `<li><span>${m.sp} <span class="tag shadow">Shadow</span></span><span class="num">heart ${Math.round(100 - m.shadow.heart)}% open · +${Math.round(m.shadow.stored)} Lv stored</span></li>`).join('')}</ul></div>`;
-  if (plan === 'auto' && !canChallenge) detail = `<p class="muted">${gymClosed(b) ? `${TOWNS[b]} Gym is closed while Team Skull holds it. ` : ''}${t.name} will train or explore as they see fit.</p>`;
+  if (!isChaser(t)) detail = `<p class="muted">${slotOf(t) === 'companion' ? `${t.name} travels with the party as its ${t.prole ? PARTY_ROLES[t.prole].name : 'companion'}. ${t.prole ? PARTY_ROLES[t.prole].text : ''} Companions don't challenge gyms; they train, explore and step in when villains turn up.` : slotOf(t) === 'apprentice' ? `${t.name} is the party's apprentice (season ${(t.appSeasons || 0) + 1} of ${APPRENTICE_SEASONS}): no gyms yet, just road battles, training and growing faster from watching the chasers.` : `${t.name} has no place in the party right now.`}</p>`;
+  else if (plan === 'auto' && !canChallenge) detail = `<p class="muted">${gymClosed(b) ? `${TOWNS[b]} Gym is closed while Team Skull holds it. ` : ''}${t.name} will train or explore as they see fit.</p>`;
   if (sx.length && plan !== 'explore') detail = `<div class="spotted"><span class="sp-k">Spotted</span> Something special is on the routes this week: <b>${sx.map(specialWord).join(', ')}</b>. ${t.name} may go looking.</div>` + detail;
   detail = megaPanel(t) + legendBanner(t) + roamBanner(t) + stormBanner(t) + villainBanner(t) + outbreakBanner(t) + detail;
   if (S.wormhole && S.wormhole.id === t.id) detail = `<div class="wormhole"><b>An Ultra Wormhole is open nearby.</b> ${S.wormhole.sp} ${chips(SP[S.wormhole.sp].types)} came through. ${t.name} has until the end of week ${S.wormhole.until} to explore for one chance to catch it.</div>` + detail;
-  const warn = !isChamp && need > 0 && left <= need ? `<p class="warn">${left} week${left > 1 ? 's' : ''} left and ${need} badge${need > 1 ? 's' : ''} to go. ${t.name} has to win a gym every remaining week to qualify.</p>` : '';
+  const warn = !isChamp && isChaser(t) && need > 0 && left <= need ? `<p class="warn">${left} week${left > 1 ? 's' : ''} left and ${need} badge${need > 1 ? 's' : ''} to go. ${t.name} has to win a gym every remaining week to qualify.</p>` : '';
   // last week
   const e = t.weekLog[t.weekLog.length - 1];
   const lb = (S.lastBattles || []).findIndex(r => r.sides[0].id === t.id || r.sides[1].id === t.id);
@@ -999,9 +1001,9 @@ function viewTrainerScreen(id) {
   return `${switcher}<div class="grid-office"><div class="col">
     <section class="panel tcard"><div class="tcard-top">${trPortrait(t)}<div class="tcard-id"><div class="eyebrow">${roleLabel(t)} · Age ${t.age}</div>${cardName(t)}<div class="spec">${specLine(t)}<span class="muted"> · ${LEAD_STYLES[leadStyle(t)]}</span>${traitChip(t)}</div>${rivalLine(t)}</div>
       <div class="tcard-ovr"><span>${ovr(t)}</span><small>OVR · POT ${t.pot}</small></div></div>
-      ${isChamp ? '' : badgeRow(t, true)}</section>
+      ${isChamp || !isChaser(t) ? '' : badgeRow(t, true)}</section>
     <section class="panel plan"><div class="ph"><h2>Week ${S.week + 1}</h2><span class="muted">${left} weeks until the League</span></div>
-      <p class="muted">${t.name} decides what to do each week: challenge the gym, train, explore, or answer whatever turns up.</p>${warn}${detail}
+      ${isChaser(t) ? `<p class="muted">${t.name} decides what to do each week: challenge the gym, train, explore, or answer whatever turns up.</p>` : ''}${warn}${detail}
       <div class="confirm-row"><button class="btn primary" data-act="playweek">${playLabel()}</button></div></section>
     ${lastWeek}
     <section class="panel"><div class="ph"><h3>Season so far</h3><span class="muted">${t.weekLog.filter(w => w.won).length}–${t.weekLog.filter(w => w.won === false).length} in gym battles</span></div><div class="strip">${strip}</div></section>

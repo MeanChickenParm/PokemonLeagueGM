@@ -194,16 +194,17 @@ function makeRadiant(o) {
   return o;
 }
 const ALPHA_CHANCE = 0.015; // per wild Pokémon offered, before the Scouting bonus (up to +1%)
+const sctOf = t => t.r.sct + 25 * roleStr(t, 'scout');
 function wildOffers(t) {
   const avg = t.team.length ? t.team.reduce((a, m) => a + m.lvl, 0) / t.team.length : 10;
-  const L = Math.max(5, Math.round(avg - 3 + t.r.sct / 40));
-  const cap = 300 + (S.week / SEASON_WEEKS) * 190 + t.r.sct * 0.7 + (t.role === 'champion' ? 200 : 0) + (hasTrait(t, 'collector') ? 25 : 0);
+  const L = Math.max(5, Math.round(avg - 3 + sctOf(t) / 40));
+  const cap = 300 + (S.week / SEASON_WEEKS) * 190 + sctOf(t) * 0.7 + (t.role === 'champion' ? 200 : 0) + (hasTrait(t, 'collector') ? 25 : 0);
   const luck = hasTrait(t, 'collector') ? 2 : 1;
   const items = [];
   for (const b of BASES) {
     const f = formAt(b, L, t.specialty); const s = SP[f];
     if (s.bst > cap || t.team.some(m => LINE[m.sp] === b)) continue;
-    let w = SP[b].rare ? 0.12 + t.r.sct / 400 : 1;
+    let w = SP[b].rare ? 0.12 + sctOf(t) / 400 : 1;
     const fit = specFit(t, f); if (fit) w *= fit === 2 ? 7 : t.spec2 ? 2.6 : 4;
     if (SP[b].starter) w *= 0.25;
     items.push([f, w]);
@@ -216,7 +217,7 @@ function wildOffers(t) {
     const [f] = list[j];
     const k = items.findIndex(x => x[0] === f); items.splice(k, 1);
     // rarely, an alpha: guaranteed outstanding IVs and it arrives already hot. Scouting makes them a little more common.
-    const alpha = featOn('alpha') && rand() < (ALPHA_CHANCE + t.r.sct / 100 * 0.01) * luck;
+    const alpha = featOn('alpha') && rand() < (ALPHA_CHANCE + sctOf(t) / 100 * 0.01) * luck;
     // even more rarely, a shiny: perfect IVs and it arrives on fire. It can be an alpha too.
     let o;
     if (featOn('shiny') && rand() < SHINY_CHANCE * luck) o = ensureMon({ sp: f, lvl: L, shiny: true, alpha: alpha || undefined, form: 3, iv: ivSet(31) });
@@ -240,7 +241,7 @@ function wildOffers(t) {
   const ob = activeOutbreak();
   if (ob && out.length && !t.team.some(m => LINE[m.sp] === LINE[ob.sp])) {
     const f = formAt(ob.sp, L, t.specialty);
-    const alpha = featOn('alpha') && rand() < (ALPHA_CHANCE + t.r.sct / 100 * 0.01) * luck * OUTBREAK_ALPHA;
+    const alpha = featOn('alpha') && rand() < (ALPHA_CHANCE + sctOf(t) / 100 * 0.01) * luck * OUTBREAK_ALPHA;
     const shiny = featOn('shiny') && rand() < SHINY_CHANCE * luck * OUTBREAK_SHINY;
     out[out.length - 1] = shiny ? ensureMon({ sp: f, lvl: L, outbreak: true, shiny: true, alpha: alpha || undefined, form: 3, iv: ivSet(31) })
       : alpha ? ensureMon({ sp: f, lvl: L, outbreak: true, alpha: true, form: 1.5, iv: ivSet(() => ri(28, 31)) })
@@ -253,9 +254,9 @@ function wildOffers(t) {
   if (S.shadowWild === S.season && out.length && rand() < 0.2) out[out.length - 1].shadow = true;
   // very rarely, the open slot is a baby legendary instead
   let rareFind = false;
-  if (featOn('rarefind') && out.length && rand() < BABY_CHANCE + t.r.sct / 100 * 0.0015) { const free = legendFull(t) ? [] : freeBabies().filter(b => !legendBlocked(t, b)); if (free.length) { const b0 = pick(free), pb = pooledLegend(b0), b = pb ? pb.sp : b0; out[out.length - 1] = ensureMon({ sp: b, lvl: L, baby: true }); rareFind = true; catchNews(`${t.name} spotted a ${b} while exploring!`, t.user ? 'you' : 'circuit', t.id); } }
+  if (featOn('rarefind') && out.length && rand() < BABY_CHANCE + sctOf(t) / 100 * 0.0015) { const free = legendFull(t) ? [] : freeBabies().filter(b => !legendBlocked(t, b)); if (free.length) { const b0 = pick(free), pb = pooledLegend(b0), b = pb ? pb.sp : b0; out[out.length - 1] = ensureMon({ sp: b, lvl: L, baby: true }); rareFind = true; catchNews(`${t.name} spotted a ${b} while exploring!`, t.user ? 'you' : 'circuit', t.id); } }
   // v184: rarer still, a legendary in the open slot: a sealed chamber, a hidden glade, a ring in the air
-  if (featOn('greatlegends') && !rareFind && out.length && !legendFull(t) && rand() < LEGEND_FIND + t.r.sct / 100 * 0.0008) {
+  if (featOn('greatlegends') && !rareFind && out.length && !legendFull(t) && rand() < LEGEND_FIND + sctOf(t) / 100 * 0.0008) {
     const free = FIND_LEGENDS.filter(sp => greatFree(sp) && !legendBlocked(t, sp) && !(sp === 'Shaymin' && S.week + 1 > 6));
     if (free.length) { const sp0 = pick(free), pl = pooledLegend(sp0), sp = pl ? pl.sp : sp0, lvl = Math.max(L, Math.floor(Math.max(...t.team.map(m => m.lvl), L)));
       out[out.length - 1] = ensureMon({ sp, lvl, legendFind: true, form: 1, iv: ivSet(() => ri(20, 31)) }); rareFind = true; }
@@ -333,12 +334,14 @@ function aiCatch(t) {
 }
 function aiAction(t) {
   if (S.wormhole && S.wormhole.id === t.id) return 'explore';
-  if (wantsLegend(t)) return 'seek';
-  if (wantsRaid(t)) return 'raid';
+  if (isChaser(t) && wantsLegend(t)) return 'seek';
+  if (slotOf(t) !== 'apprentice' && wantsRaid(t)) return 'raid';
   const pickAct = aiActionBase(t);
   return pickAct === 'challenge' && gymClosed(t.badges.length) ? 'train' : pickAct;
 }
 function aiActionBase(t) {
+  // 2.0: companions and apprentices don't challenge gyms; they train and fill out their teams
+  if (!isChaser(t)) { const n0 = t.team.length; return n0 < 6 && rand() < (n0 < 4 ? 0.8 : 0.3) ? 'explore' : 'train'; }
   const ob = activeOutbreak();
   if (ob && t.role === 'challenger' && !t.team.some(m => LINE[m.sp] === LINE[ob.sp])) {
     const fits = onSpec(t, formAt(ob.sp, 60, t.specialty)) || linePeak(ob.sp) >= 500;
@@ -362,6 +365,7 @@ function gainLevels(t, amt) {
   const capOf = m => t.role === 'champion' ? (m.cap || champLv() + 2) : 100;
   // a Mentor on the same team speeds up everyone else's Pokémon
   if (t.org && S.orgs[t.org].roster.some(id => id !== t.id && hasTrait(T(id), 'mentor'))) amt *= 1.05;
+  amt *= partyGrowth(t);
   const top = Math.max(...t.team.map(m => m.lvl));
   for (const m of t.team) {
     // newer, lower-level Pokémon catch up faster (shared experience)
@@ -1223,7 +1227,7 @@ function seedOrder(P) { let o = [1]; while (o.length < P) { const n = o.length *
 const tourneyStrength = t => topAvg(t, 3) * 2 + teamPower(t) + ovr(t) / 4;
 function tourneyField() {
   const out = [];
-  for (let i = 0; i < nLeagues(); i++) inLeague(i, () => { for (const t of challengers()) if (t && t.role === 'challenger' && t.team && t.team.length) out.push(t); });
+  for (let i = 0; i < nLeagues(); i++) inLeague(i, () => { for (const t of challengers()) if (t && t.role === 'challenger' && isChaser(t) && t.team && t.team.length) out.push(t); });
   return [...new Set(out)];
 }
 // v193: each season's tournament is played under one special rule, drawn when the season starts (or fixed in the
@@ -1531,8 +1535,8 @@ function fixHallOfFame() {
 }
 // the circuit holds about 20 challengers: independents fill whatever the teams don't (at least 6)
 const CIRCUIT_SIZE = 24; // challengers on the circuit: team trainers plus independents
-const indieCap = () => Math.max(8, CIRCUIT_SIZE - ORG_KEYS.length * ROSTER);
-const draftClassSize = () => Math.max(8, Math.round(ORG_KEYS.length * ROSTER * 0.6) + 4) * nLeagues();
+const indieCap = () => Math.max(8, CIRCUIT_SIZE - ORG_KEYS.length * PARTY_CHASERS);
+const draftClassSize = () => Math.max(8, Math.round(ORG_KEYS.length * ROSTER * 0.4) + 4) * nLeagues();
 const START_TEAM = 3; // Pokémon a challenger may register at the start of a season
 function org(k) { return S.orgs[k]; }
 // positions held (Gym Leader, Elite Four, Champion) and team history, for the Trainers tab
@@ -1547,6 +1551,7 @@ function openPost(t, role) { closePost(t); (t.posts = t.posts || []).push({ role
 function joinOrg(t, k) { (t.teams = t.teams || []).push({ org: k, from: curSeason(), to: null });
   t.org = k; if (!S.orgs[k].roster.includes(t.id)) S.orgs[k].roster.push(t.id); t.user = k === S.userOrg; }
 function leaveOrg(t) {
+  t.slot = null; t.prole = null;
   if (!t.org) return;
   const o = S.orgs[t.org]; o.roster = o.roster.filter(x => x !== t.id);
   const h = (t.teams || []).find(x => x.org === t.org && x.to == null); if (h) h.to = Math.max(h.from, S.season || 1);
@@ -1557,6 +1562,7 @@ function userTrainers() { return S.userOrg ? S.orgs[S.userOrg].roster.map(T) : [
 function orgName(k) { return k ? ORGS[k].name : 'Independent'; }
 // season points: 1 per badge, 3 for reaching the League, 2 per Elite Four win, 10 for the title, 3 per title defense
 function trainerPoints(t, L) {
+  if (!isChaser(t)) return 0;
   let p = t.badges ? t.badges.length : 0;
   if (L) {
     const e = L.entries.find(x => x.id === t.id);
@@ -1567,13 +1573,13 @@ function trainerPoints(t, L) {
 // title defenses are credited to the team the Champion represented when they won
 function defensePoints(k, L) { return L ? (L.entries.filter(e => e.stage === 4 && T(e.lostTo) && T(e.lostTo).champOrg === k).length + (L.e4Shot && !L.e4Shot.won && T(L.startChamp) && T(L.startChamp).champOrg === k ? 1 : 0)) * 3 : 0; }
 function orgStandings(L) {
-  return ORG_KEYS.map(k => { const legacy = legacyPoints(k); return { key: k, legacy, pts: org(k).roster.filter(id => T(id).role !== 'champion').reduce((a, id) => a + trainerPoints(T(id), L), 0) + defensePoints(k, L) + legacy }; }).sort((a, b) => b.pts - a.pts);
+  return ORG_KEYS.map(k => { const legacy = legacyPoints(k); return { key: k, legacy, pts: org(k).roster.filter(id => T(id).role !== 'champion').reduce((a, id) => a + trainerPoints(T(id), L), 0) + defensePoints(k, L) + legacy + partyBonus(k) }; }).sort((a, b) => b.pts - a.pts);
 }
 // the Team Cup: every League's points added up, plus the World Championship
 function cupStandings() {
   if (nLeagues() === 1) return orgStandings(S.league);
   const pts = {};
-  eachLeague(i => { const L = S.league; for (const k of ORG_KEYS) pts[k] = (pts[k] || 0) + lgRoster(k, i).filter(id => T(id).role !== 'champion').reduce((a, id) => a + trainerPoints(T(id), L), 0) + defensePoints(k, L); });
+  eachLeague(i => { const L = S.league; for (const k of ORG_KEYS) pts[k] = (pts[k] || 0) + lgRoster(k, i).filter(id => T(id).role !== 'champion').reduce((a, id) => a + trainerPoints(T(id), L), 0) + defensePoints(k, L) + partyBonus(k, i); });
   const W = S.worlds;
   return ORG_KEYS.map(k => { const legacy = legacyPoints(k); const world = W ? (W.winnerOrg === k ? WORLD_PTS.win : 0) + (W.runnerOrg === k ? WORLD_PTS.final : 0) : 0; return { key: k, legacy, world, pts: pts[k] + legacy + world }; }).sort((a, b) => b.pts - a.pts);
 }
@@ -1992,7 +1998,7 @@ function legacyPoints(k) { return Math.min(LEGACY_CAP, legacyOf(k).reduce((a, t)
 const CROSSROADS_SEASONS = 10, CROSSROADS_CHANCE = 0.3, CROSSROADS_RETIRE = 0.5, CROSSROADS_MAX_AGE = 42;
 function dryStreak(t) {
   let n = 0;
-  for (const h of (t.seasonHist || []).slice().reverse()) { if (t.reinvented && h.season <= t.reinvented) break; if (h.badges === 8) break; n++; }
+  for (const h of (t.seasonHist || []).slice().reverse()) { if (t.reinvented && h.season <= t.reinvented) break; if (h.slot && h.slot !== 'chaser') continue; if (h.badges === 8) break; n++; }
   return n;
 }
 function crossroads(t, changes) {
@@ -2242,7 +2248,8 @@ function leagueOffseason(standings, changes) {
   const ran = new Set([...S.challengers, ...L.entries.map(e => e.id)]);
   for (const id of ran) {
     const t = T(id); const e = L.entries.find(x => x.id === id);
-    t.seasonHist.push({ season: S.season, lg: S.lg || 0, org: t.org, badges: t.badges.length, stage: e ? e.stage : null, ovr: ovr(t), pts: trainerPoints(t, L) });
+    t.seasonHist.push({ season: S.season, lg: S.lg || 0, org: t.org, badges: t.badges.length, stage: e ? e.stage : null, ovr: ovr(t), pts: trainerPoints(t, L), slot: slotOf(t) || undefined, prole: t.prole || undefined });
+    if (slotOf(t) === 'apprentice') t.appSeasons = (t.appSeasons || 0) + 1;
   }
   if (!ran.has(S.champion)) T(S.champion).seasonHist.push({ season: S.season, lg: S.lg || 0, org: T(S.champion).org, role: 'champion', ovr: ovr(T(S.champion)), pts: trainerPoints(T(S.champion), L) });
   // season awards
@@ -2381,3 +2388,140 @@ function leagueOffseason(standings, changes) {
   }
 }
 
+
+// ================= PARTIES (2.0) =================
+// A team's trainers in one League travel as a party of six: three title chasers, two companions and one apprentice.
+// Only chasers challenge gyms, enter the Midseason Tournament and the League, and score Team Cup points.
+// Companions each fill a role that helps the rest of the party. The apprentice travels along, has road battles and
+// grows from watching; nobody can be an apprentice for more than two seasons.
+const PARTY_SIZE = 6, PARTY_CHASERS = 3, PARTY_COMPANIONS = 2, PARTY_APPRENTICES = 1, APPRENTICE_SEASONS = 2;
+const PARTY_BONUS = 3; // Team Cup points when all three of a party's chasers complete the badge circuit
+const PARTY_ROLES = {
+  breeder:     { name: 'Breeder',     text: "Keeps the party's Pokémon in form: a loss or a faint cools them off less.", cls: /Breeder/ },
+  scout:       { name: 'Scout',       text: 'Finds better and rarer wild Pokémon for the party.', cls: /Ranger/ },
+  researcher:  { name: 'Researcher',  text: 'Studies the next Gym Leader, the Elite Four and the Champion, giving the party an edge in those battles.', cls: /Scientist|Professor|Researcher/ },
+  coach:       { name: 'Coach',       text: "Speeds up the chasers' and the apprentice's growth, most of all for trainers 18 or younger.", cls: /Veteran/ },
+  coordinator: { name: 'Coordinator', text: 'Bonds between trainers and their Pokémon grow faster. (From the anime.)', cls: /Coordinator/ },
+  connoisseur: { name: 'Connoisseur', text: 'Turns up more held items and gets the party a wider pick of gym rewards. (From the anime.)', cls: /Connoisseur/ },
+};
+const ROLE_KEYS = Object.keys(PARTY_ROLES);
+const SLOT_NAMES = { chaser: 'Title chaser', companion: 'Companion', apprentice: 'Apprentice', bench: 'Unplaced' };
+// every trainer rolls their own aptitude for each role; a matching trainer class is only a tiny nudge
+function aptOf(t) {
+  if (!t.apt) { t.apt = {}; for (const k of ROLE_KEYS) t.apt[k] = clamp(Math.round(15 + rand() * 60 + (rand() < 0.2 ? rand() * 24 : 0) + (PARTY_ROLES[k].cls.test(t.cls || '') ? 4 : 0)), 5, 99); }
+  return t.apt;
+}
+const bestApt = t => Math.max(...ROLE_KEYS.map(k => aptOf(t)[k]));
+const inParty = t => !!t && t.role === 'challenger' && !!t.org;
+// 'chaser' | 'companion' | 'apprentice' | 'bench' for a team's trainer; null for everyone else
+const slotOf = t => inParty(t) ? (t.slot || 'bench') : null;
+// independents, post-holders and the Champion all count as chasing the title
+const isChaser = t => !inParty(t) || t.slot === 'chaser';
+const canApprentice = t => (t.appSeasons || 0) < APPRENTICE_SEASONS;
+function partyOf(k, i = S.lg || 0) { return lgRoster(k, i).map(T).filter(inParty); }
+const partyMates = t => inParty(t) ? partyOf(t.org, lgOf(t)) : [];
+// how strongly a role is covered in this trainer's party, 0 to 1 (a companion doesn't boost themselves)
+function roleStr(t, role) {
+  if (!inParty(t)) return 0;
+  let s = 0;
+  for (const c of partyMates(t)) if (c !== t && c.slot === 'companion' && c.prole === role) s += aptOf(c)[role] / 100;
+  return Math.min(1, s);
+}
+// growth from travelling together: the Coach, and sparring for the weakest chaser and the apprentice
+function partyGrowth(t) {
+  if (!inParty(t) || !t.slot || t.slot === 'companion' || t.slot === 'bench') return 1;
+  let g = 1 + 0.08 * roleStr(t, 'coach') * (t.age <= 18 ? 1.5 : 1);
+  if (t.slot === 'apprentice') g += 0.06;
+  else { const ch = partyMates(t).filter(x => x.slot === 'chaser'); if (ch.length > 1 && ch.every(x => x === t || topAvg(x, 3) >= topAvg(t, 3))) g += 0.06; }
+  return g;
+}
+// the Researcher's scouting, and the party in a chaser's corner at the League
+function partyEdge(t, stakes) {
+  if (!inParty(t) || t.slot !== 'chaser') return 1;
+  let e = 1;
+  if (stakes === 'gym' || stakes === 'league' || stakes === 'title') e += 0.03 * roleStr(t, 'researcher');
+  if (stakes === 'league' || stakes === 'title') e += 0.004 * Math.min(5, partyMates(t).length - 1);
+  return e;
+}
+const partyBonus = (k, i = S.lg || 0) => { const ch = partyOf(k, i).filter(t => t.slot === 'chaser'); return ch.length === PARTY_CHASERS && ch.every(t => t.badges && t.badges.length === 8) ? PARTY_BONUS : 0; };
+// companions take the role they're best at, no two the same
+function assignRoles(P, fresh) {
+  const co = P.filter(t => t.slot === 'companion');
+  for (const t of P) if (t.slot !== 'companion') t.prole = null;
+  if (fresh) co.forEach(t => { t.prole = null; });
+  const taken = new Set();
+  for (const t of co) { if (t.prole && PARTY_ROLES[t.prole] && !taken.has(t.prole)) taken.add(t.prole); else t.prole = null; }
+  for (const t of co.filter(x => !x.prole).sort((a, b) => bestApt(b) - bestApt(a))) {
+    t.prole = ROLE_KEYS.filter(k => !taken.has(k)).sort((a, b) => aptOf(t)[b] - aptOf(t)[a])[0]; taken.add(t.prole);
+  }
+}
+// keep a party legal: at most three chasers, two companions and one apprentice. Open chaser spots are filled first
+// (the strongest available), then the apprentice (the most upside, if they still can be one), then companions.
+// Anyone left over has no place ('bench'). Returns them.
+function fixParty(k, i = S.lg || 0) {
+  const P = partyOf(k, i); if (!P.length) return [];
+  const by = s => P.filter(t => t.slot === s);
+  const upside = t => t.pot - ovr(t) - t.age * 0.5;
+  for (const t of P) if (!SLOT_NAMES[t.slot] || t.slot === 'bench') t.slot = null;
+  by('chaser').sort((a, b) => ovr(b) - ovr(a)).slice(PARTY_CHASERS).forEach(t => { t.slot = null; });
+  by('apprentice').filter(t => !canApprentice(t)).forEach(t => { t.slot = null; });
+  by('apprentice').sort((a, b) => upside(b) - upside(a)).slice(PARTY_APPRENTICES).forEach(t => { t.slot = null; });
+  by('companion').sort((a, b) => bestApt(b) - bestApt(a)).slice(PARTY_COMPANIONS).forEach(t => { t.slot = null; });
+  const free = () => P.filter(t => !t.slot);
+  // an open chaser spot goes to someone without a place first, then to the strongest non-chaser
+  while (by('chaser').length < PARTY_CHASERS) {
+    const c = free().sort((a, b) => ovr(b) - ovr(a))[0] || P.filter(t => t.slot !== 'chaser').sort((a, b) => ovr(b) - ovr(a))[0];
+    if (!c) break; c.slot = 'chaser';
+  }
+  if (!by('apprentice').length) { const a = free().filter(canApprentice).sort((x, y) => upside(y) - upside(x))[0]; if (a) a.slot = 'apprentice'; }
+  for (const t of free().sort((a, b) => bestApt(b) - bestApt(a))) if (by('companion').length < PARTY_COMPANIONS) t.slot = 'companion';
+  const out = free(); out.forEach(t => { t.slot = 'bench'; });
+  assignRoles(P);
+  return out;
+}
+// a team sets its party from scratch: the three strongest chase, then the rest are placed as above
+function autoParty(k, i = S.lg || 0) {
+  const P = partyOf(k, i); if (!P.length) return;
+  for (const t of P) { t.slot = null; t.prole = null; }
+  P.slice().sort((a, b) => ovr(b) - ovr(a) || a.id - b.id).slice(0, PARTY_CHASERS).forEach(t => { t.slot = 'chaser'; });
+  for (const t of fixParty(k, i)) release(t, canApprentice(t) ? 'with no place left in the party' : 'after two seasons as an apprentice');
+  assignRoles(partyOf(k, i), true);
+}
+const eachParty = fn => { for (const k of ORG_KEYS) for (let i = 0; i < nLeagues(); i++) inLeague(i, () => fn(k, i)); };
+// what stops the player's parties being confirmed
+function partyProblems(k = S.userOrg) {
+  const out = []; if (!k) return out;
+  for (let i = 0; i < nLeagues(); i++) inLeague(i, () => {
+    for (const t of partyOf(k, i)) if (slotOf(t) === 'bench') out.push(`${dn(t)} has no place in the ${nLeagues() > 1 ? leagueName(i) + ' ' : ''}party${canApprentice(t) ? '' : ' (two seasons as an apprentice are up)'}. Swap them into a spot or release them.`);
+  });
+  return out;
+}
+const canEditParty = () => !!S && S.phase !== 'season' && S.phase !== 'league';
+// the player swaps two party-mates' places, or moves one into an open spot (b = a slot name)
+function swapSlots(idA, b) {
+  const a = T(idA); if (!canEditParty() || !inParty(a) || !a.user) return 'Parties are set in the offseason.';
+  return inLeague(lgOf(a), () => {
+    const P = partyOf(a.org);
+    if (typeof b === 'string') {
+      const cap = { chaser: PARTY_CHASERS, companion: PARTY_COMPANIONS, apprentice: PARTY_APPRENTICES }[b];
+      if (!cap || P.filter(t => t.slot === b).length >= cap) return 'That spot is taken.';
+      if (b === 'apprentice' && !canApprentice(a)) return `${a.name} has already had two seasons as an apprentice.`;
+      a.slot = b;
+    } else {
+      const o = T(b); if (!o || !P.includes(o) || o === a) return 'Pick someone in the same party.';
+      if (o.slot === 'apprentice' && !canApprentice(a)) return `${a.name} has already had two seasons as an apprentice.`;
+      if (a.slot === 'apprentice' && !canApprentice(o)) return `${o.name} has already had two seasons as an apprentice.`;
+      const s = a.slot, r = a.prole; a.slot = o.slot; a.prole = o.prole; o.slot = s; o.prole = r;
+    }
+    fixParty(a.org);
+    return null;
+  });
+}
+// the player gives a companion a role; if the other companion has it, they trade roles
+function setPartyRole(id, role) {
+  const t = T(id); if (!canEditParty() || !inParty(t) || !t.user || t.slot !== 'companion' || !PARTY_ROLES[role]) return false;
+  const other = partyOf(t.org, lgOf(t)).find(x => x !== t && x.slot === 'companion' && x.prole === role);
+  if (other) other.prole = t.prole;
+  t.prole = role;
+  return true;
+}

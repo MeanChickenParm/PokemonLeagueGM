@@ -803,6 +803,18 @@ button.imgtile { align-items: center; gap: 4px; padding: 8px 6px; cursor: pointe
 .imgpack-h { margin-top: 16px; }
 @media (max-width: 560px) { .tport:not(.big) > .tinit { width: 48px; height: 48px; font-size: 18px !important; } .tcard-top { gap: 12px; } .tcard-top:has(> .tport.big) { flex-wrap: wrap; } .tport.big { flex-basis: 100%; } .tcard-top:has(> .tport.big) > .tcard-id { flex: 1 1 0; } .tport.big .tcam { left: 108px; right: auto; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+.pt-grp { margin-top: 10px; }
+.pt-row { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); background: var(--sunk); border-radius: var(--r); margin-top: 6px; min-width: 0; }
+.pt-row.sel { border-color: var(--red); }
+.pt-row.open { border-style: dashed; background: transparent; }
+.pt-id { min-width: 0; display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
+.pt-note { grid-column: 1 / -1; }
+.pt-roles { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; }
+.pt-roles .rel.on { border-color: var(--gold); background: color-mix(in srgb, var(--gold) 16%, var(--surface)); }
+.pt-act { grid-row: 1; grid-column: 2; }
+.tag.slot-companion { border-color: var(--gold); color: var(--gold); }
+.tag.slot-apprentice { border-color: var(--win); color: var(--win); }
+.tag.slot-bench { border-color: var(--loss); color: var(--loss); }
 </style>
 <div id="app"></div>
 <div id="modal" hidden></div>
