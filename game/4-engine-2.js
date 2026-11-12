@@ -369,7 +369,7 @@ function gainLevels(t, amt) {
   const capOf = m => t.role === 'champion' ? (m.cap || champLv() + 2) : 100;
   // a Mentor on the same team speeds up everyone else's Pokémon
   if (t.org && S.orgs[t.org].roster.some(id => id !== t.id && hasTrait(T(id), 'mentor'))) amt *= 1.05;
-  amt *= partyGrowth(t);
+  amt *= partyGrowth(t) * PARTY_PACE;
   if (!t.org && t.group && Math.floor(t.group / 100) === S.season) amt *= 1.04; // independents travelling together
   const top = Math.max(...t.team.map(m => m.lvl));
   for (const m of t.team) {
@@ -2429,6 +2429,9 @@ function leagueOffseason(standings, changes) {
 // Companions each fill a role that helps the rest of the party. The apprentice travels along, has road battles and
 // grows from watching; nobody can be an apprentice for more than two seasons.
 const PARTY_SIZE = 6, PARTY_CHASERS = 3, PARTY_COMPANIONS = 2, PARTY_APPRENTICES = 1, APPRENTICE_SEASONS = 2;
+// 2.0 balance: parties put stronger, better-supported chasers on the circuit, so everyone levels a little slower
+// (with Elite Four 81/84/87/89 and Champion 96/97 this gives about 11 qualifiers and 40-45% title changes in a 4-team League)
+const PARTY_PACE = 0.9;
 const PARTY_BONUS = 3; // Team Cup points when all three of a party's chasers complete the badge circuit
 const PARTY_ROLES = {
   breeder:     { name: 'Breeder',     text: "Keeps the party's Pokémon in form: a loss or a faint cools them off less.", cls: /Breeder/ },

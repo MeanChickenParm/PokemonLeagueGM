@@ -29,6 +29,7 @@ const UPDATES = [
     "The retired ranch and the historical ranch are now one Hall, with filters for title rosters and retired Pokémon.",
     "A party can move to a League where one of its legendaries is already held, if you leave that legendary in the ranch.",
     "New: the Team Battle Cup. After the Leagues every team meets in a knockout of best-of-five single-battle series at equal level. Anyone in a party can battle, companions included. You set the lineup on the Party page. The winner earns 5 Team Cup points, the runner-up 2.",
+    "Balance for parties: Pokémon level up a little slower, the Elite Four are at levels 81 to 89 and the Champion at 96 (97 with several Leagues). In test seasons a 4-team League sees about 11 trainers finish the badge circuit and the title change hands a little under half the time.",
     "After each draft there's a party step: new arrivals are placed for you, and you can swap anyone's place or change a companion's role before confirming. The Party page (Office menu) shows it any time.",
     "Champions start four levels higher (95, or 96 with several Leagues), because a team's three best trainers are now the ones on the circuit.",
     "World structure: a new world has 1 to 4 Leagues, and you choose how many of them you field a party in. A team has at most one party per League, other teams choose their own Leagues, and a party is permanent once founded.",
