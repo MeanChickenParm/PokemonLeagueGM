@@ -381,7 +381,7 @@ function navGroups() {
     return ['t' + t.id, `${orgMark(t.org)}<span class="ttab-n">${t.cls} ${t.name}</span>${pip}`];
   });
   return [
-    { k: 'office', label: 'Office', items: [...office, ['party', nLeagues() > 1 ? 'Parties' : 'Party']] },
+    { k: 'office', label: 'Office', items: [...office, ['party', nLeagues() > 1 ? 'Parties' : 'Party'], ...(godOn() ? [['god', 'God mode']] : [])] },
     { k: 'trainers', label: 'Trainers', items: mine.length ? [...mine, null, ['trainers', 'All trainers']] : [['trainers', 'All trainers']] },
     { k: 'league', label: 'League', items: [['circuit', 'Standings'], ['gyms', 'Gyms & Elite'], ...(featOn('tourney') || (S.tourneyHist || []).length ? [['tourney', 'Midseason Tournament']] : []), ['history', 'History']] },
     { k: 'stats', label: 'Stats', items: [['records', 'Records'], ['dex', 'Pokémon'], ['hof', 'Hall of Fame']] },
@@ -414,6 +414,7 @@ const stopTourneyOpt = () => `<button class="adv-opt${simStopTourney ? ' on' : '
 function simToTourney() { let g = 0; while (S.phase === 'season' && S.week < TOURNEY_WEEK - 1 && g++ < 60) simWeek({}, {}); }
 
 // ---------- setup ----------
+let setupParties = 1, setupGrowth = true, setupGod = false;
 let setupLeagues = 1, setupTeams = 4, setupRoster = 6, setupPage = 'main', setupAdv = { allFamous: false }, setupBaseOff = false, setupPacks = {}, setupPackOpen = {}, setupOff = {}, setupTourneyRule = 'rotate';
 // every section on the Advanced page folds; folded sections show a one-line summary
 let setupFold = {};
@@ -850,9 +851,12 @@ function viewSetup() {
     <div class="setup-opts">
       <div><div class="eyebrow">Teams</div><div class="segs setup-segs">${opt('setteams', 4, setupTeams, '4 teams')}${opt('setteams', 8, setupTeams, '8 teams')}</div></div>
       <div><div class="eyebrow">Party${setupLeagues > 1 ? ', in each League' : ''}</div><p class="muted small" style="margin:4px 0 0">Six trainers travel together: 3 title chasers, 2 companions and 1 apprentice.</p></div>
-      <div><div class="eyebrow">Leagues</div><div class="segs setup-segs three">${[1, 2, 4].map(n => opt('setleagues', n, setupLeagues, n + (n === 1 ? ' League' : ' Leagues'))).join('')}</div></div>
+      <div><div class="eyebrow">Leagues</div><div class="segs setup-segs">${[1, 2, 3, 4].map(n => opt('setleagues', n, setupLeagues, String(n))).join('')}</div></div>
+      <div><div class="eyebrow">Leagues you field a party in</div><div class="segs setup-segs">${Array.from({ length: setupLeagues }, (_, x) => opt('setparties', x + 1, Math.min(setupParties, setupLeagues), String(x + 1))).join('')}</div></div>
+      ${setupLeagues < 4 ? `<div><div class="eyebrow">New Leagues open over time</div><div class="segs setup-segs">${opt('setgrowth', 1, setupGrowth ? 1 : 0, 'On')}${opt('setgrowth', 0, setupGrowth ? 1 : 0, 'Off')}</div></div>` : ''}
+      <div><div class="eyebrow">God mode</div><div class="segs setup-segs">${opt('setgod', 0, setupGod ? 1 : 0, 'Off')}${opt('setgod', 1, setupGod ? 1 : 0, 'On')}</div></div>
     </div>
-    <p class="muted small">${setupLeagues > 1 ? `${setupLeagues === 4 ? 'All four regions (Kanto, Johto, Hoenn and Sinnoh)' : `${setupLeagues} regions drawn at random from Kanto, Johto, Hoenn and Sinnoh`}, each with its own gyms, Elite Four and Champion. In each one: ` : 'The region is drawn at random from Kanto, Johto, Hoenn and Sinnoh. '}${total} team trainers plus ${Math.max(8, 24 - total)} independents on the circuit. The founding draft is ${setupRoster * setupLeagues} round${setupRoster * setupLeagues > 1 ? 's' : ''}.${setupLeagues > 1 ? ' The Team Cup counts every League, and the Champions meet in a World Championship after the Leagues. Teams can move trainers between Leagues in the offseason.' : ''}</p>
+    <p class="muted small">${setupLeagues > 1 ? `${setupLeagues === 4 ? 'All four regions (Kanto, Johto, Hoenn and Sinnoh)' : `${setupLeagues} regions drawn at random from Kanto, Johto, Hoenn and Sinnoh`}, each with its own gyms, Elite Four and Champion. You field a party in ${Math.min(setupParties, setupLeagues)} of them; the other teams choose their own. ` : 'The region is drawn at random from Kanto, Johto, Hoenn and Sinnoh. '}A team has at most one party per League, and a party is permanent once founded. ${setupLeagues < 4 && setupGrowth ? 'A new League opens every 8 to 12 seasons until all four regions are in, and you decide whether to found a party there. ' : ''}${setupLeagues > 1 || (setupLeagues < 4 && setupGrowth) ? "The Team Cup counts each team's best party scores (as many as the team with the fewest parties has), and the Champions meet in a World Championship. " : ''}${setupGod ? 'God mode adds a page where you can open Leagues and add parties and teams by hand.' : ''}</p>
     <div class="confirm-row"><button class="btn" data-act="setuppage" data-v="advanced">Advanced options</button>${advOn.length ? advOn.map(x => `<span class="tag gold">${x}</span>`).join(' ') : '<span class="muted small">None selected</span>'}</div></section>
     <div class="ph pick-h"><h2>Choose your team</h2><span class="muted">The other ${setupTeams === 8 ? 'seven' : 'three'} teams are picked at random from the rest.</span></div>
     <div class="org-pick">${keys.map(k => `<button class="org-card" data-act="pickorg" data-k="${k}" style="--oc:${ORGS[k].color}">
@@ -869,7 +873,7 @@ function viewOffice() {
   if (S.phase === 'season' && tourneyPaused()) main = `<section class="panel callout"><div class="eyebrow">Season ${S.season} · after week ${TOURNEY_WEEK}</div><h2>The Midseason Tournament is complete</h2><p>${tname(S.tourney.winner)} won it${S.tourney.runner ? `, beating ${tname(S.tourney.runner)} in the final` : ''}. See the bracket and how your trainers did before the season goes on.</p><div class="confirm-row"><button class="btn primary" data-act="nav" data-v="tourney">See the Midseason Tournament</button><button class="btn" data-act="tourneydone">Continue to week ${S.week + 1}</button></div></section>`;
   else if (S.phase === 'season') main = legendBanner() + roamBanner() + stormBanner() + villainBanner() + outbreakBanner() + teamOverview(roster) + skyPanel();
   else if (S.phase === 'league') main = `<section class="panel callout"><h2>The regular season is over</h2><p>${challengers().filter(t => t.badges.length === 8).length} trainers completed the badge circuit. Qualifiers face the four Elite Four members in order, then the Champion. One loss ends the run. If someone takes the title, every challenger after them faces the new Champion.</p><button class="btn primary" data-act="runleague">Run the Pokémon League</button></section>`;
-  else if (S.phase === 'offseason') main = `<section class="panel callout"><h2>Season ${S.season} is in the books</h2><p>${orgName(S.history[S.history.length - 1].cup)} won the Team Cup and ${tname(S.champion)} is Champion. Read the recap before the draft.</p><button class="btn primary" data-act="nav" data-v="recap">Read the season recap</button></section>`;
+  else if (S.phase === 'offseason') main = `<section class="panel callout"><h2>Season ${S.season} is in the books</h2><p>${orgName(S.history[S.history.length - 1].cup)} won the Team Cup and ${tname(S.champion)} is Champion. Read the recap before the draft.</p><button class="btn primary" data-act="nav" data-v="recap">Read the season recap</button></section>${expandNote()}`;
   else if (S.phase === 'gifts') main = `<section class="panel callout"><h2>Farewell gifts</h2><p>The draft is done. Teams that lost a trainer to a post hand over their farewell gifts.</p><button class="btn primary" data-act="nav" data-v="gifts">See the farewell gifts</button></section>`;
   else if (S.phase === 'reassign') main = `<section class="panel callout"><h2>Set your ${nLeagues() > 1 ? 'parties' : 'party'}</h2><p>The draft is done. Decide who chases the title, who travels as a companion and who is the apprentice${nLeagues() > 1 ? ', and which League each trainer is in' : ''}.</p><button class="btn primary" data-act="nav" data-v="reassign">Set your ${nLeagues() > 1 ? 'parties' : 'party'}</button></section>`;
   else if (S.phase === 'banvote') main = `<section class="panel callout"><h2>Banlist vote</h2><p>The teams vote on banning last season's top performers before the Champion's reward and the ranch.</p><button class="btn primary" data-act="nav" data-v="banvote">Vote on the banlist</button></section>`;
@@ -884,13 +888,13 @@ function viewOffice() {
       <section class="panel"><div class="ph"><h3>Latest news</h3><button class="link" data-act="nav" data-v="news">All news</button></div>${newsList(S.news.slice(0, 7))}</section>
     </div></div>`;
 }
-const cupNow = () => S.phase === 'offseason' ? cupStandings() : orgStandings(null);
+const cupNow = () => S.phase === 'offseason' ? cupStandings() : nLeagues() > 1 ? cupStandings(true) : orgStandings(null);
 function cupCard() {
   const st = cupNow();
   const max = Math.max(1, ...st.map(r => r.pts));
   return `<section class="panel"><div class="ph"><h3>Team Cup</h3><span class="muted">Season ${S.season || 1}${S.phase === 'season' ? ', live' : ''}</span></div>
     <div class="cup">${st.map((r, i) => `<div class="cup-row${r.key === S.userOrg ? ' mine' : ''}"><span class="num">${i + 1}</span>${orgMark(r.key)}<span class="cup-n">${ORGS[r.key].short}</span><span class="cup-bar"><i style="width:${r.pts / max * 100}%;background:${ORGS[r.key].color}"></i></span><span class="num">${r.pts}</span></div>`).join('')}</div>
-    <p class="fine">${nLeagues() > 1 ? `Every League counts. World Championship: ${WORLD_PTS.win} for the winner's team, ${WORLD_PTS.final} for the runner-up's. ` : ''}1 point per badge, 3 for reaching the League, 2 per Elite Four win, 10 for winning the title. Only title chasers score; ${PARTY_BONUS} more if all three of a party's chasers complete the badge circuit. Each title defense earns 3 for the team the Champion represents. Legacy: +1 per Gym Leader and +2 per Elite Four member promoted from the team (up to 4 a season).</p></section>`;
+    <p class="fine">${nLeagues() > 1 ? `Each team counts its best ${st[0].counted || 1} party score${(st[0].counted || 1) > 1 ? 's' : ''}: as many as the team with the fewest parties has. Ties go to the team with the best single chaser. World Championship: ${WORLD_PTS.win} for the winner's team, ${WORLD_PTS.final} for the runner-up's. ` : ''}1 point per badge, 3 for reaching the League, 2 per Elite Four win, 10 for winning the title. Only title chasers score; ${PARTY_BONUS} more if all three of a party's chasers complete the badge circuit. Each title defense earns 3 for the team the Champion represents. Legacy: +1 per Gym Leader and +2 per Elite Four member promoted from the team (up to 4 a season).</p></section>`;
 }
 // "a shiny alpha Delta", "an alpha", "a Delta"...
 function catchWords(e) {

@@ -509,7 +509,7 @@ const TRAITS = {
   homeTurf:    { name: 'Home Turf',    text: 'As a Gym Leader, Elite Four member or Champion, defends their seat at +4%.' },
   purist:      { name: 'Purist',       text: 'Battles at +3% when every Pokémon on the team fits their specialty.' },
   hero:        { name: 'Hero',         text: 'Fights villain teams at +6% and opens Shadow Pokémon hearts faster.' },
-  globetrotter:{ name: 'Globetrotter', text: 'At their best in the World Championship (+5%), keener to move Leagues and chase the Grand Slam.' },
+  globetrotter:{ name: 'Globetrotter', text: 'At their best in the World Championship (+5%), keener to move Leagues and chase the Triple Crown.' },
 };
 const TRAIT_CHANCE = 0.75;
 // famous trainers get the trait that fits them

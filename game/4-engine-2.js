@@ -1440,7 +1440,7 @@ function lgRoster(k, i = S.lg || 0) { return org(k).roster.filter(id => lgOf(T(i
 // the League where a team has room, the emptiest first (null when full everywhere)
 function openLeague(k) {
   let best = null, n = Infinity;
-  for (let i = 0; i < nLeagues(); i++) { const c = lgRoster(k, i).length; if (c < ROSTER && c < n) { best = i; n = c; } }
+  for (let i = 0; i < nLeagues(); i++) { if (!fieldsIn(k, i)) continue; const c = lgRoster(k, i).length; if (c < ROSTER && c < n) { best = i; n = c; } }
   return best;
 }
 // v163: before this fix a trainer could end up listed in two Leagues at once (a post in one, the circuit of the other)
@@ -1535,8 +1535,8 @@ function fixHallOfFame() {
 }
 // the circuit holds about 20 challengers: independents fill whatever the teams don't (at least 6)
 const CIRCUIT_SIZE = 24; // challengers on the circuit: team trainers plus independents
-const indieCap = () => Math.max(8, CIRCUIT_SIZE - ORG_KEYS.length * PARTY_CHASERS);
-const draftClassSize = () => Math.max(8, Math.round(ORG_KEYS.length * ROSTER * 0.4) + 4) * nLeagues();
+const indieCap = (i = S.lg || 0) => Math.max(8, CIRCUIT_SIZE - orgsIn(i).length * PARTY_CHASERS);
+const draftClassSize = () => Math.max(8 * nLeagues(), Math.round(totalParties() * ROSTER * 0.4) + 4 * nLeagues()) + Math.max(0, openSpots() - ORG_KEYS.length) + (S.leagueOpened && S.leagueOpened.season === S.season + 1 ? 20 : 0);
 const START_TEAM = 3; // Pokémon a challenger may register at the start of a season
 function org(k) { return S.orgs[k]; }
 // positions held (Gym Leader, Elite Four, Champion) and team history, for the Trainers tab
@@ -1576,12 +1576,22 @@ function orgStandings(L) {
   return ORG_KEYS.map(k => { const legacy = legacyPoints(k); return { key: k, legacy, pts: org(k).roster.filter(id => T(id).role !== 'champion').reduce((a, id) => a + trainerPoints(T(id), L), 0) + defensePoints(k, L) + legacy + partyBonus(k) }; }).sort((a, b) => b.pts - a.pts);
 }
 // the Team Cup: every League's points added up, plus the World Championship
-function cupStandings() {
-  if (nLeagues() === 1) return orgStandings(S.league);
-  const pts = {};
-  eachLeague(i => { const L = S.league; for (const k of ORG_KEYS) pts[k] = (pts[k] || 0) + lgRoster(k, i).filter(id => T(id).role !== 'champion').reduce((a, id) => a + trainerPoints(T(id), L), 0) + defensePoints(k, L) + partyBonus(k, i); });
-  const W = S.worlds;
-  return ORG_KEYS.map(k => { const legacy = legacyPoints(k); const world = W ? (W.winnerOrg === k ? WORLD_PTS.win : 0) + (W.runnerOrg === k ? WORLD_PTS.final : 0) : 0; return { key: k, legacy, world, pts: pts[k] + legacy + world }; }).sort((a, b) => b.pts - a.pts);
+function cupStandings(live) {
+  if (nLeagues() === 1) return orgStandings(live ? null : S.league);
+  const per = {};
+  eachLeague(i => { const L = live ? null : S.league; for (const k of ORG_KEYS) {
+    const ids = lgRoster(k, i).filter(id => T(id).role !== 'champion');
+    const pts = ids.reduce((a, id) => a + trainerPoints(T(id), L), 0) + defensePoints(k, L) + partyBonus(k, i);
+    if (fieldsIn(k, i) || pts) (per[k] = per[k] || []).push({ i, pts, best: Math.max(0, ...ids.map(id => trainerPoints(T(id), L))) });
+  } });
+  const sizes = ORG_KEYS.map(k => partyLeagues(k).length).filter(n => n > 0);
+  const N = Math.max(1, sizes.length ? Math.min(...sizes) : 1);
+  const W = live ? null : S.worlds;
+  return ORG_KEYS.map(k => {
+    const ps = (per[k] || []).slice().sort((a, b) => b.pts - a.pts), legacy = legacyPoints(k);
+    const world = W ? (W.winnerOrg === k ? WORLD_PTS.win : 0) + (W.runnerOrg === k ? WORLD_PTS.final : 0) : 0;
+    return { key: k, legacy, world, counted: N, parties: ps, best: Math.max(0, ...ps.map(p => p.best)), pts: ps.slice(0, N).reduce((a, p) => a + p.pts, 0) + legacy + world };
+  }).sort((a, b) => b.pts - a.pts || b.best - a.best);
 }
 function champOrg() { const c = T(S.champion); return c ? c.champOrg || null : null; }
 
@@ -1714,6 +1724,7 @@ function runLeague() {
   if (nLeagues() > 1) worldChampionship();
   S.phase = 'offseason';
   offseason();
+  worldGrowth();
   orderOffers();
 }
 // ---------- World Championship: the Champions of every League meet once the Leagues are done ----------
@@ -1737,13 +1748,16 @@ function worldBattle(a, b, round, W) {
 function worldChampionship() {
   const champs = eachLeague(() => S.champion);
   const W = { season: S.season, entrants: champs.slice(), matches: [], winner: null, runner: null };
-  let finalists;
-  if (champs.length >= 4) {
-    const seed = shuffle(champs.slice());
-    const s1 = worldBattle(seed[0], seed[1], 'Semifinal', W), s2 = worldBattle(seed[2], seed[3], 'Semifinal', W);
-    finalists = [s1.w, s2.w];
-  } else finalists = champs.slice(0, 2);
-  const f = worldBattle(finalists[0], finalists[1], 'Final', W);
+  // 2.0: a knockout for any number of Leagues; with an odd field the Champions with the strongest teams get byes
+  let P = 2; while (P < champs.length) P *= 2;
+  const byes = P - champs.length;
+  const ranked = byes ? champs.slice().sort((a, b) => teamPower(T(b)) - teamPower(T(a))) : shuffle(champs.slice());
+  let alive = ranked.slice(0, byes); W.byes = alive.slice();
+  const rest = shuffle(ranked.slice(byes));
+  const rname = n => n <= 2 ? 'Final' : n <= 4 ? 'Semifinal' : 'Quarterfinal';
+  if (rest.length && champs.length > 2) { const nm = rname(P); const next = []; for (let x = 0; x + 1 < rest.length; x += 2) next.push(worldBattle(rest[x], rest[x + 1], nm, W).w); alive = alive.concat(next); } else alive = alive.concat(rest);
+  while (alive.length > 2) { const nm = rname(alive.length), next = []; for (let x = 0; x + 1 < alive.length; x += 2) next.push(worldBattle(alive[x], alive[x + 1], nm, W).w); if (alive.length % 2) next.push(alive[alive.length - 1]); alive = next; }
+  const f = worldBattle(alive[0], alive[1], 'Final', W);
   W.winner = f.w; W.runner = f.l;
   const t = T(f.w);
   t.career.worlds = (t.career.worlds || 0) + 1; (t.worldSeasons = t.worldSeasons || []).push(S.season);
@@ -2069,7 +2083,7 @@ function rejoin(t, k, releaseId) {
 }
 function offerRejoin(t) {
   const k = t.homeOrg; t.homeOrg = null;
-  if (!k || t.org || t.role !== 'challenger' || !ORG_KEYS.includes(k)) return;
+  if (!k || t.org || t.role !== 'challenger' || !ORG_KEYS.includes(k) || !fieldsIn(k, lgOf(t))) return;
   if (k === S.userOrg) {
     if (!S.offers.some(o => o.kind === 'rejoin' && o.id === t.id)) S.offers.push({ kind: 'rejoin', id: t.id, org: k, lg: S.lg || 0 });
     news(`${dn(t)} is back on the circuit. As their former team, you can bring them back.`, 'you', t.id);
@@ -2484,7 +2498,12 @@ function autoParty(k, i = S.lg || 0) {
   const P = partyOf(k, i); if (!P.length) return;
   for (const t of P) { t.slot = null; t.prole = null; }
   P.slice().sort((a, b) => ovr(b) - ovr(a) || a.id - b.id).slice(0, PARTY_CHASERS).forEach(t => { t.slot = 'chaser'; });
-  for (const t of fixParty(k, i)) release(t, canApprentice(t) ? 'with no place left in the party' : 'after two seasons as an apprentice');
+  // someone left over and no apprentice: a chaser who still can be one steps back, and the strongest leftover chases
+  for (const t of fixParty(k, i)) {
+    const a = !P.some(x => x.slot === 'apprentice') && P.filter(x => x.slot === 'chaser' && canApprentice(x)).sort((x, y) => ovr(x) - ovr(y))[0];
+    if (a) { a.slot = 'apprentice'; t.slot = 'chaser'; }
+    else release(t, canApprentice(t) ? 'with no place left in the party' : 'after two seasons as an apprentice');
+  }
   assignRoles(partyOf(k, i), true);
 }
 const eachParty = fn => { for (const k of ORG_KEYS) for (let i = 0; i < nLeagues(); i++) inLeague(i, () => fn(k, i)); };
@@ -2524,4 +2543,149 @@ function setPartyRole(id, role) {
   if (other) other.prole = t.prole;
   t.prole = role;
   return true;
+}
+
+// ================= WORLD STRUCTURE (2.0) =================
+// A team (sponsor) fields a party only in the Leagues it chooses, at most one per League. A party, once founded, is
+// never folded. New Leagues can open as the seasons go by, and teams decide whether to enter them.
+const MAX_LEAGUES = LEAGUE_SETS.length, LEAGUE_GAP = [8, 12], EXPAND_COOLDOWN = 3, NEW_PARTY_MOVES = 3;
+const lgRange = () => Array.from({ length: nLeagues() }, (_, i) => i);
+// missing list = every League (worlds made before parties could be optional)
+const fieldsIn = (k, i) => { const o = org(k); return !!o && (!o.lgs || o.lgs.includes(i)); };
+const partyLeagues = k => lgRange().filter(i => fieldsIn(k, i));
+const orgsIn = i => ORG_KEYS.filter(k => fieldsIn(k, i));
+const totalParties = () => ORG_KEYS.reduce((a, k) => a + partyLeagues(k).length, 0);
+const openSpots = () => ORG_KEYS.reduce((a, k) => a + partyLeagues(k).reduce((b, i) => b + Math.max(0, ROSTER - lgRoster(k, i).length), 0), 0);
+const regionOf = i => (S.regionOrder && S.regionOrder[i] != null ? S.regionOrder[i] : i);
+const nextRegionName = () => nLeagues() < MAX_LEAGUES ? LEAGUE_SETS[regionOf(nLeagues())].name : null;
+function scheduleLeague() {
+  if (S.cfg && S.cfg.growth && nLeagues() < MAX_LEAGUES && !S.nextLeague) S.nextLeague = { season: S.season + ri(LEAGUE_GAP[0], LEAGUE_GAP[1]), told: false };
+}
+const expandReady = k => { const o = org(k); return o.lastFound == null || S.season + 1 - o.lastFound >= EXPAND_COOLDOWN; };
+// can this team found a party in League i right now? (before the draft, so the draft can fill it)
+function foundBlock(k, i, god) {
+  if (!org(k) || i < 0 || i >= nLeagues()) return 'No such League.';
+  if (fieldsIn(k, i)) return `${orgName(k)} already has a party in the ${leagueName(i)}.`;
+  if (S.phase !== 'offseason') return 'A new party can only be founded in the offseason, before the draft.';
+  if (!god && !expandReady(k)) return `${orgName(k)} founded a party in Season ${org(k).lastFound}. A team can found one every ${EXPAND_COOLDOWN} seasons.`;
+  return null;
+}
+// found a party in League i. ids: up to three of the team's own trainers to send over; the draft fills the rest
+function foundParty(k, i, ids, god) {
+  const why = foundBlock(k, i, god); if (why) return why;
+  const o = org(k);
+  if (!o.lgs) o.lgs = lgRange().filter(x => x !== i);
+  o.lgs = [...new Set([...o.lgs, i])].sort((a, b) => a - b);
+  o.lastFound = S.season + 1;
+  const sent = [];
+  for (const id of (ids || []).slice(0, NEW_PARTY_MOVES)) { const t = T(id); if (t && t.org === k && t.role === 'challenger' && lgOf(t) !== i && !moveBlock(t, i)) { shiftLeague(t, i); t.slot = null; t.prole = null; sent.push(t); } }
+  inLeague(i, () => news(`${orgName(k)} founded a party in the ${leagueName(i)}${sent.length ? `, sending ${sent.map(t => t.name).join(', ')} to start it` : ''}. The draft will fill it out.`, k === S.userOrg ? 'you' : 'league'));
+  return null;
+}
+// which of its own trainers a team sends to start a new party: its best non-chasers, two at most from one party
+function aiSeeds(k, i) {
+  const out = [];
+  for (const j of partyLeagues(k)) {
+    if (j === i) continue;
+    const P = partyOf(k, j); if (P.length < 5) continue;
+    out.push(...P.filter(t => t.slot !== 'chaser' && !moveBlock(t, i)).sort((a, b) => ovr(b) - ovr(a)).slice(0, 2));
+  }
+  return out.sort((a, b) => ovr(b) - ovr(a)).slice(0, NEW_PARTY_MOVES).map(t => t.id);
+}
+// each offseason an AI team may enter one League it isn't in: keener and stronger teams sooner, and a brand-new League most of all
+function aiExpansion() {
+  if (S.phase !== 'offseason') return;
+  const h = S.history[S.history.length - 1], ranks = h && h.standings ? h.standings.map(r => r.key) : [];
+  for (const k of ORG_KEYS) {
+    if (k === S.userOrg || !expandReady(k)) continue;
+    const o = org(k); if (o.amb == null) o.amb = rand();
+    const away = lgRange().filter(i => !fieldsIn(k, i)); if (!away.length) continue;
+    const fresh = S.leagueOpened && S.leagueOpened.season === S.season + 1 ? S.leagueOpened.i : null;
+    const i = away.includes(fresh) ? fresh : pick(away);
+    const top = ranks.length && ranks.indexOf(k) > -1 && ranks.indexOf(k) < ranks.length / 2;
+    const p = (0.1 + 0.45 * o.amb + (top ? 0.2 : 0)) * (i === fresh ? 1 : 0.3);
+    if (rand() < p) foundParty(k, i, aiSeeds(k, i));
+  }
+}
+// open the next region's League: gyms, Elite Four, a Champion and (after the draft) a circuit of independents
+function openNewLeague() {
+  if (nLeagues() >= MAX_LEAGUES || S.phase !== 'offseason') return null;
+  const i = nLeagues(), reg = LEAGUE_SETS[regionOf(i)];
+  for (const k of ORG_KEYS) { const o = org(k); if (!o.lgs) o.lgs = lgRange(); } // nobody is in the new League until they choose to be
+  S.leagues.push({ gyms: [], e4: [], champion: null, challengers: [], history: [], stats: { ko: {}, use: {} }, lastBattles: [], meta: null, towns: reg.towns.slice(), lgName: reg.name });
+  if (S.cfg) S.cfg.leagues = nLeagues();
+  inLeague(i, () => foundLeague());
+  S.leagueOpened = { i, season: S.season + 1 };
+  S.nextLeague = null; scheduleLeague();
+  inLeague(i, () => news(`The ${reg.name} opens for Season ${S.season + 1}, with its own gyms, Elite Four and Champion. Teams can found a party there before the draft.`, 'league'));
+  return i;
+}
+// before the draft: a full party where nobody can be the apprentice any more lets its least valued non-chaser go,
+// so the draft can bring in someone who can
+function preDraftTrim(k) {
+  for (const i of partyLeagues(k)) inLeague(i, () => {
+    const P = partyOf(k, i); if (P.length < PARTY_SIZE) return;
+    const top = P.slice().sort((a, b) => ovr(b) - ovr(a)).slice(0, PARTY_CHASERS);
+    if (P.some(t => !top.includes(t) && canApprentice(t))) return;
+    const out = P.filter(t => !top.includes(t)).sort((a, b) => tradeValue(a, k) - tradeValue(b, k))[0];
+    if (out) release(out, 'to make room for a new apprentice');
+  });
+}
+// after each offseason: announce a League a season ahead, open it when its time comes, and let AI teams expand
+function worldGrowth() {
+  if (S.phase !== 'offseason') return;
+  scheduleLeague();
+  for (const k of ORG_KEYS) if (k !== S.userOrg) preDraftTrim(k);
+  const n = S.nextLeague;
+  if (n && nLeagues() < MAX_LEAGUES) {
+    if (n.season <= S.season + 1) {
+      const i = openNewLeague();
+      if (i != null) {
+        aiExpansion();
+        // a new League never starts without a team: the keenest one that can goes in
+        if (!orgsIn(i).some(k => k !== S.userOrg)) { const k = ORG_KEYS.filter(x => x !== S.userOrg).sort((a, b) => (org(b).amb || 0) - (org(a).amb || 0))[0]; if (k) foundParty(k, i, aiSeeds(k, i), true); }
+        return;
+      }
+    } else if (!n.told && n.season === S.season + 2) { n.told = true; news(`A new League is coming: the ${nextRegionName()} will open in Season ${n.season}. Teams will be able to found a party there.`, 'league'); }
+  }
+  aiExpansion();
+}
+// move a whole party to a League where the team has none, or swap two of its parties. Blocked if a legendary would
+// end up in a League where one is already held.
+function movePartyBlock(k, from, to) {
+  if (S.phase !== 'offseason' && S.phase !== 'reassign') return 'Parties move in the offseason.';
+  if (from === to || !fieldsIn(k, from) || to < 0 || to >= nLeagues()) return 'No move possible.';
+  const A = partyOf(k, from), B = fieldsIn(k, to) ? partyOf(k, to) : [];
+  const legs = P => P.flatMap(t => t.team.filter(m => SP[m.sp].legend).map(m => m.sp));
+  const held = (i, leaving) => inLeague(i, () => { const h = new Set(); for (const x of leagueTrainers()) if (!leaving.includes(x) && !['retired', 'prospect', 'free'].includes(x.role)) for (const m of x.team || []) if (SP[m.sp].legend) h.add(m.sp); return h; });
+  const hTo = held(to, B), hFrom = held(from, A);
+  const c1 = legs(A).find(sp => hTo.has(sp)), c2 = legs(B).find(sp => hFrom.has(sp));
+  if (c1) return `Someone in the ${leagueName(to)} already has ${c1}.`;
+  if (c2) return `Someone in the ${leagueName(from)} already has ${c2}.`;
+  return null;
+}
+function moveParty(k, from, to) {
+  const why = movePartyBlock(k, from, to); if (why) return why;
+  const o = org(k), swap = fieldsIn(k, to);
+  const A = partyOf(k, from), B = swap ? partyOf(k, to) : [];
+  for (const t of A) shiftLeague(t, to);
+  for (const t of B) shiftLeague(t, from);
+  if (!swap) { if (!o.lgs) o.lgs = lgRange(); o.lgs = o.lgs.filter(i => i !== from).concat(to).sort((a, b) => a - b); }
+  inLeague(to, () => news(swap ? `${orgName(k)} swapped its ${leagueName(from)} and ${leagueName(to)} parties.` : `${orgName(k)} moved its party from the ${leagueName(from)} to the ${leagueName(to)}.`, k === S.userOrg ? 'you' : 'move'));
+  return null;
+}
+// ---------- god mode: add Leagues, parties and teams by hand ----------
+const godOn = () => !!(S && S.cfg && S.cfg.god);
+function godOpenLeague() { if (!godOn()) return 'God mode is off.'; if (nLeagues() >= MAX_LEAGUES) return 'Every region is already open.'; if (S.phase !== 'offseason') return 'Open a League in the offseason, before the draft.'; return openNewLeague() == null ? 'Could not open a League.' : null; }
+function godFoundParty(k, i) { if (!godOn()) return 'God mode is off.'; return foundParty(k, i, k === S.userOrg ? [] : aiSeeds(k, i), true); }
+function godAddTeam(k) {
+  if (!godOn()) return 'God mode is off.';
+  if (!ALL_ORG_KEYS.includes(k) || ORG_KEYS.includes(k)) return 'That team is already in the world.';
+  if (S.phase !== 'offseason') return 'Add a team in the offseason, before the draft.';
+  for (const x of ORG_KEYS) { const o = org(x); if (!o.lgs) o.lgs = lgRange(); }
+  S.orgs[k] = { key: k, roster: [], hist: [], cups: 0, lgs: [], amb: rand() };
+  S.orgKeys = ALL_ORG_KEYS.filter(x => x === k || S.orgKeys.includes(x)); ORG_KEYS = S.orgKeys;
+  if (S.cfg) S.cfg.teams = ORG_KEYS.length;
+  news(`${orgName(k)} has joined the world as a new team.`, 'league');
+  return null;
 }

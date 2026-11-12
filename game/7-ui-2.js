@@ -56,8 +56,8 @@ function accolades(t) {
   const ts = t.titleSeasons || [];
   if (ts.length || t.career.titles) a.push({ k: 'title', tag: `Champion${(ts.length || t.career.titles) > 1 ? ' ×' + (ts.length || t.career.titles) : ''}`, text: `League Champion${ts.length ? ' (' + seasonsLg(titleList(t)) + ')' : ''}` });
   if (nLeagues() > 1) {
-    if (isGrandSlam(t)) a.push({ k: 'slam', tag: 'Grand Slam', text: `Grand Slam: Champion of ${nLeagues() === 2 ? 'both' : 'all ' + nLeagues()} Leagues${t.grandSlam ? ', completed in Season ' + t.grandSlam : ''}` });
-    else { const cl = champLeaguesOf(t), N = nLeagues(); if (cl.size >= Math.min(2, N - 1)) a.push({ k: 'multi', tag: `Slam ${cl.size}/${N}`, text: `Champion of ${cl.size} of ${N} Leagues: ${[...cl].sort().map(leagueName).join(', ')}. Still to win for the Grand Slam: ${unwonLeagues(t).map(leagueName).join(', ')}${slamProtected(t) ? '. Chasing the Slam keeps them going 3 seasons past their usual career length' : ''}` }); }
+    if (isGrandSlam(t)) a.push({ k: 'slam', tag: 'Triple Crown', text: `Triple Crown: Champion of three different Leagues (${[...champLeaguesOf(t)].sort().map(leagueName).join(', ')})${t.grandSlam ? ', completed in Season ' + t.grandSlam : ''}` });
+    else { const cl = champLeaguesOf(t), N = nLeagues(); if (cl.size >= 2) a.push({ k: 'multi', tag: `Crown ${cl.size}/${CROWN_LEAGUES}`, text: `Champion of ${cl.size} Leagues: ${[...cl].sort().map(leagueName).join(', ')}. One more League for the Triple Crown${N >= CROWN_LEAGUES ? ': ' + unwonLeagues(t).map(leagueName).join(' or ') : ''}${slamProtected(t) ? '. Chasing the Crown keeps them going 3 seasons past their usual career length' : ''}` }); }
     const wc = (t.worldSeasons || []).length; if (wc) a.push({ k: 'world', tag: `World Champion${wc > 1 ? ' ×' + wc : ''}`, text: `World Champion (Season ${t.worldSeasons.join(', ')})` });
   }
   for (const c of t.comebacks || []) a.push({ k: 'comeback', tag: '', text: `Stepped down from ${c.gym} Gym${lgIn(c.lg) ? ' (' + leagueName(c.lg) + ')' : ''} in Season ${c.season} after ${c.seasons} outstanding seasons in a row, to chase the title` });
@@ -295,7 +295,7 @@ function viewRecords() {
     ${recBoard('Longest reign', rg.map(r => ({ who: tname(r.id, r.org), v: `${r.n} season${r.n > 1 ? 's' : ''}`, sub: (r.from === r.to ? `Season ${r.from}` : `Seasons ${r.from}–${r.to}`) + (lgIn(S.lg || 0) ? ' · ' + lgIn(S.lg || 0) : '') })), nLeagues() > 1 ? `Seasons ending as Champion in a row, in the ${S.lgName}.` : 'Seasons ending as Champion in a row.')}
     ${recBoard('Most title defenses', topBy(ts, t => t.career.defenses).map(([t, v]) => row(t, v)))}
     ${recBoard('Youngest Champion', wins.slice().sort((a, b) => a.age - b.age || a.s - b.s).slice(0, 5).map(w => row(w.t, `age ${w.age}`, seasonsLg([{ season: w.s, lg: w.lg }]))))}
-    ${nLeagues() > 1 ? recBoard('Grand Slams', ts.filter(isGrandSlam).sort((a, b) => (a.grandSlam || 999) - (b.grandSlam || 999)).slice(0, 5).map(t => row(t, nLeagues() === 2 ? 'both' : 'all ' + nLeagues(), t.grandSlam ? 'completed Season ' + t.grandSlam : '')), 'Champion of every League at a season\'s end.') : ''}
+    ${nLeagues() >= CROWN_LEAGUES ? recBoard('Triple Crowns', ts.filter(isGrandSlam).sort((a, b) => (a.grandSlam || 999) - (b.grandSlam || 999)).slice(0, 5).map(t => row(t, champLeaguesOf(t).size + ' Leagues', t.grandSlam ? 'completed Season ' + t.grandSlam : '')), 'Champion of three different Leagues across a career.') : ''}
     ${nLeagues() > 1 ? recBoard('Most World Championships', topBy(ts, t => (t.worldSeasons || []).length).map(([t, v]) => row(t, v, 'Season ' + t.worldSeasons.join(', ')))) : ''}
     ${recBoard('Oldest Champion', wins.slice().sort((a, b) => b.age - a.age || a.s - b.s).slice(0, 5).map(w => row(w.t, `age ${w.age}`, seasonsLg([{ season: w.s, lg: w.lg }]))))}
   </div></section>`;
@@ -611,6 +611,7 @@ function viewReassign() {
   const fitCell = (t, i) => { const v = leagueFit(t, i); return `<span class="num ${v > 0.05 ? 'good' : v < -0.05 ? 'bad' : 'muted'}">${v > 0 ? '+' : ''}${v.toFixed(2)}</span>`; };
   const actCell = (t, i) => {
     if (i === lgOf(t)) return '<span class="tag">Here</span>';
+    if (!fieldsIn(k, i)) return '<span class="muted small">No party there</span>';
     const block = moveBlock(t, i); if (block) return `<span class="muted small">${block}</span>`;
     if (lgRoster(k, i).length < ROSTER) return `<button class="btn small" data-act="lgmove" data-id="${t.id}" data-v="${i}">Move</button>`;
     const mates = lgRoster(k, i).map(T).filter(x => x.role === 'challenger');
@@ -618,7 +619,7 @@ function viewReassign() {
   };
   const champs = Array.from({ length: NL }, (_, i) => inLeague(i, () => T(S.champion)));
   const summary = Array.from({ length: NL }, (_, i) => `<span><b>${leagueName(i)}</b> · ${lgRoster(k, i).length}/${ROSTER} of yours · ${champs[i] ? tname(champs[i].id) + ' ' + specChips(champs[i]) : '—'}${bansIn(i).length ? ` · <span class="warn">Banned: ${bansIn(i).map(b => b.sp).join(', ')}</span>` : ''}</span>`).join('');
-  const slamNote = t => slamChaser(t) ? ` <span class="tag acc-slam" title="Leagues won toward the Grand Slam">Slam ${champLeaguesOf(t).size}/${NL}</span>` : '';
+  const slamNote = t => slamChaser(t) ? ` <span class="tag acc-slam" title="Leagues won toward the Triple Crown">Crown ${champLeaguesOf(t).size}/${CROWN_LEAGUES}</span>` : '';
   const unwon = (t, i) => slamChaser(t) && !champLeaguesOf(t).has(i) ? ' <span class="tag gold" title="A League this trainer hasn\'t won yet">Unwon</span>' : '';
   const cards = mine.map(t => `<div class="ra-card"><div class="ra-h">${tname(t.id)} ${ovrPill(t)} <span class="small">${specChips(t)}</span>${slamNote(t)}</div>
     ${Array.from({ length: NL }, (_, i) => `<div class="ra-row${i === lgOf(t) ? ' here' : ''}"><span class="ra-lg">${lgShort(i)}${unwon(t, i)}</span>${fitCell(t, i)}<span class="ra-act">${actCell(t, i)}</span></div>`).join('')}</div>`).join('');
@@ -627,7 +628,7 @@ function viewReassign() {
   const start = (S.reassign && S.reassign.start) || {};
   const ours = mine.filter(t => start[t.id] != null && start[t.id] !== lgOf(t)).map(t => ({ org: k, id: t.id, from: start[t.id], to: lgOf(t) }));
   const line = m => `<li>${tname(m.id)}: ${leagueName(m.from)} → ${leagueName(m.to)}${m.swap ? `, swapping with ${tname(m.swap)}` : ''}</li>`;
-  const parties = Array.from({ length: NL }, (_, i) => partyPanel(k, i, true)).join('');
+  const parties = lgRange().filter(i => fieldsIn(k, i)).map(i => partyPanel(k, i, true)).join('');
   const probs = partyProblems();
   const partyIntro = `<p>Your trainers in a League travel together as a party of six: three title chasers, two companions and one apprentice. Only chasers take on gyms and the League and score Team Cup points (plus ${PARTY_BONUS} if all three complete the badge circuit). Each companion fills a role that helps the others. The apprentice has road battles and grows from watching, for two seasons at most.</p><p class="muted small">New arrivals have been placed for you. Tap Move on a trainer, then choose who they swap with. The number beside a role is that trainer's aptitude for it.</p>`;
   const confirmBox = `<section class="panel">${probs.length ? `<ul class="changes">${probs.map(p => `<li class="warn">${p}</li>`).join('')}</ul>` : ''}<div class="confirm-row"><button class="btn primary" data-act="reassignconfirm" ${probs.length ? 'disabled' : ''}>Confirm ${NL > 1 ? 'parties and Leagues' : 'the party'} and continue</button><span class="muted small">Next: ${champOrgsNext()}</span></div></section>`;
@@ -635,7 +636,7 @@ function viewReassign() {
   return `<section class="panel callout"><div class="eyebrow">Season ${S.season + 1} · after the draft</div><h2>Parties and Leagues</h2>${partyIntro}</section>${parties}
   <section class="panel callout"><h2>League reassignment</h2>
     <p>Each team has ${ROSTER} trainer${ROSTER > 1 ? 's' : ''} in every League. Before the season, teams can move trainers to the League where their Pokémon line up best. Moving into a full League means swapping with a teammate there. A legendary can't go to a League where someone already holds one.</p>
-    <p class="muted small">Matchup: how well a trainer's team hits that League's Champion (counted double), its Elite Four and the meta, minus what hits it back. Above zero favours them.${mine.some(slamChaser) ? ' <b>Unwon</b> marks a League a former Champion still needs for the Grand Slam.' : ''}</p></section>
+    <p class="muted small">Matchup: how well a trainer's team hits that League's Champion (counted double), its Elite Four and the meta, minus what hits it back. Above zero favours them.${mine.some(slamChaser) ? ' <b>Unwon</b> marks a League a former Champion still needs for the Triple Crown.' : ''}</p></section>
   <section class="panel"><div class="ph"><h3>Your trainers</h3><span class="muted">${ours.length ? `${ours.length} move${ours.length > 1 ? 's' : ''} made` : 'No moves yet'}</span></div>
     <div class="ra-sum small">${summary}</div>
     ${mine.length ? `<div class="ra-grid">${cards}</div>` : '<p class="muted">You have no trainers on the circuit.</p>'}
@@ -1072,7 +1073,7 @@ const GLOSS_TERMS = {
     ['Elite Four title shot', "If no challenger reaches the Champion, the best unbeaten Elite Four member gets a title match."],
     ['Team Cup', 'The season-long team standings: badges, League wins, titles and posts earn points.'],
     ['World Championship', 'With several Leagues, their Champions meet after the season.'],
-    ['Grand Slam', 'Champion of every League in a multi-League world. Former Champions chase it: other teams move them toward Leagues they haven\'t won, a dethroned one returns to the circuit in an unwon League when there\'s room, and a trainer with titles in 2+ Leagues gets 3 extra seasons before age can retire them.'],
+    ['Triple Crown', 'Champion of three different Leagues across a career (it replaced the Grand Slam). Former Champions chase it: other teams move them toward Leagues they haven\'t won, a dethroned one returns to the circuit in an unwon League when there\'s room, and a trainer with titles in 2+ Leagues gets 3 extra seasons before age can retire them.'],
     ['Midseason Tournament', 'After week 12, every challenger in every League meets in one single-elimination bracket (Gym Leaders, the Elite Four and Champions sit it out). The strongest get any byes. The winner chooses an alpha of any Pokémon that isn\'t one of a kind or a Paradox Pokémon. Each season it\'s played under one special rule, announced after week 8: Inverse Battle, Legendaries banned, Flat levels, Trick Room, Items off, Bring 3, Scalemons, Flipped, 1v1 or Underdog Cup.'],
     ['Hall of Fame', 'Retired Champions.'],
     ['Hall of Shame', "Records nobody wants: worst win rates, longest losing streaks and the like."],
@@ -1230,7 +1231,7 @@ function partyPanel(k, i, edit) {
     };
     const bench = P.filter(t => slotOf(t) === 'bench');
     const cover = ROLE_KEYS.filter(r => P.some(t => t.slot === 'companion' && t.prole === r)).map(r => PARTY_ROLES[r].name);
-    return `<section class="panel"><div class="ph"><h3>${nLeagues() > 1 ? leagueName(i) + ' party' : 'Your party'}</h3><span class="muted">${P.length}/${PARTY_SIZE}${cover.length ? ' · ' + cover.join(' + ') : ''}</span></div>
+    return `<section class="panel"><div class="ph"><h3>${nLeagues() > 1 ? leagueName(i) + ' party' : 'Your party'}</h3><span class="muted">${P.length}/${PARTY_SIZE}${cover.length ? ' · ' + cover.join(' + ') : ''}</span></div>${edit ? partyMoveRow(k, i) : ''}
       ${P.length ? grp('chaser', PARTY_CHASERS, 'Title chasers') + grp('companion', PARTY_COMPANIONS, 'Companions') + grp('apprentice', PARTY_APPRENTICES, 'Apprentice') + (bench.length ? `<div class="pt-grp"><div class="eyebrow">No place · ${bench.length}</div>${bench.map(row).join('')}</div>` : '') : '<p class="muted">No trainers in this League.</p>'}</section>`;
   });
 }
@@ -1239,5 +1240,48 @@ function viewParty() {
   return `<section class="panel callout"><div class="eyebrow">${orgName(S.userOrg)}</div><h2>${nLeagues() > 1 ? 'Parties' : 'Party'}</h2>
     <p>Your trainers in a League travel together as a party of six: three title chasers, two companions and one apprentice. Only chasers take on gyms and the League and score Team Cup points (plus ${PARTY_BONUS} if all three complete the badge circuit). Each companion fills a role that helps the others. The apprentice has road battles and grows from watching, for two seasons at most.</p>
     <p class="muted small">${edit ? "Tap Move on a trainer, then choose who they swap with. The number beside a role is that trainer's aptitude for it." : 'Parties are set in the offseason, after the draft.'}</p></section>
-    ${Array.from({ length: nLeagues() }, (_, i) => partyPanel(S.userOrg, i, edit)).join('')}`;
+    ${S.nextLeague && S.nextLeague.told && nextRegionName() ? `<section class="panel"><p><b>Coming:</b> the ${nextRegionName()} opens in Season ${S.nextLeague.season}. You'll be able to found a party there.</p></section>` : ''}
+    ${Array.from({ length: nLeagues() }, (_, i) => fieldsIn(S.userOrg, i) ? partyPanel(S.userOrg, i, edit) : foundPanel(i)).join('')}`;
+}
+// move a whole party to a League where you have none, or swap two parties
+function partyMoveRow(k, i) {
+  if (nLeagues() < 2 || (S.phase !== 'offseason' && S.phase !== 'reassign')) return '';
+  const btn = j => { const why = movePartyBlock(k, i, j), swap = fieldsIn(k, j); return `<button class="btn small" data-act="pmove" data-f="${i}" data-t="${j}" ${why ? `disabled title="${esc(why)}"` : ''}>${swap ? `Swap with the ${lgShort(j)} party` : `Move to ${lgShort(j)}`}</button>`; };
+  return `<div class="confirm-row" style="margin-top:6px"><span class="muted small">Whole party:</span>${lgRange().filter(j => j !== i).map(btn).join('')}</div>`;
+}
+let foundPick = {}; // League → ids of your trainers chosen to start a new party there
+function foundPanel(i) {
+  const k = S.userOrg, why = foundBlock(k, i);
+  const head = `<div class="ph"><h3>${leagueName(i)}</h3><span class="muted">No party · ${orgsIn(i).length} team${orgsIn(i).length === 1 ? '' : 's'} here</span></div>`;
+  if (why) return `<section class="panel">${head}<p class="muted">${S.phase !== 'offseason' ? 'You have no party in this League. One can be founded in the offseason, before the draft.' : why}</p></section>`;
+  const mine = userTrainers().filter(t => t.role === 'challenger').sort((a, b) => lgOf(a) - lgOf(b) || (SLOT_RANK[slotOf(a)] ?? 9) - (SLOT_RANK[slotOf(b)] ?? 9));
+  const sel = foundPick[i] = (foundPick[i] || []).filter(id => mine.some(t => t.id === id));
+  const row = t => { const on = sel.includes(t.id), block = moveBlock(t, i); return `<div class="pt-row${on ? ' sel' : ''}"><div class="pt-id">${tname(t.id)} ${ovrPill(t)} <span class="muted small">${nLeagues() > 1 ? lgShort(lgOf(t)) + ' · ' : ''}${SLOT_NAMES[slotOf(t)] || ''}</span></div><div class="pt-act">${block ? `<span class="muted small">${block}</span>` : `<button class="btn small${on ? ' primary' : ''}" data-act="fsel" data-i="${i}" data-id="${t.id}" ${!on && sel.length >= NEW_PARTY_MOVES ? 'disabled' : ''}>${on ? 'Going' : 'Send'}</button>`}</div></div>`; };
+  return `<section class="panel">${head}
+    <p>Found a party here and it's yours for good. Send up to ${NEW_PARTY_MOVES} of your own trainers to start it; the draft fills the rest of both parties. You can found one party every ${EXPAND_COOLDOWN} seasons.</p>
+    ${mine.map(row).join('')}
+    <div class="confirm-row"><button class="btn primary" data-act="found" data-i="${i}">Found a party in the ${leagueName(i)}</button><span class="muted small">${sel.length ? `${sel.length} trainer${sel.length > 1 ? 's' : ''} going` : 'Nobody chosen: the draft fills all six spots'}</span></div></section>`;
+}
+function expandNote() {
+  const k = S.userOrg; if (!k || S.phase !== 'offseason') return '';
+  const can = lgRange().filter(i => !fieldsIn(k, i) && !foundBlock(k, i)); if (!can.length) return '';
+  const fresh = S.leagueOpened && S.leagueOpened.season === S.season + 1 && can.includes(S.leagueOpened.i);
+  return `<section class="panel callout"><h2>${fresh ? `The ${leagueName(S.leagueOpened.i)} is opening` : 'Room to expand'}</h2><p>You can found a party in the ${can.map(leagueName).join(' or the ')} before the draft. You send up to ${NEW_PARTY_MOVES} of your own trainers and the draft fills the rest. A party is permanent once founded.</p><button class="btn primary" data-act="nav" data-v="party">Go to the Party page</button></section>`;
+}
+// ---------- god mode ----------
+function viewGod() {
+  if (!godOn()) return viewOffice();
+  const off = S.phase === 'offseason';
+  const cell = (k, i) => fieldsIn(k, i) ? `<span class="tag gold">Party · ${partyOf(k, i).length}</span>` : off ? `<button class="btn small" data-act="godparty" data-k="${k}" data-i="${i}">Add party</button>` : '<span class="muted small">—</span>';
+  const rows = ORG_KEYS.map(k => `<tr><td>${orgMark(k)} ${ORGS[k].short}${k === S.userOrg ? ' <span class="tag">You</span>' : ''}</td>${lgRange().map(i => `<td>${cell(k, i)}</td>`).join('')}</tr>`).join('');
+  const out = ALL_ORG_KEYS.filter(k => !ORG_KEYS.includes(k));
+  return `<section class="panel callout"><div class="eyebrow">God mode</div><h2>Shape the world by hand</h2>
+    <p>Open a League, give any team a party in any League, or bring a new team into the world. These skip the usual limits.${off ? '' : ' <b>They work in the offseason, before the draft</b>, so the draft can fill the new spots.'}</p>
+    <p class="muted small">Editing trainers, roles and rosters directly comes in a later version.</p></section>
+  <section class="panel"><div class="ph"><h3>Leagues</h3><span class="muted">${nLeagues()} of ${MAX_LEAGUES} regions open</span></div>
+    <p>${lgRange().map(leagueName).join(' · ')}${S.nextLeague ? ` · next opening on its own in Season ${S.nextLeague.season}` : ''}</p>
+    <div class="confirm-row"><button class="btn primary" data-act="godleague" ${off && nLeagues() < MAX_LEAGUES ? '' : 'disabled'}>${nLeagues() < MAX_LEAGUES ? `Open the ${nextRegionName()} now` : 'Every region is open'}</button></div></section>
+  <section class="panel"><div class="ph"><h3>Parties</h3></div><div class="tblwrap"><table class="tbl"><thead><tr><th>Team</th>${lgRange().map(i => `<th>${lgShort(i)}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div></section>
+  <section class="panel"><div class="ph"><h3>Add a team</h3><span class="muted">${ORG_KEYS.length} in the world</span></div>
+    ${out.length ? `<div class="release">${out.map(k => `<button class="rel" data-act="godteam" data-k="${k}" ${off ? '' : 'disabled'}>${ORGS[k].name}</button>`).join('')}</div><p class="fine">A new team starts with no parties. Give it one above.</p>` : '<p class="muted">Every team is already in the world.</p>'}</section>`;
 }

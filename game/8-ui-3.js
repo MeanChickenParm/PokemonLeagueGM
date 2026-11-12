@@ -14,6 +14,14 @@ const UPDATES = [
     "The weakest chaser and the apprentice level up a little faster from sparring with their party, and a chaser at the League gets a small lift from the party in their corner.",
     "After each draft there's a party step: new arrivals are placed for you, and you can swap anyone's place or change a companion's role before confirming. The Party page (Office menu) shows it any time.",
     "Champions start four levels higher (95, or 96 with several Leagues), because a team's three best trainers are now the ones on the circuit.",
+    "World structure: a new world has 1 to 4 Leagues, and you choose how many of them you field a party in. A team has at most one party per League, other teams choose their own Leagues, and a party is permanent once founded.",
+    "New Leagues can open over time (an option at setup): every 8 to 12 seasons, announced a season ahead, until all four regions are in. Independents fill a League's circuit when few teams are there.",
+    "Founding a party: in the offseason before the draft, from the Party page. Send up to three of your own trainers and the draft fills the rest of both parties. One new party every 3 seasons. Other teams expand on their own, the keener and stronger ones sooner.",
+    "You can move a whole party to a League where you have none, or swap two of your parties, unless a legendary would end up where one is already held.",
+    "Team Cup: each team counts only its best party scores, as many as the team with the fewest parties has. More parties means more chances at a big score, not a bigger total. Ties go to the team with the best single chaser.",
+    "The World Championship now works with any number of Leagues: with three, the Champion with the strongest team gets a bye to the final.",
+    "The Triple Crown replaces the Grand Slam: Champion of three different Leagues across a career.",
+    "God mode (an option at setup): a page where you can open a League, give any team a party in any League, or add a team, skipping the usual limits.",
     "2.0 keeps its own save, separate from worlds made in earlier versions. Version numbers restart at 2.0.0.",
   ] },
   { id: 203, date: 'November 8, 2026', time: '11:28 AM ET', title: 'Trainers vote on bans', items: [
@@ -591,6 +599,7 @@ function render() {
   if (view === 'ranchhist') v = viewRanchHistory();
   if (view === 'reassign') v = viewReassign();
   if (view === 'party') v = viewParty();
+  if (view === 'god') v = viewGod();
   if (view === 'banvote') v = viewBanVote();
   if (view === 'offers') v = viewOffers();
   if (view === 'gifts') v = viewGifts();
@@ -712,7 +721,16 @@ document.addEventListener('click', ev => {
     case 'imgclearyes': imgClearAll().then(() => render()); break;
     case 'setteams': setupTeams = +el.dataset.v; render(); break;
     case 'setroster': setupRoster = +el.dataset.v; render(); break;
-    case 'setleagues': setupLeagues = +el.dataset.v; render(); break;
+    case 'setleagues': setupLeagues = +el.dataset.v; setupParties = Math.min(setupParties, setupLeagues); render(); break;
+    case 'setparties': setupParties = +el.dataset.v; render(); break;
+    case 'setgrowth': setupGrowth = el.dataset.v === '1'; render(); break;
+    case 'setgod': setupGod = el.dataset.v === '1'; render(); break;
+    case 'fsel': { const i = +el.dataset.i, id = +el.dataset.id, a = foundPick[i] = foundPick[i] || []; const x = a.indexOf(id); if (x >= 0) a.splice(x, 1); else if (a.length < NEW_PARTY_MOVES) a.push(id); render(); break; }
+    case 'found': { const i = +el.dataset.i, why = foundParty(S.userOrg, i, foundPick[i] || []); foundPick = {}; save(); render(); toast(why || `Party founded in the ${leagueName(i)}. The draft will fill it.`); break; }
+    case 'pmove': { const why = moveParty(S.userOrg, +el.dataset.f, +el.dataset.t); eachParty((k, i) => { if (k === S.userOrg) fixParty(k, i); }); partySel = null; save(); render(); toast(why || 'Party moved.'); break; }
+    case 'godleague': { const why = godOpenLeague(); save(); render(); toast(why || `The ${leagueName(nLeagues() - 1)} is open.`); break; }
+    case 'godparty': { const why = godFoundParty(el.dataset.k, +el.dataset.i); save(); render(); toast(why || 'Party added. The draft will fill it.'); break; }
+    case 'godteam': { const why = godAddTeam(el.dataset.k); save(); render(); toast(why || `${ORGS[el.dataset.k].name} joined the world.`); break; }
     case 'lgview': viewLg = +el.dataset.v; render(); break;
     case 'lgmove': { const why = moveTrainer(+el.dataset.id, +el.dataset.v, el.dataset.w ? +el.dataset.w : null); eachParty((k, i) => { if (k === S.userOrg) fixParty(k, i); }); save(); render(); toast(why || 'Moved.'); break; }
     case 'setuppage': setupPage = el.dataset.v; render(); window.scrollTo(0, 0); break;
@@ -762,7 +780,7 @@ document.addEventListener('click', ev => {
     case 'packall': { const on = el.dataset.v === '1'; setupBaseOff = !on; setupPacks = { ...setupPacks, ...Object.fromEntries(Object.keys(FAMOUS_PACKS).filter(k => !FAMOUS_PACKS[k].custom).map(k => [k, on])) }; render(); break; }
     case 'advfold': setupFold[el.dataset.k] = !setupFold[el.dataset.k]; render(); break;
     case 'advfoldall': { const shut = el.dataset.v === '1'; setupFold = Object.fromEntries(['rules', 'features', 'packs', 'mypacks', 'dex', 'images', 'load', ...FEATURES.map(g => 'feat-' + g.group)].map(k => [k, shut])); render(); break; }
-    case 'pickorg': viewLg = 0; newWorld(el.dataset.k, { leagues: setupLeagues, teams: setupTeams, roster: setupRoster, allFamous: setupAdv.allFamous, baseOff: setupBaseOff, packs: Object.keys(setupPacks).filter(k => setupPacks[k]), off: Object.keys(setupOff).filter(k => setupOff[k]), tourneyRule: setupTourneyRule }); S.catchPicks = {}; setupPage = 'main'; save(); go('draft'); break;
+    case 'pickorg': viewLg = 0; newWorld(el.dataset.k, { leagues: setupLeagues, parties: Math.min(setupParties, setupLeagues), growth: setupLeagues < 4 && setupGrowth, god: setupGod, teams: setupTeams, roster: setupRoster, allFamous: setupAdv.allFamous, baseOff: setupBaseOff, packs: Object.keys(setupPacks).filter(k => setupPacks[k]), off: Object.keys(setupOff).filter(k => setupOff[k]), tourneyRule: setupTourneyRule }); S.catchPicks = {}; setupPage = 'main'; save(); go('draft'); break;
     case 'nav': navOpen = null; modal = null; renderModal(); go(el.dataset.v); break;
     case 'navgrp': navOpen = navOpen === el.dataset.k ? null : el.dataset.k; syncNav(); break;
     case 'profile': modal = { kind: 'profile', id: +el.dataset.id, back: recBack() }; renderModal(); break;
