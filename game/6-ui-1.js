@@ -1003,7 +1003,7 @@ function viewTrainerScreen(id) {
     return `<span class="wk ${cls}" title="Week ${i + 1}${w ? ': ' + w.act + (w.caught ? ', caught ' + w.caught : '') : ''}"><small>${i + 1}</small>${lab}</span>`;
   }).join('');
   return `${switcher}<div class="grid-office"><div class="col">
-    <section class="panel tcard"><div class="tcard-top">${trPortrait(t)}<div class="tcard-id"><div class="eyebrow">${roleLabel(t)} · Age ${t.age}</div>${cardName(t)}<div class="spec">${specLine(t)}<span class="muted"> · ${LEAD_STYLES[leadStyle(t)]}</span>${traitChip(t)}</div>${rivalLine(t)}</div>
+    <section class="panel tcard"><div class="tcard-top">${trPortrait(t)}<div class="tcard-id"><div class="eyebrow">${roleLabel(t)} · Age ${t.age}</div>${cardName(t)}<div class="spec">${specLine(t)}<span class="muted"> · ${LEAD_STYLES[leadStyle(t)]}${["challenger", "prospect", "free"].includes(t.role) ? " · " + ambText(t) : ""}</span>${traitChip(t)}</div>${rivalLine(t)}</div>
       <div class="tcard-ovr"><span>${ovr(t)}</span><small>OVR · POT ${t.pot}</small></div></div>
       ${isChamp || !isChaser(t) ? '' : badgeRow(t, true)}</section>
     <section class="panel plan"><div class="ph"><h2>Week ${S.week + 1}</h2><span class="muted">${left} weeks until the League</span></div>
@@ -1054,7 +1054,7 @@ function profileBody(t, full) {
   const c = t.career;
   const elite = ['leader', 'e4', 'champion'].includes(t.role);
   return `<div class="profile">
-    <section class="panel tcard"><div class="tcard-top">${trPortrait(t)}<div class="tcard-id"><div class="eyebrow">${t.famous ? '★ Famous trainer' + (famousTags(t).length ? ' (' + famousTags(t).map(k => FAMOUS_TAG_LABELS[k]).join(', ') + ')' : '') + ' · ' : ''}${roleLabel(t)} · Age ${t.age}${t.hof ? ' · Hall of Fame' : ''}${t.formerUser && !t.user ? ' · Former ' + (t.prevOrg ? ORGS[t.prevOrg].short : 'team') + ' trainer' : ''}</div>${cardName(t)}<div class="spec">${specLine(t)}<span class="muted"> · ${LEAD_STYLES[leadStyle(t)]}</span>${elite ? ` · formerly ${t.cls}` : ''}${traitChip(t)}</div>${rivalLine(t)}</div>
+    <section class="panel tcard"><div class="tcard-top">${trPortrait(t)}<div class="tcard-id"><div class="eyebrow">${t.famous ? '★ Famous trainer' + (famousTags(t).length ? ' (' + famousTags(t).map(k => FAMOUS_TAG_LABELS[k]).join(', ') + ')' : '') + ' · ' : ''}${roleLabel(t)} · Age ${t.age}${t.hof ? ' · Hall of Fame' : ''}${t.formerUser && !t.user ? ' · Former ' + (t.prevOrg ? ORGS[t.prevOrg].short : 'team') + ' trainer' : ''}</div>${cardName(t)}<div class="spec">${specLine(t)}<span class="muted"> · ${LEAD_STYLES[leadStyle(t)]}${["challenger", "prospect", "free"].includes(t.role) ? " · " + ambText(t) : ""}</span>${elite ? ` · formerly ${t.cls}` : ''}${traitChip(t)}</div>${rivalLine(t)}</div>
       <div class="tcard-ovr"><span>${ovr(t)}</span><small>OVR${t.role !== 'retired' ? ' · POT ' + (t.user || t.seasons > 0 ? t.pot : (t.potEst ?? t.pot)) : ''}</small></div></div>
       ${t.role === 'challenger' ? badgeRow(t, true) : ''}
       ${ratingBars(t)}

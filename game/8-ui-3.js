@@ -18,6 +18,11 @@ const UPDATES = [
     "Each trainer's highest-level Pokémon is their walking partner and bonds faster. The two closest chasers in a party become travel rivals and grow a little faster, unless one leaves the other far behind.",
     "Companions and apprentices now have an assist record (badges and titles won by the chasers they travelled with), a Most assists board, and a Companion of the Year award.",
     "Independents sometimes travel in loose groups of two or three for a season.",
+    "Ambition: every trainer wants the title, is happy to support, or is open to either. You see it plainly for your own trainers; for everyone else it's a scout's read that can be wrong.",
+    "A trainer who wants the title and is kept in support runs out of patience and asks for a chaser spot or their release. You can promote them, promise a spot (binding), trade them or release them. Older chasers may ask to step back into support.",
+    "Trust: each of your trainers trusts you more or less, depending on how their seasons go and how you treat them. Break a promise and the whole team trusts you less.",
+    "Sit-downs: once per party each season, before week 1, give a chaser or the apprentice a piece of advice. They may not listen; you see the odds first.",
+    "Trades: in the offseason, trade a trainer one for one with another team, or for an extra draft pick.",
     "After each draft there's a party step: new arrivals are placed for you, and you can swap anyone's place or change a companion's role before confirming. The Party page (Office menu) shows it any time.",
     "Champions start four levels higher (95, or 96 with several Leagues), because a team's three best trainers are now the ones on the circuit.",
     "World structure: a new world has 1 to 4 Leagues, and you choose how many of them you field a party in. A team has at most one party per League, other teams choose their own Leagues, and a party is permanent once founded.",
@@ -843,6 +848,12 @@ document.addEventListener('click', ev => {
     case 'psel': partySel = partySel === +el.dataset.id ? null : +el.dataset.id; render(); break;
     case 'pswap': { const why = swapSlots(+el.dataset.id, el.dataset.s || +el.dataset.w); partySel = null; save(); render(); if (why) toast(why); break; }
     case 'prole': setPartyRole(+el.dataset.id, el.dataset.k); save(); render(); break;
+    case 'req': { const ok = answerRequest(el.dataset.c, el.dataset.a ? +el.dataset.a : undefined); save(); render(); if (!ok) toast("That couldn't be done."); break; }
+    case 'reqtrade': { const ok = answerRequest('trade', +el.dataset.n); save(); render(); toast(ok ? 'Traded.' : 'That offer is gone.'); break; }
+    case 'sitopen': sitOpen = sitOpen === +el.dataset.id ? null : +el.dataset.id; tradeOpen = null; render(); break;
+    case 'tradeopen': tradeOpen = tradeOpen === +el.dataset.id ? null : +el.dataset.id; sitOpen = null; render(); break;
+    case 'sit': { const r = sitDown(+el.dataset.id, el.dataset.k); sitOpen = null; save(); render(); toast(!r ? 'No sit-down left for this party this season.' : r.ok ? 'They took it on board.' : "They'll do it their own way."); break; }
+    case 'gmtrade': { const why = gmTrade(+el.dataset.id, +el.dataset.n); tradeOpen = null; save(); render(); toast(why || 'Traded.'); break; }
     case 'ppolicy': if (setPolicy(+el.dataset.i, el.dataset.k)) { save(); render(); } else toast('The policy is set before week 1.'); break;
     case 'banset': setBanVote(+el.dataset.l, el.dataset.sp, +el.dataset.v); save(); render(); break;
     case 'banconfirm': if (S.phase !== 'banvote') break; { confirmBanVote(); save(); const r = S.banResults, nb = r ? r.lgs.reduce((a, x) => a + x.rows.filter(y => y.passed).length, 0) : 0; afterDraft(); toast(nb ? `Votes are in: ${nb} new ban${nb === 1 ? '' : 's'}. See the news.` : 'Votes are in: no new bans.'); } break;

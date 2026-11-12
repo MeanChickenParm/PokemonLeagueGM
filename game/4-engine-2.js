@@ -360,7 +360,8 @@ function aiActionBase(t) {
   if (n < 4 && rand() < 0.85) return 'explore';
   if (n < 5 && b >= 2 && rand() < 0.7) return 'explore';
   const conf = topAvg(t, 3) - gymAceLevel(b) + (t.r.str - 50) / 18 + (rand() * 4 - 2);
-  if (conf >= -2.5) return 'challenge';
+  if (sitOn(t, 'coverage') && n < 6 && rand() < 0.6) return 'explore';
+  if (conf >= -2.5 + (sitOn(t, 'go') ? -2 : sitOn(t, 'train') ? 2 : 0)) return 'challenge';
   return n < 6 && rand() < 0.5 ? 'explore' : 'train';
 }
 function gainLevels(t, amt) {
@@ -376,7 +377,7 @@ function gainLevels(t, amt) {
     const mult = m.lvl < top - PACE.catchUpGap ? PACE.catchUpMult : 1;
     const before = Math.floor(m.lvl);
     // Pokérus and Lucky Pokémon level faster
-    const a = amt * monGrowth(m) * temperGrowth(m, t.team) * timeWarp();
+    const a = amt * monGrowth(m) * temperGrowth(m, t.team) * timeWarp() * (sitOn(t, 'ace') && m === walkingPartner(t) ? 1.12 : 1);
     // a Shadow Pokémon can't grow until it's purified: the levels it would have gained are stored
     if (m.shadow) {
       // grow a "virtual" level the same way a normal Pokémon would, and keep the difference in reserve
@@ -1556,7 +1557,7 @@ function postPlace(t, role) {
 const curSeason = () => S.phase === 'season' || S.phase === 'league' ? S.season : S.season + 1;
 function closePost(t) { const p = (t.posts || []).find(x => x.to == null); if (p) p.to = Math.max(p.from, S.season || 1); }
 function openPost(t, role) { closePost(t); (t.posts = t.posts || []).push({ role, place: postPlace(t, role), from: curSeason(), to: null, lg: S.lg || 0 }); }
-function joinOrg(t, k) { (t.teams = t.teams || []).push({ org: k, from: curSeason(), to: null });
+function joinOrg(t, k) { t.trust = 50; t.patience = null; (t.teams = t.teams || []).push({ org: k, from: curSeason(), to: null });
   t.org = k; if (!S.orgs[k].roster.includes(t.id)) S.orgs[k].roster.push(t.id); t.user = k === S.userOrg; }
 function leaveOrg(t) {
   t.slot = null; t.prole = null;
@@ -2243,6 +2244,7 @@ function offseason() {
     if (rand() < ageRetireChance(t)) retire(t, `after ${t.seasons} seasons`);
     else if (S.season - (t.freeSince || S.season) >= 3 && rand() < 0.5) retire(t, 'after three seasons without a team');
   }
+  ambitionSeasonEnd(changes);
   S.changes = changes;
 }
 // one League's part of the offseason: champions, gyms, the Elite Four and the meta
@@ -2515,7 +2517,8 @@ function fixParty(k, i = S.lg || 0) {
 function autoParty(k, i = S.lg || 0) {
   const P = partyOf(k, i); if (!P.length) return;
   for (const t of P) { t.slot = null; t.prole = null; }
-  P.slice().sort((a, b) => ovr(b) - ovr(a) || a.id - b.id).slice(0, PARTY_CHASERS).forEach(t => { t.slot = 'chaser'; });
+  const owed = t => (t.forceChase != null && t.forceChase <= upSeason()) || promiseDue(t) ? 1 : 0;
+  P.slice().sort((a, b) => owed(b) - owed(a) || ovr(b) - ovr(a) || a.id - b.id).slice(0, PARTY_CHASERS).forEach(t => { t.slot = 'chaser'; });
   // someone left over and no apprentice: a chaser who still can be one steps back, and the strongest leftover chases
   for (const t of fixParty(k, i)) {
     const a = !P.some(x => x.slot === 'apprentice') && P.filter(x => x.slot === 'chaser' && canApprentice(x)).sort((x, y) => ovr(x) - ovr(y))[0];
@@ -2762,6 +2765,7 @@ const canSetPolicy = () => !!S && (S.phase !== 'league' && (S.phase !== 'season'
 function setPolicy(i, p) { if (!S.userOrg || !POLICIES[p] || !canSetPolicy() || !fieldsIn(S.userOrg, i)) return false; partyState(S.userOrg, i).policy = p; return true; }
 // week 1: leaders, AI policies, travel rivals, and independents who decide to travel together
 function partySeasonStart() {
+  ambitionSeasonStart();
   eachParty((k, i) => {
     if (!fieldsIn(k, i)) return;
     const P = partyOf(k, i); if (!P.length) return;

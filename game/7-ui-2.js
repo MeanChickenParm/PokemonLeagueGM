@@ -494,8 +494,30 @@ function viewRecap() {
   const mine = h.userResults || [];
   return recapBody(L, h, offer, offerHtml, roster, mine, null);
 }
+// a trainer of yours asking for a chaser spot or their release, or asking to step back into support
+function tradeOptRow(t, o, n, act) {
+  if (o.kind === 'pick') return `<button class="rel" data-act="${act}" data-id="${t.id}" data-n="${n}">${orgMark(o.org)}${ORGS[o.org].short}: an extra pick in the next draft</button>`;
+  const x = T(o.id);
+  return `<button class="rel" data-act="${act}" data-id="${t.id}" data-n="${n}">${orgMark(o.org)}${ORGS[o.org].short}: ${dn(x)} <span class="muted">OVR ${ovr(x)}, age ${x.age}, ${SLOT_NAMES[slotOf(x)] || ''} · ${ambText(x)}</span></button>`;
+}
+function requestPanel(o) {
+  const t = T(o.id), n = S.offers.length > 1 ? ` · 1 of ${S.offers.length}` : '';
+  const who = `<div class="seatvs"><div>${tname(t.id)} ${ovrPill(t)}<div class="muted small">Age ${t.age} · ${specName(t)} · ${SLOT_NAMES[slotOf(t)] || ''}${t.prole ? ' (' + PARTY_ROLES[t.prole].name + ')' : ''}</div><div class="muted small">${AMBS[ambOf(t)].name} · ${trustWord(t)}</div></div></div>`;
+  if (o.kind === 'stepback') return `<section class="panel offer"><div class="eyebrow">A request from your trainer${n}</div><h2>${dn(t)} has asked to step back into a support role.</h2>
+    <p>They no longer want to chase the title. If you agree, your strongest companion or apprentice takes the chaser spot. If you ask them to keep chasing, they will, but they'll trust you a little less.</p>${who}
+    <div class="confirm-row"><button class="btn primary" data-act="req" data-c="yes">Agree</button><button class="btn" data-act="req" data-c="no">Ask them to keep chasing</button></div></section>`;
+  const ch = partyMates(t).filter(x => x !== t && x.slot === 'chaser').sort((a, b) => ovr(a) - ovr(b));
+  const opts = tradeOptions(t);
+  return `<section class="panel offer"><div class="eyebrow">A request from your trainer${n}</div><h2>${dn(t)} wants a title-chaser spot, or to be let go.</h2>
+    <p>They have run out of patience in a support role. Each party has three chaser spots, and this is the only request this party will make this offseason.</p>${who}
+    <div class="eyebrow" style="margin-top:10px">Promote them now</div><div class="release">${ch.map(x => `<button class="rel" data-act="req" data-c="promote" data-a="${x.id}">${x.name} makes way <span class="muted">OVR ${ovr(x)}, ${AMBS[ambOf(x)].name.toLowerCase()}</span></button>`).join('') || '<span class="muted small">No chaser to move.</span>'}</div>
+    <div class="eyebrow" style="margin-top:10px">Trade them</div><div class="release">${opts.map((x, i) => tradeOptRow(t, x, i, 'reqtrade')).join('') || '<span class="muted small">No team is offering anything for them.</span>'}</div>
+    <div class="confirm-row" style="margin-top:10px"><button class="btn" data-act="req" data-c="promise" title="Binding: if they aren't a chaser by then they leave, and your other trainers trust you less">Promise a spot in Season ${S.season + 2}</button><button class="btn" data-act="req" data-c="release">Release them</button></div>
+    <p class="fine">A promise is binding. Break it and they leave, and every other trainer of yours trusts you less.</p></section>`;
+}
 function offerPanel(offer) {
   let offerHtml = '';
+  if (offer.kind === 'demand' || offer.kind === 'stepback') return requestPanel(offer);
   {
     const u = T(offer.id);
     if (offer.kind === 'rejoin') {
@@ -632,7 +654,8 @@ function viewReassign() {
   const parties = lgRange().filter(i => fieldsIn(k, i)).map(i => partyPanel(k, i, true)).join('');
   const probs = partyProblems();
   const partyIntro = `<p>Your trainers in a League travel together as a party of six: three title chasers, two companions and one apprentice. Only chasers take on gyms and the League and score Team Cup points (plus ${PARTY_BONUS} if all three complete the badge circuit). Each companion fills a role that helps the others. The apprentice has road battles and grows from watching, for two seasons at most.</p><p class="muted small">New arrivals have been placed for you. Tap Move on a trainer, then choose who they swap with. The number beside a role is that trainer's aptitude for it.</p>`;
-  const confirmBox = `<section class="panel">${probs.length ? `<ul class="changes">${probs.map(p => `<li class="warn">${p}</li>`).join('')}</ul>` : ''}<div class="confirm-row"><button class="btn primary" data-act="reassignconfirm" ${probs.length ? 'disabled' : ''}>Confirm ${NL > 1 ? 'parties and Leagues' : 'the party'} and continue</button><span class="muted small">Next: ${champOrgsNext()}</span></div></section>`;
+  const owed = brokenPromises();
+  const confirmBox = `<section class="panel">${probs.length ? `<ul class="changes">${probs.map(p => `<li class="warn">${p}</li>`).join('')}</ul>` : ''}${owed.length ? `<ul class="changes">${owed.map(t => `<li class="warn">You promised ${dn(t)} a title-chaser spot this season. Confirm without one and they leave, and your other trainers trust you less.</li>`).join('')}</ul>` : ''}<div class="confirm-row"><button class="btn primary" data-act="reassignconfirm" ${probs.length ? 'disabled' : ''}>Confirm ${NL > 1 ? 'parties and Leagues' : 'the party'} and continue</button><span class="muted small">Next: ${champOrgsNext()}</span></div></section>`;
   if (NL < 2) return `<section class="panel callout"><div class="eyebrow">Season ${S.season + 1} · after the draft</div><h2>Set your party</h2>${partyIntro}</section>${parties}${confirmBox}`;
   return `<section class="panel callout"><div class="eyebrow">Season ${S.season + 1} · after the draft</div><h2>Parties and Leagues</h2>${partyIntro}</section>${parties}
   <section class="panel callout"><h2>League reassignment</h2>
@@ -847,7 +870,7 @@ function viewDraft() {
     <section class="panel"><div class="ph"><h3>Picks</h3></div><ol class="picks">${d.picks.map(p => `<li>${orgMark(p.org)} <span>${p.id ? tname(p.id) : '<span class="muted">Passed</span>'}</span><span class="muted small">${p.round === 'Fill' ? 'Fill' : p.round === 'Comp' ? 'Comp' : 'R' + p.round}</span></li>`).join('') || '<li class="muted">No picks yet.</li>'}</ol></section>
   </div></div>
   <section class="panel draftavail"><div class="ph"><h3>Available</h3><span class="muted">${avail.length} · ${draftSort.k === 'best' ? 'sorted by overall value (OVR + potential)' : '<button class="link" data-act="draftsort" data-k="best">Reset to overall value</button>'}</span></div><div class="scroll"><table class="tbl draft"><thead><tr>${dth('name', 'Trainer')}${dth('age', 'Age')}${dth('type', 'Type')}${dth('trait', 'Trait', 'Personality trait: hover a trait for what it does')}${dth('ovr', 'OVR')}${dth('pot', 'POT', "Potential: a scout's estimate, which can be off by several points")}${RK.map(k => dth(k, RNAME[k].slice(0, 3), RNAME[k])).join('')}${dth('mons', 'Pokémon', 'Sorts by the team’s combined base stat total')}<th class="dact"></th></tr></thead><tbody>
-  ${avail.map(t => `<tr><td class="dname">${tname(t.id)}${t.famous ? ' <span class="tag gold">famous</span>' : ''}${t.legacy ? ` <span class="tag legacy" title="Child of ${esc(t.legacy.name)}${t.legacy.org ? ', who was with ' + ORGS[t.legacy.org].name : ''}. Starts with a Pokémon from the parent's signature line; legendaries and other one-of-a-kind Pokémon can't be passed down.">legacy${t.legacy.org === S.userOrg ? ' · yours' : ''}</span>` : ''}${t.role === 'challenger' ? ' <span class="tag">indep.</span>' : t.role === 'free' ? ' <span class="tag">free agent</span>' : t.seasons > 0 ? ' <span class="tag">veteran</span>' : t.age >= 25 ? ' <span class="tag">late starter</span>' : ''}</td><td class="num">${t.age}</td><td>${specChips(t)}</td><td>${traitChip(t) || '<span class="muted">—</span>'}</td><td>${ovrPill(t)}</td><td class="num">${t.seasons > 1 ? '—' : scoutEst(t)}</td>${RK.map(k => `<td class="num">${t.r[k]}</td>`).join('')}<td class="dmons">${t.team.map(m => monMini(m.sp, m.shiny || m.radiant) + m.sp).join(', ')}</td><td class="dact">${mineTurn ? `<button class="btn small primary" data-act="draftpick" data-id="${t.id}" ${full && !draftRelease ? 'disabled title="Choose who to release first"' : ''}>Draft</button>` : ''}</td></tr>`).join('')}
+  ${avail.map(t => `<tr><td class="dname">${tname(t.id)} <span class="muted small" title="A scout's read on what this trainer wants. It can be wrong.">${AMBS[ambSeen(t)].hint}</span>${t.famous ? ' <span class="tag gold">famous</span>' : ''}${t.legacy ? ` <span class="tag legacy" title="Child of ${esc(t.legacy.name)}${t.legacy.org ? ', who was with ' + ORGS[t.legacy.org].name : ''}. Starts with a Pokémon from the parent's signature line; legendaries and other one-of-a-kind Pokémon can't be passed down.">legacy${t.legacy.org === S.userOrg ? ' · yours' : ''}</span>` : ''}${t.role === 'challenger' ? ' <span class="tag">indep.</span>' : t.role === 'free' ? ' <span class="tag">free agent</span>' : t.seasons > 0 ? ' <span class="tag">veteran</span>' : t.age >= 25 ? ' <span class="tag">late starter</span>' : ''}</td><td class="num">${t.age}</td><td>${specChips(t)}</td><td>${traitChip(t) || '<span class="muted">—</span>'}</td><td>${ovrPill(t)}</td><td class="num">${t.seasons > 1 ? '—' : scoutEst(t)}</td>${RK.map(k => `<td class="num">${t.r[k]}</td>`).join('')}<td class="dmons">${t.team.map(m => monMini(m.sp, m.shiny || m.radiant) + m.sp).join(', ')}</td><td class="dact">${mineTurn ? `<button class="btn small primary" data-act="draftpick" data-id="${t.id}" ${full && !draftRelease ? 'disabled title="Choose who to release first"' : ''}>Draft</button>` : ''}</td></tr>`).join('')}
   </tbody></table></div></section>
 `;
 }
@@ -1009,6 +1032,13 @@ const GLOSS_TERMS = {
     ['Companion', "A party member who supports the others through a role instead of chasing badges. Keeps a full team and fights when villains turn up. Scores no Team Cup points."],
     ['Apprentice', "A party's developing trainer: road battles only, and faster growth from watching the chasers. Two seasons at most, then they must chase, support or move on."],
     ['Aptitude', 'How good a trainer is at each companion role, from 5 to 99. Every trainer has their own; their class makes almost no difference.'],
+    ['Ambition', "What a trainer wants: the title, a support role, or either. You see it plainly for your own trainers. For everyone else it's a scout's read that can be wrong, until they show their hand by asking for a chaser spot or stepping back. Ambitions drift with age and results."],
+    ['Patience', "How many more seasons a trainer who wants the title will stay in a support role. When it runs out they ask for a chaser spot or their release. Each party makes at most one such request an offseason."],
+    ['Request', "A trainer asking for a title-chaser spot (promote them, promise a spot for the season after next, trade them, or release them), or an older chaser asking to step back into support."],
+    ['Promise', "Binding. A trainer promised a chaser spot who doesn't have one when that season's party is confirmed leaves, and every other trainer of yours trusts you less."],
+    ['Trust', "How much one of your trainers believes in you. It rises when they do well, get the role they want or a promise is kept, and falls when they're kept in a role they don't want, advice goes badly or a promise to a teammate is broken. It sets how likely they are to listen in a sit-down."],
+    ['Sit-down', "One conversation per party each season, before week 1, with a chaser or the apprentice. You pick a message: rebuild around your ace, widen your coverage, slow down and train, or go for it. They may not listen; you see the odds first."],
+    ['Trade', "In the offseason you can trade a trainer one for one with another team, or for an extra pick in the next draft. Other teams only offer what they think is fair."],
     ['Sparring', 'The weakest chaser in a party and its apprentice level up a little faster from travelling with stronger trainers.'],
     ['Party leader', "One of the three chasers, chosen by the party itself from last season's results, time with the team and personality. Their personality sets the party's mood, which makes role bonuses a little stronger or weaker, and they sometimes bend your gym-loss policy."],
     ['Gym-loss policy', "The one in-season call that is yours, set before week 1. Patient: after any gym loss the other chasers wait a week and help prepare the rematch. Balanced: they wait after a first loss at a gym only. Push on: nobody waits. A rematch the party stayed for gets a small edge."],
@@ -1231,7 +1261,7 @@ function partyPanel(k, i, edit) {
         : s === 'bench' ? `<span class="warn">No place in the party${canApprentice(t) ? '' : ': two seasons as an apprentice are up'}</span>`
         : `Best support roles: ${aptLine(t, 2)}`;
       const extra = (leaderOf(k, i) === t ? ' <span class="tag gold">Leader</span>' : '') + (t.trival && T(t.trival) ? ` <span class="tag" title="${t.trivalSour ? 'The rivalry has soured: no growth bonus, and the party\'s mood suffers' : 'Travel rivals level up a little faster'}">${t.trivalSour ? 'Soured rivalry' : 'Travel rival'}: ${T(t.trival).name}</span>` : '') + (s !== 'chaser' && t.career && t.career.assists ? ` <span class="muted small">Assists: ${t.career.assists} badge${t.career.assists === 1 ? '' : 's'}${t.career.assistTitles ? ', ' + t.career.assistTitles + ' title' + (t.career.assistTitles > 1 ? 's' : '') : ''}</span>` : '');
-      return `<div class="pt-row${me ? ' sel' : ''}"><div class="pt-id">${tname(t.id)} ${ovrPill(t)} <span class="muted small">age ${t.age} · POT ${t.pot}</span> <span class="small">${specChips(t)}</span>${extra}</div><div class="pt-act">${act}</div><div class="pt-note small muted">${note}</div>${roles}</div>`;
+      return `<div class="pt-row${me ? ' sel' : ''}"><div class="pt-id">${tname(t.id)} ${ovrPill(t)} <span class="muted small">age ${t.age} · POT ${t.pot}</span> <span class="small">${specChips(t)}</span>${extra}</div><div class="pt-act">${act}</div><div class="pt-note small muted">${note}</div>${k === S.userOrg ? ambRow(t) : `<div class="pt-note small muted">${ambText(t)}</div>`}${roles}</div>`;
     };
     const grp = (s, cap, label) => {
       const rows = P.filter(t => slotOf(t) === s), open = cap - rows.length;
@@ -1251,6 +1281,16 @@ function viewParty() {
     <p class="muted small">${edit ? "Tap Move on a trainer, then choose who they swap with. The number beside a role is that trainer's aptitude for it." : 'Parties are set in the offseason, after the draft.'}</p></section>
     ${S.nextLeague && S.nextLeague.told && nextRegionName() ? `<section class="panel"><p><b>Coming:</b> the ${nextRegionName()} opens in Season ${S.nextLeague.season}. You'll be able to found a party there.</p></section>` : ''}
     ${Array.from({ length: nLeagues() }, (_, i) => fieldsIn(S.userOrg, i) ? partyPanel(S.userOrg, i, edit) : foundPanel(i)).join('')}`;
+}
+let sitOpen = null, tradeOpen = null;
+function ambRow(t) {
+  const pt = patienceText(t), sat = sitUsed(t.org, lgOf(t));
+  const btns = (canSit(t) ? `<button class="btn small${sitOpen === t.id ? ' primary' : ''}" data-act="sitopen" data-id="${t.id}">Sit down</button>` : '') + (canTrade() ? `<button class="btn small${tradeOpen === t.id ? ' primary' : ''}" data-act="tradeopen" data-id="${t.id}">Trade</button>` : '');
+  const sit = sitOpen === t.id && canSit(t) ? `<div class="pt-life"><div class="small">One sit-down per party each season. ${t.name} takes it on board about <b>${Math.round(sitOdds(t) * 100)}%</b> of the time, going by how much they trust you.</div><div class="pt-roles">${Object.keys(SITS).map(k => `<button class="rel" data-act="sit" data-id="${t.id}" data-k="${k}" title="${esc(SITS[k].text)}">${SITS[k].name}</button>`).join('')}</div></div>` : '';
+  const opts = tradeOpen === t.id && canTrade() ? tradeOptions(t) : null;
+  const tr = opts ? `<div class="pt-life"><div class="small">What other teams would give for ${t.name}, one for one. A trade can't be undone.</div><div class="release">${opts.map((o, i) => tradeOptRow(t, o, i, 'gmtrade')).join('') || '<span class="muted small">No team is offering anything.</span>'}</div></div>` : '';
+  const told = t.sit && t.sit.season === upSeason() ? ` · <span class="${t.sit.ok ? 'good' : 'muted'}">${t.sit.ok ? 'following' : 'ignoring'} "${SITS[t.sit.msg].name}"</span>` : '';
+  return `<div class="pt-note small">${AMBS[ambOf(t)].name}${pt ? ` · <b class="${unhappyRole(t) ? 'warn' : ''}">${pt}</b>` : ''} · ${trustWord(t)}${told}</div>${btns ? `<div class="pt-act">${btns}${sat && !canSit(t) && (t.slot === 'chaser' || t.slot === 'apprentice') ? '' : ''}</div>` : ''}${sit}${tr}`;
 }
 // the leader the party chose, and the one in-season call that is yours: what happens after a gym loss
 function partyLifeRow(k, i) {
