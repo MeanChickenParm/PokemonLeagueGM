@@ -1,5 +1,9 @@
 const verName = u => u.ver || u.id;
 const UPDATES = [
+  { id: 206, ver: '2.0.2', date: 'November 12, 2026', time: '9:55 AM ET', title: 'Rearranging support slots, and choosing who steps up', items: [
+    "Rearranging companions and the apprentice in the offseason is now pointed out: the Office has a Rearrange your party button as soon as the season ends, and the Party page says the offseason is open for moves. Swap any two trainers, move one into an open spot, or change a companion's role, any time before week 1.",
+    "When a chaser steps down, you choose who replaces them. Asking a chaser to step down now opens a list of your companions and apprentice; pick who takes the chaser spot before you ask. The same choice appears when a chaser asks to step back on their own. Before, the strongest of the others was moved up automatically.",
+  ] },
   { id: 205, ver: '2.0.1', date: 'November 12, 2026', time: '9:17 AM ET', title: 'Trade desk, the god-mode editor, and a clean-up', items: [
     "Trade desk: a new page (Office menu, in the offseason) for bigger deals. Offer up to three of your trainers for up to three of another team's, and ask for an extra draft pick if you're giving more. It tells you whether the other team would accept before you commit.",
     "Other teams judge a deal by their own valuation: trainers of their favoured types are worth more to them, and one strong trainer is worth more than several fringe ones. Arrivals take the place of the trainers they were traded for; anyone extra joins your party with the most room.",
@@ -845,7 +849,8 @@ document.addEventListener('click', ev => {
     case 'prole': setPartyRole(+el.dataset.id, el.dataset.k); save(); render(); break;
     case 'req': { const ok = answerRequest(el.dataset.c, el.dataset.a ? +el.dataset.a : undefined); save(); render(); if (!ok) toast("That couldn't be done."); break; }
     case 'reqtrade': { const ok = answerRequest('trade', +el.dataset.n); save(); render(); toast(ok ? 'Traded.' : 'That offer is gone.'); break; }
-    case 'askdown': { const t = T(+el.dataset.id), r = askStepDown(+el.dataset.id); save(); render(); if (r) toast(r.ok ? `${t.name} agreed to step into a support role.` : `${t.name} refused, and has asked to leave.`); break; }
+    case 'downopen': downOpen = downOpen === +el.dataset.id ? null : +el.dataset.id; sitOpen = null; tradeOpen = null; render(); break;
+    case 'askdown': { const t = T(+el.dataset.id), u = T(+el.dataset.u), r = askStepDown(+el.dataset.id, +el.dataset.u); downOpen = null; save(); render(); if (r) toast(r.ok ? `${t.name} agreed to step into a support role.${u ? ' ' + u.name + ' takes the chaser spot.' : ''}` : `${t.name} refused, and has asked to leave.`); break; }
     case 'askout': { const t = T(+el.dataset.id), keep = el.dataset.v === '1'; if (answerAskOut(+el.dataset.id, keep)) { save(); render(); toast(keep ? `${t.name} stays as a chaser.` : `${t.name} was released.`); } break; }
     case 'deskorg': deskOrg = el.dataset.k; deskGet = []; deskPick = false; render(); break;
     case 'deskgive': case 'deskget': { const L = a === 'deskgive' ? deskGive : deskGet, id = +el.dataset.id, i = L.indexOf(id); if (i >= 0) L.splice(i, 1); else if (L.length < TRADE_MAX) L.push(id); render(); break; }
@@ -863,8 +868,8 @@ document.addEventListener('click', ev => {
     case 'godslot': { const why = godSlot(+el.dataset.id, el.dataset.k); save(); render(); if (why) toast(why); break; }
     case 'godrole': { const why = godRole(+el.dataset.id, el.dataset.k); save(); render(); if (why) toast(why); break; }
     case 'block': { const t = T(+el.dataset.id); if (t) { setBlock(t.id, !t.block); save(); render(); } break; }
-    case 'sitopen': sitOpen = sitOpen === +el.dataset.id ? null : +el.dataset.id; tradeOpen = null; render(); break;
-    case 'tradeopen': tradeOpen = tradeOpen === +el.dataset.id ? null : +el.dataset.id; sitOpen = null; render(); break;
+    case 'sitopen': sitOpen = sitOpen === +el.dataset.id ? null : +el.dataset.id; tradeOpen = null; downOpen = null; render(); break;
+    case 'tradeopen': tradeOpen = tradeOpen === +el.dataset.id ? null : +el.dataset.id; sitOpen = null; downOpen = null; render(); break;
     case 'sit': { const r = sitDown(+el.dataset.id, el.dataset.k); sitOpen = null; save(); render(); toast(!r ? 'No sit-down left for this party this season.' : r.ok ? 'They took it on board.' : "They'll do it their own way."); break; }
     case 'gmtrade': { const why = gmTrade(+el.dataset.id, +el.dataset.n); tradeOpen = null; save(); render(); toast(why || 'Traded.'); break; }
     case 'ppolicy': if (setPolicy(+el.dataset.i, el.dataset.k)) { save(); render(); } else toast('The policy is set before week 1.'); break;

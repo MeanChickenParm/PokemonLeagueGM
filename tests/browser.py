@@ -27,7 +27,7 @@ async def run(path):
               if(ph==='offseason'||ph==='reassign'){ go('trade'); const mine=[...document.querySelectorAll('[data-act=deskgive]')], th=[...document.querySelectorAll('[data-act=deskget]')];
                 if(mine.length&&th.length){ mine[mine.length-1].click(); document.querySelectorAll('[data-act=deskget]')[th.length-1].click(); click('[data-act=deskpick]'); click('[data-act=deskpick]');
                   const goB=document.querySelector('[data-act=deskgo]'); log.push('desk verdict: '+(goB.disabled?'no':'yes')); if(!goB.disabled) goB.click(); } else log.push('desk rows missing '+mine.length+' '+th.length);
-                go('party'); if(click('[data-act=askdown]')) { log.push('asked down'); click('[data-act=askout]'); }
+                go('party'); if(click('[data-act=downopen]')) { const picks=document.querySelectorAll('[data-act=askdown]'); if(!picks.length) log.push('no step-up choices'); else { picks[picks.length-1].click(); log.push('asked down, picked replacement'); click('[data-act=askout]'); } }
                 go('god'); if(click('[data-act=godpick]')){ const n=document.querySelector('#ge-age'); if(n){ n.value='33'; click('[data-act=godsave]'); log.push('god saved'); } click('[data-act=godpick]'); click('[data-act=godslot]');
                   click('[data-act=godpick]'); const mv=[...document.querySelectorAll('[data-act=godmove]')].find(b=>!b.disabled); if(mv){ mv.click(); log.push('god moved'); } }
                 click('[data-act=godteamsel][data-k=_ind]'); click('[data-act=godpick]'); }

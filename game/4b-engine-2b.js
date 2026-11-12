@@ -85,9 +85,11 @@ function ambitionSeasonEnd(changes) {
     }
   });
 }
-// a chaser moves into support; the strongest of the others takes the spot
-function stepBack(t) {
-  const up = partyMates(t).filter(x => x !== t && x.slot !== 'chaser').sort((a, b) => ovr(b) - ovr(a))[0];
+// who could take a chaser's spot if they moved into support, strongest first
+const stepUps = t => partyMates(t).filter(x => x !== t && x.slot !== 'chaser').sort((a, b) => ovr(b) - ovr(a));
+// a chaser moves into support; the trainer you pick (upId) takes the spot, or the strongest of the others
+function stepBack(t, upId) {
+  const ups = stepUps(t), up = ups.find(x => x.id === upId) || ups[0];
   if (!up) return false;
   const s = up.slot, r = up.prole; up.slot = 'chaser'; up.prole = null; t.slot = s === 'apprentice' && !canApprentice(t) ? 'companion' : s; t.prole = r;
   if (ambOf(t) === 'either' && t.age >= 33) t.amb = 'support';
@@ -159,14 +161,14 @@ function gmTrade(id, n) {
 }
 
 // ---------- the player answers a request ----------
-// demand: 'promote' (arg: the chaser who makes way), 'promise', 'trade' (arg: which offer), 'release'. stepback: 'yes' / 'no'.
+// demand: 'promote' (arg: the chaser who makes way), 'promise', 'trade' (arg: which offer), 'release'. stepback: 'yes' (arg: who takes the chaser spot) / 'no'.
 function answerRequest(choice, arg) {
   const o = S.offers[0]; if (!o || (o.kind !== 'demand' && o.kind !== 'stepback')) return false;
   const t = T(o.id);
   if (!t || t.org !== S.userOrg || !inParty(t)) { S.offers.shift(); return true; }
   const mates = partyMates(t).filter(x => x !== t);
   if (o.kind === 'stepback') {
-    if (choice === 'yes' && stepBack(t)) addTrust(t, 5);
+    if (choice === 'yes' && stepBack(t, arg)) addTrust(t, 5);
     else { addTrust(t, -3); news(`${dn(t)} asked to step back; you asked them to keep chasing.`, 'you', t.id); }
     S.offers.shift(); return true;
   }

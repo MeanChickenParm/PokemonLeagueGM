@@ -62,13 +62,13 @@ function downOdds(t) {
   const tr = traitOf(t);
   return clamp(0.1 + trustOf(t) / 100 * 0.6 + (dryStreak(t) >= 2 ? 0.15 : 0) + (t.age >= 33 ? 0.1 : 0) - (tr === 'competitor' || tr === 'hothead' ? 0.2 : 0), 0.05, 0.9);
 }
-function askStepDown(id) {
+function askStepDown(id, upId) {
   const t = T(id); if (!canAskDown(t)) return null;
   t.downAsked = upSeason();
   if (rand() < downOdds(t)) {
     const wanted = ambOf(t) === 'title';
     if (wanted) { t.amb = 'either'; t.ambHint = null; addTrust(t, -4); }
-    stepBack(t); t.patience = null;
+    stepBack(t, upId); t.patience = null;
     return { ok: true };
   }
   t.askedOut = true; t.ambKnown = true; addTrust(t, -6);
