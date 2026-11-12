@@ -12,6 +12,12 @@ const UPDATES = [
     "Every trainer has their own aptitude for each role. A trainer's class makes almost no difference.",
     "The apprentice has road battles only and grows faster from watching. Nobody can be an apprentice for more than two seasons.",
     "The weakest chaser and the apprentice level up a little faster from sparring with their party, and a chaser at the League gets a small lift from the party in their corner.",
+    "The party picks its own leader each season, from results, time with the team and personality. A good leader lifts the party's mood and its role bonuses; a hot-headed one does the opposite.",
+    "Your one in-season call is the gym-loss policy, set on the Party page before week 1: Patient, Balanced or Push on. It decides whether the other chasers wait and help when one of them loses at a gym. The leader sometimes bends it.",
+    "Fly: once a chaser has six badges and the party has a strong Flying-type, nobody has to wait after a loss and distant outbreaks are easier to reach. It is never needed to progress.",
+    "Each trainer's highest-level Pokémon is their walking partner and bonds faster. The two closest chasers in a party become travel rivals and grow a little faster, unless one leaves the other far behind.",
+    "Companions and apprentices now have an assist record (badges and titles won by the chasers they travelled with), a Most assists board, and a Companion of the Year award.",
+    "Independents sometimes travel in loose groups of two or three for a season.",
     "After each draft there's a party step: new arrivals are placed for you, and you can swap anyone's place or change a companion's role before confirming. The Party page (Office menu) shows it any time.",
     "Champions start four levels higher (95, or 96 with several Leagues), because a team's three best trainers are now the ones on the circuit.",
     "World structure: a new world has 1 to 4 Leagues, and you choose how many of them you field a party in. A team has at most one party per League, other teams choose their own Leagues, and a party is permanent once founded.",
@@ -837,6 +843,7 @@ document.addEventListener('click', ev => {
     case 'psel': partySel = partySel === +el.dataset.id ? null : +el.dataset.id; render(); break;
     case 'pswap': { const why = swapSlots(+el.dataset.id, el.dataset.s || +el.dataset.w); partySel = null; save(); render(); if (why) toast(why); break; }
     case 'prole': setPartyRole(+el.dataset.id, el.dataset.k); save(); render(); break;
+    case 'ppolicy': if (setPolicy(+el.dataset.i, el.dataset.k)) { save(); render(); } else toast('The policy is set before week 1.'); break;
     case 'banset': setBanVote(+el.dataset.l, el.dataset.sp, +el.dataset.v); save(); render(); break;
     case 'banconfirm': if (S.phase !== 'banvote') break; { confirmBanVote(); save(); const r = S.banResults, nb = r ? r.lgs.reduce((a, x) => a + x.rows.filter(y => y.passed).length, 0) : 0; afterDraft(); toast(nb ? `Votes are in: ${nb} new ban${nb === 1 ? '' : 's'}. See the news.` : 'Votes are in: no new bans.'); } break;
     case 'ranchkeep': ranchKeep = +el.dataset.u; render(); break;

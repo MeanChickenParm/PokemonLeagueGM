@@ -333,6 +333,7 @@ function aiCatch(t) {
   return null;
 }
 function aiAction(t) {
+  noteFly(t);
   if (S.wormhole && S.wormhole.id === t.id) return 'explore';
   if (isChaser(t) && wantsLegend(t)) return 'seek';
   if (slotOf(t) !== 'apprentice' && wantsRaid(t)) return 'raid';
@@ -346,13 +347,15 @@ function aiActionBase(t) {
   if (ob && t.role === 'challenger' && !t.team.some(m => LINE[m.sp] === LINE[ob.sp])) {
     const fits = onSpec(t, formAt(ob.sp, 60, t.specialty)) || linePeak(ob.sp) >= 500;
     const time = t.badges.length >= 8 || SEASON_WEEKS - S.week > 8 - t.badges.length + 2;
-    if (fits && time && rand() < 0.55) return 'explore';
+    if (fits && time && rand() < (inParty(t) && partyHasFly(t.org, lgOf(t)) ? 0.85 : 0.55)) return 'explore';
   }
   if (t.role === 'champion') return t.team.length < 6 || rand() < 0.2 ? 'explore' : 'train';
   const b = t.badges.length, weeksLeft = SEASON_WEEKS - S.week, need = 8 - b;
   const n = t.team.length;
   if (b >= 8) return n < 6 && rand() < 0.6 ? 'explore' : 'train';
   if (weeksLeft <= need + 1) return 'challenge';
+  // 2.0: the party may be staying put this week for a mate's rematch
+  if (partyWaits(t)) return n < 6 && rand() < 0.4 ? 'explore' : 'train';
   // build the roster first: trainers want five or six Pokémon before the later gyms
   if (n < 4 && rand() < 0.85) return 'explore';
   if (n < 5 && b >= 2 && rand() < 0.7) return 'explore';
@@ -366,6 +369,7 @@ function gainLevels(t, amt) {
   // a Mentor on the same team speeds up everyone else's Pokémon
   if (t.org && S.orgs[t.org].roster.some(id => id !== t.id && hasTrait(T(id), 'mentor'))) amt *= 1.05;
   amt *= partyGrowth(t);
+  if (!t.org && t.group && Math.floor(t.group / 100) === S.season) amt *= 1.04; // independents travelling together
   const top = Math.max(...t.team.map(m => m.lvl));
   for (const m of t.team) {
     // newer, lower-level Pokémon catch up faster (shared experience)
@@ -615,6 +619,7 @@ const AWARDS = {
   e4oy: { name: 'Elite Four Member of the Year', short: 'Elite Four of the Year' },
   poy:  { name: 'Pokémon of the Year', short: 'Pokémon of the Year' },
   coy:  { name: 'Catch of the Year', short: 'Catch of the Year' },
+  cmp:  { name: 'Companion of the Year', short: 'Companion of the Year' },
 };
 // a challenger's season, scored: League run and badges (team points), gym record, road and villain wins
 function seasonScore(t, L) {
@@ -647,6 +652,9 @@ function seasonAwards(L) {
   if (gl) out.push(giveAward('gloy', gl.t, null, `${TOWNS[gl.i]} Gym, ${gl.g.w}–${gl.g.l}`));
   const e4 = S.e4.map(id => T(id)).filter(Boolean).map(t => ({ t, w: L.entries.filter(e => e.lostTo === t.id).length })).filter(x => x.w > 0).sort((a, b) => b.w - a.w)[0];
   if (e4) out.push(giveAward('e4oy', e4.t, null, `stopped ${e4.w} challenger${e4.w === 1 ? '' : 's'}`));
+  // 2.0: the companion whose party's chasers did best, weighted by how good they are at their role
+  { const co = challengers().filter(t => inParty(t) && t.slot === 'companion' && t.prole).map(t => { const ch = partyMates(t).filter(x => x.slot === 'chaser'); return { t, pts: ch.reduce((a, x) => a + trainerPoints(x, L), 0), n: ch.reduce((a, x) => a + x.badges.length, 0) }; }).map(x => ({ ...x, v: x.pts * (0.5 + aptOf(x.t)[x.t.prole] / 100) })).sort((a, b) => b.v - a.v)[0];
+    if (co && co.v > 0) out.push(giveAward('cmp', co.t, null, `${PARTY_ROLES[co.t.prole].name} for ${orgName(co.t.org)}: ${co.n} badges by the chasers they travelled with`)); }
   const mons = [];
   // Gym Leaders' Pokémon battle every week and have their own award, so Pokémon of the Year goes to everyone else's
   for (const t of leagueTrainers()) if (!['retired', 'leader'].includes(t.role) && t.team) for (const m of t.team) mons.push({ t, m, v: monYear(m) });
@@ -2264,6 +2272,13 @@ function leagueOffseason(standings, changes) {
     const t = T(id); const e = L.entries.find(x => x.id === id);
     t.seasonHist.push({ season: S.season, lg: S.lg || 0, org: t.org, badges: t.badges.length, stage: e ? e.stage : null, ovr: ovr(t), pts: trainerPoints(t, L), slot: slotOf(t) || undefined, prole: t.prole || undefined });
     if (slotOf(t) === 'apprentice') t.appSeasons = (t.appSeasons || 0) + 1;
+    // assists: what the chasers a companion or apprentice travelled with achieved
+    if (inParty(t) && t.slot !== 'chaser') {
+      const got = partyMates(t).filter(x => x.slot === 'chaser').reduce((a, x) => a + x.badges.length, 0);
+      const won = L.entries.some(x => x.stage === 5 && !x.interim && T(x.id) && T(x.id).champOrg === t.org) ? 1 : 0;
+      t.career.assists = (t.career.assists || 0) + got; t.career.assistTitles = (t.career.assistTitles || 0) + won;
+      t.seasonHist[t.seasonHist.length - 1].assists = got;
+    }
   }
   if (!ran.has(S.champion)) T(S.champion).seasonHist.push({ season: S.season, lg: S.lg || 0, org: T(S.champion).org, role: 'champion', ovr: ovr(T(S.champion)), pts: trainerPoints(T(S.champion), L) });
   // season awards
@@ -2439,7 +2454,7 @@ function roleStr(t, role) {
   if (!inParty(t)) return 0;
   let s = 0;
   for (const c of partyMates(t)) if (c !== t && c.slot === 'companion' && c.prole === role) s += aptOf(c)[role] / 100;
-  return Math.min(1, s);
+  return Math.min(1, s * (1 + partyMood(t.org, lgOf(t))));
 }
 // growth from travelling together: the Coach, and sparring for the weakest chaser and the apprentice
 function partyGrowth(t) {
@@ -2447,6 +2462,7 @@ function partyGrowth(t) {
   let g = 1 + 0.08 * roleStr(t, 'coach') * (t.age <= 18 ? 1.5 : 1);
   if (t.slot === 'apprentice') g += 0.06;
   else { const ch = partyMates(t).filter(x => x.slot === 'chaser'); if (ch.length > 1 && ch.every(x => x === t || topAvg(x, 3) >= topAvg(t, 3))) g += 0.06; }
+  if (t.trival && !t.trivalSour) g += 0.03; // travel rivals push each other
   return g;
 }
 // the Researcher's scouting, and the party in a chaser's corner at the League
@@ -2455,6 +2471,8 @@ function partyEdge(t, stakes) {
   let e = 1;
   if (stakes === 'gym' || stakes === 'league' || stakes === 'title') e += 0.03 * roleStr(t, 'researcher');
   if (stakes === 'league' || stakes === 'title') e += 0.004 * Math.min(5, partyMates(t).length - 1);
+  // a rematch the party stayed (or flew back) to help prepare
+  if (stakes === 'gym' && lostLastWeek(t) && (partyHasFly(t.org, lgOf(t)) || staysFor(partyState(t.org, lgOf(t)), t))) e += 0.03;
   return e;
 }
 const partyBonus = (k, i = S.lg || 0) => { const ch = partyOf(k, i).filter(t => t.slot === 'chaser'); return ch.length === PARTY_CHASERS && ch.every(t => t.badges && t.badges.length === 8) ? PARTY_BONUS : 0; };
@@ -2667,6 +2685,7 @@ function movePartyBlock(k, from, to) {
 function moveParty(k, from, to) {
   const why = movePartyBlock(k, from, to); if (why) return why;
   const o = org(k), swap = fieldsIn(k, to);
+  { o.party = o.party || {}; const a = o.party[from], b = o.party[to]; if (a) o.party[to] = a; else delete o.party[to]; if (swap && b) o.party[from] = b; else delete o.party[from]; }
   const A = partyOf(k, from), B = swap ? partyOf(k, to) : [];
   for (const t of A) shiftLeague(t, to);
   for (const t of B) shiftLeague(t, from);
@@ -2688,4 +2707,89 @@ function godAddTeam(k) {
   if (S.cfg) S.cfg.teams = ORG_KEYS.length;
   news(`${orgName(k)} has joined the world as a new team.`, 'league');
   return null;
+}
+
+// ================= PARTY LIFE (2.0) =================
+// The party picks its own leader. The GM sets one thing in season: what the party does when a chaser loses at a gym.
+const POLICIES = {
+  patient:  { name: 'Patient',  text: "After any gym loss the other chasers hold off on their own gyms for a week and help prepare the rematch." },
+  balanced: { name: 'Balanced', text: "The party waits a week after a chaser's first loss at a gym, then moves on." },
+  push:     { name: 'Push on',  text: "Nobody waits. A chaser who loses gets no help with the rematch." },
+};
+function partyState(k, i = S.lg || 0) { const o = org(k); o.party = o.party || {}; return o.party[i] = o.party[i] || { policy: 'balanced', leader: null }; }
+// leader: a hidden mix of last season's results, time with the team and personality
+const LEAD_TRAIT = { mentor: 8, steady: 5, clutch: 4, competitor: 3, hothead: 2, grinder: 2 };
+function pickLeader(k, i = S.lg || 0) {
+  const ch = partyOf(k, i).filter(t => t.slot === 'chaser'), st = partyState(k, i);
+  if (!ch.length) { st.leader = null; return null; }
+  const sc = t => { const h = (t.seasonHist || []).slice(-1)[0], ten = (t.teams || []).slice(-1)[0]; return (h && h.pts != null ? h.pts : 0) * 1.2 + (ten ? Math.min(8, curSeason() - ten.from) : 0) * 1.5 + (LEAD_TRAIT[traitOf(t)] || 0) + ovr(t) * 0.15 + rand() * 3; };
+  st.leader = ch.slice().sort((a, b) => sc(b) - sc(a))[0].id;
+  return st.leader;
+}
+const leaderOf = (k, i = S.lg || 0) => { const L = T(partyState(k, i).leader); return L && inParty(L) && L.org === k && L.slot === 'chaser' && lgOf(L) === i ? L : null; };
+// the leader's personality sets the party's mood: role bonuses run a little stronger or weaker
+const MOOD = { mentor: 0.1, steady: 0.06, clutch: 0.03, hothead: -0.08, streaky: -0.04 };
+function partyMood(k, i = S.lg || 0) { const L = leaderOf(k, i); let m = L ? (MOOD[traitOf(L)] || 0) : 0; if (partyOf(k, i).some(t => t.trivalSour)) m -= 0.03; return m; }
+const lostLastWeek = t => { const e = t.weekLog[t.weekLog.length - 1]; return !!e && e.act === 'challenge' && e.won === false; };
+// losses in a row at the gym this trainer is stuck on
+function gymLossesAt(t) { let n = 0; for (let x = t.weekLog.length - 1; x >= 0; x--) { const e = t.weekLog[x]; if (e.act !== 'challenge') continue; if (e.won === false && e.gym === t.badges.length) n++; else break; } return n; }
+// Fly: once a chaser has six badges and someone in the party has a Pokémon that can carry them
+const canFly = m => { const sp = SP[m.sp]; return !!sp && monTypes(m).includes('Flying') && sp.bst >= 430; };
+function partyHasFly(k, i = S.lg || 0) { const P = partyOf(k, i); return P.some(t => t.slot === 'chaser' && t.badges.length >= 6) && P.some(t => t.team.some(canFly)); }
+function noteFly(t) {
+  if (!inParty(t) || t.slot !== 'chaser') return;
+  const st = partyState(t.org, lgOf(t)); if (st.fly === S.season || !partyHasFly(t.org, lgOf(t))) return;
+  st.fly = S.season;
+  const P = partyOf(t.org, lgOf(t)), who = P.find(x => x.team.some(canFly)), m = who.team.filter(canFly).sort((a, b) => b.lvl - a.lvl)[0];
+  news(`${orgName(t.org)}'s party can now Fly on ${who.name}'s ${m.sp}: no more waiting around after a gym loss, and distant outbreaks are within reach.`, t.user ? 'you' : 'circuit', who.id);
+}
+// does the party's policy have it stay put after this mate's loss?
+const staysFor = (st, x) => st.policy === 'patient' || (st.policy === 'balanced' && gymLossesAt(x) === 1);
+// should this chaser hold off on their own gym this week? The leader can bend the GM's policy either way.
+function partyWaits(t) {
+  if (!inParty(t) || t.slot !== 'chaser') return false;
+  const k = t.org, i = lgOf(t), st = partyState(k, i);
+  const lost = partyMates(t).filter(x => x !== t && x.slot === 'chaser' && lostLastWeek(x));
+  if (!lost.length || partyHasFly(k, i)) return false;
+  if (!st.bend || st.bend.wk !== S.week || st.bend.s !== S.season) st.bend = { wk: S.week, s: S.season, r: rand() };
+  const L = leaderOf(k, i), tr = L && traitOf(L);
+  let wait = lost.some(x => staysFor(st, x));
+  if (wait && (tr === 'hothead' || tr === 'competitor') && st.bend.r < 0.35) wait = false;
+  if (!wait && st.policy === 'push' && (tr === 'mentor' || tr === 'steady') && st.bend.r < 0.25) wait = true;
+  return wait;
+}
+const canSetPolicy = () => !!S && (S.phase !== 'league' && (S.phase !== 'season' || S.week === 0));
+function setPolicy(i, p) { if (!S.userOrg || !POLICIES[p] || !canSetPolicy() || !fieldsIn(S.userOrg, i)) return false; partyState(S.userOrg, i).policy = p; return true; }
+// week 1: leaders, AI policies, travel rivals, and independents who decide to travel together
+function partySeasonStart() {
+  eachParty((k, i) => {
+    if (!fieldsIn(k, i)) return;
+    const P = partyOf(k, i); if (!P.length) return;
+    const st = partyState(k, i), was = st.leader, L = T(pickLeader(k, i));
+    if (L && k !== S.userOrg) { const tr = traitOf(L); st.policy = tr === 'hothead' || tr === 'competitor' ? 'push' : tr === 'mentor' || tr === 'steady' ? 'patient' : 'balanced'; }
+    if (L && k === S.userOrg && was !== L.id) news(`${dn(L)} leads ${nLeagues() > 1 ? `the ${leagueName(i)} party` : 'the party'} this season.`, 'you', L.id);
+    // travel rivals: the two chasers closest in ability push each other; it sours if one was left far behind
+    const ch = P.filter(t => t.slot === 'chaser');
+    let best = null;
+    for (const a of ch) for (const b of ch) if (a.id < b.id && Math.abs(ovr(a) - ovr(b)) <= 5 && (!best || Math.abs(ovr(a) - ovr(b)) < best.d)) best = { a, b, d: Math.abs(ovr(a) - ovr(b)) };
+    for (const t of P) { const keep = best && (t === best.a || t === best.b); if (!keep) { t.trival = null; t.trivalSour = false; } }
+    if (best) {
+      const { a, b } = best, again = a.trival === b.id && b.trival === a.id;
+      const ha = (a.seasonHist || []).slice(-1)[0], hb = (b.seasonHist || []).slice(-1)[0];
+      const sour = again && ha && hb && ha.badges != null && hb.badges != null && Math.abs(ha.badges - hb.badges) >= 3;
+      a.trival = b.id; b.trival = a.id; a.trivalSour = b.trivalSour = !!sour;
+      if (k === S.userOrg && (!again || sour)) news(sour ? `The friendly rivalry between ${a.name} and ${b.name} has soured after one left the other behind last season.` : `${a.name} and ${b.name} have become travel rivals, pushing each other on the road.`, 'you', a.id);
+    }
+  });
+  eachLeague(() => {
+    const ind = shuffle(independents().filter(t => t.team && t.team.length));
+    for (const t of ind) t.group = null;
+    const groups = ind.length >= 14 ? 2 : ind.length >= 5 && rand() < 0.6 ? 1 : 0;
+    let at = 0;
+    for (let g = 0; g < groups; g++) {
+      const n = rand() < 0.5 ? 2 : 3, mem = ind.slice(at, at + n); at += n; if (mem.length < 2) break;
+      const id = S.season * 100 + g + 1; mem.forEach(t => { t.group = id; });
+      news(`${mem.map(t => t.name).join(mem.length > 2 ? ', ' : ' and ').replace(/, ([^,]*)$/, ' and $1')} are travelling together this season as independents.`, 'circuit', mem[0].id);
+    }
+  });
 }

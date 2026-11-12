@@ -1012,7 +1012,7 @@ function viewTrainerScreen(id) {
     ${lastWeek}
     <section class="panel"><div class="ph"><h3>Season so far</h3><span class="muted">${t.weekLog.filter(w => w.won).length}–${t.weekLog.filter(w => w.won === false).length} in gym battles</span></div><div class="strip">${strip}</div></section>
   </div><div class="col side">
-    <section class="panel"><div class="ph"><h3>Team</h3><span class="muted">${t.team.length}/6</span></div>${t.team.map(m => monRow(m, t.id)).join('')}</section>
+    <section class="panel"><div class="ph"><h3>Team</h3><span class="muted">${t.team.length}/6${walkingPartner(t) ? ' · walks with ' + walkingPartner(t).sp : ''}</span></div>${t.team.map(m => monRow(m, t.id)).join('')}</section>
     ${itemsPanel(t)}
     <section class="panel"><div class="ph"><h3>Ratings</h3></div>${ratingBars(t)}</section>
     <section class="panel"><div class="ph"><h3>${t.name}'s news</h3></div>${newsList(S.news.filter(n => n.id === t.id).slice(0, 6))}</section>
@@ -1060,7 +1060,7 @@ function profileBody(t, full) {
       ${ratingBars(t)}
       ${full ? `<dl class="help">${RK.map(k => `<div><dt>${RNAME[k]}</dt><dd>${RHELP[k]}</dd></div>`).join('')}</dl>` : ''}
     </section>
-    <section class="panel"><div class="ph"><h3>Team</h3><span class="muted">${t.team.length}/6</span></div>${t.team.map(m => monRow(m, t.id)).join('') || '<p class="muted">No Pokémon.</p>'}</section>
+    <section class="panel"><div class="ph"><h3>Team</h3><span class="muted">${t.team.length}/6${walkingPartner(t) ? ' · walks with ' + walkingPartner(t).sp : ''}</span></div>${t.team.map(m => monRow(m, t.id)).join('') || '<p class="muted">No Pokémon.</p>'}</section>
     ${(t.alumni || []).length ? `<section class="panel"><div class="ph"><h3>Former Pokémon</h3><span class="muted">${t.alumni.length}</span></div><div class="scroll"><table class="tbl"><thead><tr><th>Pokémon</th><th>Last Lv</th><th>Record</th><th>KOs</th><th>Left</th></tr></thead><tbody>${t.alumni.map((a, i) => `<tr><td><button class="tlink" data-act="alum" data-t="${t.id}" data-i="${i}">${a.sp}</button></td><td class="num">${a.lvl}</td><td class="num">${wl(a.st)}</td><td class="num">${a.st.ko}</td><td class="muted small">S${a.left} · ${a.why}</td></tr>`).join('')}</tbody></table></div></section>` : ''}
     ${careerExtras(t)}
     <section class="panel"><div class="ph"><h3>Career</h3><span class="muted">${t.role === 'retired' ? `Retired in Season ${t.retiredSeason} after ${t.seasons || 0} seasons` : `Season ${Math.max(1, t.seasons || 0)} of their career${t.age >= 45 ? ` · could retire for age from ${Math.max(50, t.age + Math.max(0, careerSpan(t) - (t.seasons || 0)))}` : ''}`}</span></div>

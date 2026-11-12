@@ -296,6 +296,7 @@ function viewRecords() {
     ${recBoard('Most title defenses', topBy(ts, t => t.career.defenses).map(([t, v]) => row(t, v)))}
     ${recBoard('Youngest Champion', wins.slice().sort((a, b) => a.age - b.age || a.s - b.s).slice(0, 5).map(w => row(w.t, `age ${w.age}`, seasonsLg([{ season: w.s, lg: w.lg }]))))}
     ${nLeagues() >= CROWN_LEAGUES ? recBoard('Triple Crowns', ts.filter(isGrandSlam).sort((a, b) => (a.grandSlam || 999) - (b.grandSlam || 999)).slice(0, 5).map(t => row(t, champLeaguesOf(t).size + ' Leagues', t.grandSlam ? 'completed Season ' + t.grandSlam : '')), 'Champion of three different Leagues across a career.') : ''}
+    ${recBoard('Most assists', topBy(ts, t => (t.career && t.career.assists) || 0, 5).map(([t, v]) => row(t, v, t.career.assistTitles ? t.career.assistTitles + ' title' + (t.career.assistTitles > 1 ? 's' : '') : '')), 'Badges won by the chasers a companion or apprentice travelled with.')}
     ${nLeagues() > 1 ? recBoard('Most World Championships', topBy(ts, t => (t.worldSeasons || []).length).map(([t, v]) => row(t, v, 'Season ' + t.worldSeasons.join(', ')))) : ''}
     ${recBoard('Oldest Champion', wins.slice().sort((a, b) => b.age - a.age || a.s - b.s).slice(0, 5).map(w => row(w.t, `age ${w.age}`, seasonsLg([{ season: w.s, lg: w.lg }]))))}
   </div></section>`;
@@ -1009,6 +1010,13 @@ const GLOSS_TERMS = {
     ['Apprentice', "A party's developing trainer: road battles only, and faster growth from watching the chasers. Two seasons at most, then they must chase, support or move on."],
     ['Aptitude', 'How good a trainer is at each companion role, from 5 to 99. Every trainer has their own; their class makes almost no difference.'],
     ['Sparring', 'The weakest chaser in a party and its apprentice level up a little faster from travelling with stronger trainers.'],
+    ['Party leader', "One of the three chasers, chosen by the party itself from last season's results, time with the team and personality. Their personality sets the party's mood, which makes role bonuses a little stronger or weaker, and they sometimes bend your gym-loss policy."],
+    ['Gym-loss policy', "The one in-season call that is yours, set before week 1. Patient: after any gym loss the other chasers wait a week and help prepare the rematch. Balanced: they wait after a first loss at a gym only. Push on: nobody waits. A rematch the party stayed for gets a small edge."],
+    ['Fly', "A late-season party perk, never needed to progress. Once any chaser has six badges and someone in the party has a strong Flying-type, nobody has to wait after a gym loss, rematches still get their edge, and the party is likelier to reach a mass outbreak."],
+    ['Walking partner', "A trainer's highest-level Pokémon walks beside them out of its ball, and its friendship grows faster."],
+    ['Travel rivals', "The two chasers in a party who are closest in ability. Both level up a little faster. If one finishes three or more badges ahead, the rivalry sours the next season: no bonus, and the party's mood dips."],
+    ['Assists', 'Badges and titles won by the chasers a companion or apprentice travelled with. Companions score no Team Cup points; assists are their record.'],
+    ['Independent group', 'Two or three independents who travel together for a season and level up a little faster. They have no roles.'],
     ...ROLE_KEYS.map(k => [PARTY_ROLES[k].name + ' (role)', PARTY_ROLES[k].text]),
   ],
   battle: [
@@ -1222,7 +1230,8 @@ function partyPanel(k, i, edit) {
         : s === 'apprentice' ? `Season ${(t.appSeasons || 0) + 1} of ${APPRENTICE_SEASONS} as an apprentice · best support roles: ${aptLine(t, 2)}`
         : s === 'bench' ? `<span class="warn">No place in the party${canApprentice(t) ? '' : ': two seasons as an apprentice are up'}</span>`
         : `Best support roles: ${aptLine(t, 2)}`;
-      return `<div class="pt-row${me ? ' sel' : ''}"><div class="pt-id">${tname(t.id)} ${ovrPill(t)} <span class="muted small">age ${t.age} · POT ${t.pot}</span> <span class="small">${specChips(t)}</span></div><div class="pt-act">${act}</div><div class="pt-note small muted">${note}</div>${roles}</div>`;
+      const extra = (leaderOf(k, i) === t ? ' <span class="tag gold">Leader</span>' : '') + (t.trival && T(t.trival) ? ` <span class="tag" title="${t.trivalSour ? 'The rivalry has soured: no growth bonus, and the party\'s mood suffers' : 'Travel rivals level up a little faster'}">${t.trivalSour ? 'Soured rivalry' : 'Travel rival'}: ${T(t.trival).name}</span>` : '') + (s !== 'chaser' && t.career && t.career.assists ? ` <span class="muted small">Assists: ${t.career.assists} badge${t.career.assists === 1 ? '' : 's'}${t.career.assistTitles ? ', ' + t.career.assistTitles + ' title' + (t.career.assistTitles > 1 ? 's' : '') : ''}</span>` : '');
+      return `<div class="pt-row${me ? ' sel' : ''}"><div class="pt-id">${tname(t.id)} ${ovrPill(t)} <span class="muted small">age ${t.age} · POT ${t.pot}</span> <span class="small">${specChips(t)}</span>${extra}</div><div class="pt-act">${act}</div><div class="pt-note small muted">${note}</div>${roles}</div>`;
     };
     const grp = (s, cap, label) => {
       const rows = P.filter(t => slotOf(t) === s), open = cap - rows.length;
@@ -1231,7 +1240,7 @@ function partyPanel(k, i, edit) {
     };
     const bench = P.filter(t => slotOf(t) === 'bench');
     const cover = ROLE_KEYS.filter(r => P.some(t => t.slot === 'companion' && t.prole === r)).map(r => PARTY_ROLES[r].name);
-    return `<section class="panel"><div class="ph"><h3>${nLeagues() > 1 ? leagueName(i) + ' party' : 'Your party'}</h3><span class="muted">${P.length}/${PARTY_SIZE}${cover.length ? ' · ' + cover.join(' + ') : ''}</span></div>${edit ? partyMoveRow(k, i) : ''}
+    return `<section class="panel"><div class="ph"><h3>${nLeagues() > 1 ? leagueName(i) + ' party' : 'Your party'}</h3><span class="muted">${P.length}/${PARTY_SIZE}${cover.length ? ' · ' + cover.join(' + ') : ''}</span></div>${edit ? partyMoveRow(k, i) : ''}${P.length ? partyLifeRow(k, i) : ''}
       ${P.length ? grp('chaser', PARTY_CHASERS, 'Title chasers') + grp('companion', PARTY_COMPANIONS, 'Companions') + grp('apprentice', PARTY_APPRENTICES, 'Apprentice') + (bench.length ? `<div class="pt-grp"><div class="eyebrow">No place · ${bench.length}</div>${bench.map(row).join('')}</div>` : '') : '<p class="muted">No trainers in this League.</p>'}</section>`;
   });
 }
@@ -1242,6 +1251,15 @@ function viewParty() {
     <p class="muted small">${edit ? "Tap Move on a trainer, then choose who they swap with. The number beside a role is that trainer's aptitude for it." : 'Parties are set in the offseason, after the draft.'}</p></section>
     ${S.nextLeague && S.nextLeague.told && nextRegionName() ? `<section class="panel"><p><b>Coming:</b> the ${nextRegionName()} opens in Season ${S.nextLeague.season}. You'll be able to found a party there.</p></section>` : ''}
     ${Array.from({ length: nLeagues() }, (_, i) => fieldsIn(S.userOrg, i) ? partyPanel(S.userOrg, i, edit) : foundPanel(i)).join('')}`;
+}
+// the leader the party chose, and the one in-season call that is yours: what happens after a gym loss
+function partyLifeRow(k, i) {
+  const st = partyState(k, i), L = leaderOf(k, i), can = k === S.userOrg && canSetPolicy();
+  const mood = partyMood(k, i);
+  const pol = Object.keys(POLICIES).map(p => `<button class="rel${st.policy === p ? ' on' : ''}" data-act="ppolicy" data-i="${i}" data-k="${p}" ${can ? '' : 'disabled'} title="${esc(POLICIES[p].text)}">${POLICIES[p].name}</button>`).join('');
+  return `<div class="pt-life"><div class="small">${L ? `<b>Leader:</b> ${L.name}${traitOf(L) && TRAITS[traitOf(L)] ? ' (' + TRAITS[traitOf(L)].name + ')' : ''} · party mood ${mood > 0.02 ? '<span class="good">good</span>' : mood < -0.02 ? '<span class="bad">tense</span>' : 'steady'}` : '<span class="muted">The party picks its leader when the season starts.</span>'}${partyHasFly(k, i) ? ' · <span class="tag gold">Fly</span>' : ''}</div>
+    <div class="pt-roles"><span class="muted small" style="align-self:center">After a gym loss:</span>${pol}</div>
+    <div class="small muted">${POLICIES[st.policy].text}${can ? '' : ' Set before week 1.'}</div></div>`;
 }
 // move a whole party to a League where you have none, or swap two parties
 function partyMoveRow(k, i) {

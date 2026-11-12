@@ -1022,6 +1022,8 @@ function styledPick(t, av, mons, opening) {
 const SEAT_ROLES = { gym: ['leader'], league: ['e4', 'champion'], title: ['e4', 'champion'] };
 // v199: a team "stronger" or "weaker" than another by more than this share of its power
 const TRAIT_EDGE = 0.05;
+// 2.0: a trainer's ace walks beside them out of its ball, and bonds faster for it
+const walkingPartner = t => t && t.team && t.team.length ? t.team.reduce((a, m) => (m.lvl > a.lvl ? m : a), t.team[0]) : null;
 function traitMod(t, foe, stakes, opts, side) { return traitModBase(t, foe, stakes, opts, side) * partyEdge(t, stakes); }
 function traitModBase(t, foe, stakes, opts = {}, side = 0) {
   const tr = traitOf(t);
@@ -2217,7 +2219,7 @@ function recordBattle(trainers, tally, winner, stakes) {
       if (r.bond) { m.bonds = (m.bonds || 0) + 1; t.career.bondForms = (t.career.bondForms || 0) + 1; }
       // friendship grows with time in battle, faster for trainers with a high Bond rating
       if (m.shadow) openHeart(t, m, HEART_BATTLE);
-      else m.fr = Math.min(255, (m.fr ?? 70) + Math.round((2 + (won ? 2 : 0)) * (0.5 + t.r.bnd / 100) * (heldItem(m) === 'soothebell' ? 1.5 : 1) * temperFr(m) * (1 + 0.5 * roleStr(t, 'coordinator'))));
+      else m.fr = Math.min(255, (m.fr ?? 70) + Math.round((2 + (won ? 2 : 0)) * (0.5 + t.r.bnd / 100) * (heldItem(m) === 'soothebell' ? 1.5 : 1) * temperFr(m) * (1 + 0.5 * roleStr(t, 'coordinator')) * (m === walkingPartner(t) ? 1.5 : 1)));
       // form: wins and knockouts heat a Pokémon up, fainting cools it down, with some drift
       const tr = traitOf(t), swing = tr === 'streaky' ? 1.5 : tr === 'steady' ? 0.5 : 1;
       // v197: Bold shrugs off a loss, Careful cools half as much from fainting, Hardy never runs hot or cold
