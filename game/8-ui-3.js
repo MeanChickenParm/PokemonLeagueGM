@@ -1,6 +1,6 @@
 const verName = u => u.ver || u.id;
 const UPDATES = [
-  { id: 204, ver: '2.0.0', date: 'November 11, 2026', time: '10:45 PM ET', title: '2.0 begins: self-running trainers and travelling parties', items: [
+  { id: 204, ver: '2.0.0', date: 'November 12, 2026', time: '8:16 AM ET', title: '2.0: you run the team, your trainers run themselves', items: [
     "This is the first step of Pokémon League GM 2.0, a rework where you manage the team and your trainers make their own decisions.",
     "Your trainers now choose their own week: when to challenge a gym, train, explore, seek a legendary, confront villains or purify. There are no weekly plans to set.",
     "They also decide what to catch and who makes room, which gym reward to take, which items to hold, where the Mega Stone goes, whether to accept a road trade or snag a Shadow Pokémon, their Midseason Tournament prize, and which three Pokémon to register for the new season.",
@@ -22,12 +22,13 @@ const UPDATES = [
     "A trainer who wants the title and is kept in support runs out of patience and asks for a chaser spot or their release. You can promote them, promise a spot (binding), trade them or release them. Older chasers may ask to step back into support.",
     "Trust: each of your trainers trusts you more or less, depending on how their seasons go and how you treat them. Break a promise and the whole team trusts you less.",
     "Sit-downs: once per party each season, before week 1, give a chaser or the apprentice a piece of advice. They may not listen; you see the odds first.",
-    "Trades: in the offseason, trade a trainer one for one with another team, or for an extra draft pick.",
+    "Trades: in the offseason, trade a trainer one for one with another team, or for an extra draft pick. Other teams sometimes propose a trade to you, more often for a trainer you've put on the block.",
     "The ranch is now one shared pool per team. Your trainers help themselves in the offseason and at the midseason break: chasers and the apprentice can each have one Pokémon out, as a loan for the season. One that makes their registered three becomes theirs.",
     "Each trainer may leave one Pokémon in the ranch per season. Resting no longer improves a Pokémon, and Pokémon released at registration no longer go to the ranch.",
     "You no longer hand ranch Pokémon out. You choose what goes in: the Champion's reward, farewell gifts and which Pokémon to keep from a retiring trainer.",
     "The retired ranch and the historical ranch are now one Hall, with filters for title rosters and retired Pokémon.",
     "A party can move to a League where one of its legendaries is already held, if you leave that legendary in the ranch.",
+    "New: the Team Battle Cup. After the Leagues every team meets in a knockout of best-of-five single-battle series at equal level. Anyone in a party can battle, companions included. You set the lineup on the Party page. The winner earns 5 Team Cup points, the runner-up 2.",
     "After each draft there's a party step: new arrivals are placed for you, and you can swap anyone's place or change a companion's role before confirming. The Party page (Office menu) shows it any time.",
     "Champions start four levels higher (95, or 96 with several Leagues), because a team's three best trainers are now the ones on the circuit.",
     "World structure: a new world has 1 to 4 Leagues, and you choose how many of them you field a party in. A team has at most one party per League, other teams choose their own Leagues, and a party is permanent once founded.",
@@ -813,7 +814,7 @@ document.addEventListener('click', ev => {
     case 'snagrel': { const id = +el.dataset.id; S.snagPick = S.snagPick || {}; S.snagPick[id] = Object.assign(S.snagPick[id] || {}, { release: +el.dataset.u }); render(); break; }
     case 'snaggo': { const id = +el.dataset.id; const pk = (S.snagPick || {})[id]; if (pk) { const m = answerSnag(id, pk.i, pk.release); delete S.snagPick[id]; save(); render(); if (m) toast(`Snagged a Shadow ${m.sp}.`); } break; }
     case 'snagno': { const id = +el.dataset.id; answerSnag(id, null); if (S.snagPick) delete S.snagPick[id]; save(); render(); break; }
-    case 'tradeans': { const id = +el.dataset.id; const r = answerTrade(id, el.dataset.v === '1'); save(); render(); if (r) toast(`Trade done: ${T(id).name} received ${r.a}.`); break; }
+    case 'tradeans': { const o = S.offers[0]; if (o && o.kind === 'tradeoffer') { answerTradeOffer(el.dataset.v === '1'); save(); render(); toast(el.dataset.v === '1' ? 'Traded.' : 'Turned down.'); } break; }
     case 'megaset': { const t = T(+el.dataset.id); if (t && t.user) { assignMegaStone(t, +el.dataset.u, el.dataset.v); save(); render(); } break; }
     case 'hoflg': hofLg = el.dataset.v; render(); break;
     case 'hofsort': hofSort = el.dataset.v; render(); break;
@@ -855,6 +856,7 @@ document.addEventListener('click', ev => {
     case 'prole': setPartyRole(+el.dataset.id, el.dataset.k); save(); render(); break;
     case 'req': { const ok = answerRequest(el.dataset.c, el.dataset.a ? +el.dataset.a : undefined); save(); render(); if (!ok) toast("That couldn't be done."); break; }
     case 'reqtrade': { const ok = answerRequest('trade', +el.dataset.n); save(); render(); toast(ok ? 'Traded.' : 'That offer is gone.'); break; }
+    case 'block': { const t = T(+el.dataset.id); if (t) { setBlock(t.id, !t.block); save(); render(); } break; }
     case 'sitopen': sitOpen = sitOpen === +el.dataset.id ? null : +el.dataset.id; tradeOpen = null; render(); break;
     case 'tradeopen': tradeOpen = tradeOpen === +el.dataset.id ? null : +el.dataset.id; sitOpen = null; render(); break;
     case 'sit': { const r = sitDown(+el.dataset.id, el.dataset.k); sitOpen = null; save(); render(); toast(!r ? 'No sit-down left for this party this season.' : r.ok ? 'They took it on board.' : "They'll do it their own way."); break; }
@@ -887,6 +889,8 @@ document.addEventListener('click', ev => {
       if (!sp) { toast(raw ? `${raw} can't be chosen. Pick a Pokémon from the list.` : 'Type a Pokémon first.'); break; }
       if (t.team.length >= 6 && tourneyRel == null) { toast('The team is full. Choose who makes room first.'); break; }
       const m = tourneyPick(id, sp, tourneyRel); tourneyRel = null; tourneyText = ''; save(); render(); if (m) toast(`An alpha ${m.sp} joined ${t.name}'s team!`); break; }
+    case 'watchcup': { const t = S.teamCup && S.teamCup.ties[+el.dataset.i], g = t && t.games[+el.dataset.j]; if (g && g.log) { modal = { kind: 'battle', r: g.log }; renderModal(); } break; }
+    case 'cupup': { const k = S.userOrg, all = cupEligible(k), line = cupLineup(k), order = line.concat(all.filter(t => !line.includes(t)).sort((a, b) => teamPower(b) - teamPower(a))).map(t => t.id), at = order.indexOf(+el.dataset.id); if (at > 0) { [order[at - 1], order[at]] = [order[at], order[at - 1]]; setCupLineup(order); save(); render(); } break; }
     case 'watchworld': { const m = S.worlds && S.worlds.matches[+el.dataset.i]; if (m) { modal = { kind: 'battle', r: m.log }; renderModal(); } break; }
     case 'watch': { const r = el.dataset.src === 'week' ? S.lastBattles[+el.dataset.i] : S.league.logs[+el.dataset.i]; modal = { kind: 'battle', r }; renderModal(); break; }
     case 'bskip': clearInterval(player); modal.skip && modal.skip(); break;

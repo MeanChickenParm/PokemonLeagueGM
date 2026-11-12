@@ -8,8 +8,11 @@
 - **Don't copy the built HTML to the repo root** on this branch. The root `Pokémon League GM.html` and `index.html` are the live 1.x game.
 - **Version numbers:** each `UPDATES` entry keeps a whole-number `id` that goes up by one per chat (it orders the changelog and drives the "new updates" dot), plus a `ver` string that players see: `2.0.0`, `2.0.1`… One new `ver` per chat. The build names its files from `ver`.
 - **Saves:** 2.0 uses its own save key (`plgm2-save`) and never reads or writes 1.x saves.
-- **Build stages** (see the design doc): 1 hands-off trainers (done in 2.0.0), 2 parties and world structure, 3 ambition, 4 influence and the ranch rework, 5 full trading, 6 team cups and multi battles.
-- **Left over from stage 1:** the engine no longer asks the player anything for a trainer, but the old screens and handlers for those choices (registration view, snag/trade/legendary-room/item-reward/tournament-prize panels, the catch picker) are still in the UI files, unreachable. Delete them when stage 2 rewrites those screens.
+- **Build stages** (see the design doc). Built in 2.0.0: 1 hands-off trainers; 2 parties, world structure and party life; 3 ambition, requests, promises, simple trades; 4 trust, sit-downs, the ranch as a shared pool, the Hall; 5 (part) trade offers from other teams and the trade block; 6 (part) the Team Battle Cup. **Not built yet:** multi-trainer trades and a trade screen; multi battles (needs a doubles battle engine, see `TODO.md`); the god-mode trainer and roster editor (god mode can open Leagues and add parties and teams only).
+- **New engine piece:** `game/4b-engine-2b.js` (ambition, trust, sit-downs, trades, the ranch pool, the Team Battle Cup) sits between `4-engine-2.js` and `5-engine-3.js` in `build.py`. The party and world-structure code is at the end of `4-engine-2.js`.
+- **Tests** used so far live outside the repo; the checks worth repeating: sim 10+ seasons in several setups (1 to 4 Leagues, 4 and 8 teams, growth on) asserting every party has at most 3 chasers, 2 companions and 1 apprentice, nobody holds two ranch loans, and nothing is ever left waiting on the player in season.
+- **Balance is not tuned.** Champion levels are 95/96 as a stopgap. Title changes run very high in sims (as they already did in v203 under the same harness); a full balance pass is still to do.
+- **Left over from stage 1:** the engine no longer asks the player anything for a trainer, but the old screens and handlers for those choices (registration view, snag/trade/legendary-room/item-reward/tournament-prize panels, the catch picker, the old ranch hand-out handlers) are still in the UI files, unreachable. Delete them in a clean-up pass.
 
 This repo is the only master copy of the game. Every chat works the same way: clone, build, change, test, push.
 
@@ -26,6 +29,7 @@ This repo is the only master copy of the game. Every chat works the same way: cl
 | `2-pokemon-data.js` | all Pokémon data: SPECIES_RAW, LEGENDS_RAW, BASE_STATS_RAW, PARADOX_RAW, BABY_RAW, MEGA_RAW, MOVES_RAW, SIG_MOVES, ABILITY_RAW | `// ================= POKÉMON DATA =================` |
 | `3-engine-1.js` | engine: types, species, world constants, trainers, battle, moves, abilities, items, stats | `// ================= HALCYON LEAGUE ENGINE =================` |
 | `4-engine-2.js` | engine: legendary partners, season, villains, awards, legacy, legendary events, Midseason Tournament, teams, League, offseason | `// ================= LEGENDARY PARTNERS (v166) =================` |
+| `4b-engine-2b.js` | engine (2.0): ambition, trust, sit-downs, trades, the ranch as a shared pool, the Team Battle Cup | `// ================= AMBITION, TRUST, SIT-DOWNS AND TRADES (2.0) =================` |
 | `5-engine-3.js` | engine: draft, famous trainers, Champion's reward, team ranch, registration, My Pokédex, sim, save/new world; ends with `module.exports` | `// ================= DRAFT =================` |
 | `6-ui-1.js` | interface: helpers, header, setup, Advanced options, office, trainer screen, profiles | `// ================= HALCYON LEAGUE UI =================` |
 | `7-ui-2.js` | interface: standings, trainers, records, Hall of Fame, recap, reward, registration, gifts, team ranch, draft, glossary, tournament | `// ---------- standings ----------` |

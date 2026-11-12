@@ -1582,7 +1582,7 @@ function trainerPoints(t, L) {
 // title defenses are credited to the team the Champion represented when they won
 function defensePoints(k, L) { return L ? (L.entries.filter(e => e.stage === 4 && T(e.lostTo) && T(e.lostTo).champOrg === k).length + (L.e4Shot && !L.e4Shot.won && T(L.startChamp) && T(L.startChamp).champOrg === k ? 1 : 0)) * 3 : 0; }
 function orgStandings(L) {
-  return ORG_KEYS.map(k => { const legacy = legacyPoints(k); return { key: k, legacy, pts: org(k).roster.filter(id => T(id).role !== 'champion').reduce((a, id) => a + trainerPoints(T(id), L), 0) + defensePoints(k, L) + legacy + partyBonus(k) }; }).sort((a, b) => b.pts - a.pts);
+  return ORG_KEYS.map(k => { const legacy = legacyPoints(k); return { key: k, legacy, pts: org(k).roster.filter(id => T(id).role !== 'champion').reduce((a, id) => a + trainerPoints(T(id), L), 0) + defensePoints(k, L) + legacy + partyBonus(k) + (L ? tbcPoints(k) : 0), tbc: L ? tbcPoints(k) : 0 }; }).sort((a, b) => b.pts - a.pts);
 }
 // the Team Cup: every League's points added up, plus the World Championship
 function cupStandings(live) {
@@ -1599,7 +1599,7 @@ function cupStandings(live) {
   return ORG_KEYS.map(k => {
     const ps = (per[k] || []).slice().sort((a, b) => b.pts - a.pts), legacy = legacyPoints(k);
     const world = W ? (W.winnerOrg === k ? WORLD_PTS.win : 0) + (W.runnerOrg === k ? WORLD_PTS.final : 0) : 0;
-    return { key: k, legacy, world, counted: N, parties: ps, best: Math.max(0, ...ps.map(p => p.best)), pts: ps.slice(0, N).reduce((a, p) => a + p.pts, 0) + legacy + world };
+    return { key: k, legacy, world, counted: N, parties: ps, best: Math.max(0, ...ps.map(p => p.best)), tbc: live ? 0 : tbcPoints(k), pts: ps.slice(0, N).reduce((a, p) => a + p.pts, 0) + legacy + world + (live ? 0 : tbcPoints(k)) };
   }).sort((a, b) => b.pts - a.pts || b.best - a.best);
 }
 function champOrg() { const c = T(S.champion); return c ? c.champOrg || null : null; }
@@ -1732,6 +1732,7 @@ function runLeague() {
   eachLeague(() => leagueFinals());
   S.worlds = null;
   if (nLeagues() > 1) worldChampionship();
+  teamBattleCup();
   S.phase = 'offseason';
   offseason();
   worldGrowth();
@@ -2246,6 +2247,7 @@ function offseason() {
     else if (S.season - (t.freeSince || S.season) >= 3 && rand() < 0.5) retire(t, 'after three seasons without a team');
   }
   ambitionSeasonEnd(changes);
+  tradeProposal(changes);
   S.changes = changes;
 }
 // one League's part of the offseason: champions, gyms, the Elite Four and the meta

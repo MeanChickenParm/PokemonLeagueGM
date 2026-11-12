@@ -196,6 +196,7 @@ function autoRequest() {
   const opts = t ? tradeOptions(t) : [], n = opts.findIndex(x => x.kind === 'swap');
   return answerRequest(n >= 0 ? 'trade' : 'release', n);
 }
+// (trade offers from other teams are answered with answerTradeOffer)
 // promises come due at the party step: a trainer promised a chaser spot who doesn't have one leaves
 const brokenPromises = (k = S.userOrg) => k ? partyLeagues(k).flatMap(i => partyOf(k, i)).filter(t => promiseDue(t) && t.slot !== 'chaser') : [];
 function settlePromises() {
@@ -296,4 +297,86 @@ function leaveLegendsFor(k, from, to) {
     out.push(m.sp);
   }
   return out;
+}
+
+// ================= TEAM BATTLE CUP (2.0) =================
+// After the Leagues, every team meets in a knockout. A tie is a series of single battles, one trainer against one,
+// in lineup order: best of five (fewer if a team is short). Anyone in a party can be picked, companions and the
+// apprentice included. Battles are at equal level and on copies, so nothing carries home. The GM sets the lineup.
+const TBC_SIZE = 5, TBC_PTS = { win: 5, final: 2 };
+const cupEligible = k => org(k).roster.map(T).filter(t => t && inParty(t) && t.team && t.team.length);
+// the lineup in order: the trainers the GM named first, then the strongest of the rest
+function cupLineup(k) {
+  const all = cupEligible(k), saved = (org(k).cupLine || []).map(T).filter(t => t && all.includes(t));
+  return saved.concat(all.filter(t => !saved.includes(t)).sort((a, b) => teamPower(b) - teamPower(a))).slice(0, TBC_SIZE);
+}
+function setCupLineup(ids) { if (!S.userOrg || S.phase === 'league') return false; org(S.userOrg).cupLine = ids.slice(0, TBC_SIZE); return true; }
+function cupDuel(a, b, title) {
+  const copy = t => JSON.parse(JSON.stringify(t)), A = copy(a), B = copy(b);
+  const keep = { stats: S.stats, dex: S.dex, dexSeason: S.dexSeason };
+  S.stats = { ko: {}, use: {} }; S.dex = {}; S.dexSeason = {};
+  try { return inLeague(lgOf(a), () => battle(A, B, 'title', title, { equal: true, world: true })); }
+  finally { Object.assign(S, keep); }
+}
+function teamTie(ka, kb, round, C) {
+  const A = cupLineup(ka), B = cupLineup(kb);
+  let n = Math.min(A.length, B.length, TBC_SIZE); if (n % 2 === 0) n--;
+  const keepLogs = round === 'Final' || ka === S.userOrg || kb === S.userOrg;
+  let wa = 0, wb = 0; const games = [];
+  for (let x = 0; x < n && wa <= n / 2 && wb <= n / 2; x++) {
+    const r = cupDuel(A[x], B[x], `Team Battle Cup ${round} · ${dn(A[x])} vs ${dn(B[x])}`), w = r.winner === 0 ? A[x] : B[x];
+    if (w === A[x]) wa++; else wb++;
+    games.push({ a: A[x].id, b: B[x].id, w: w.id, log: keepLogs ? r : null });
+  }
+  const winner = wa > wb ? ka : kb;
+  C.ties.push({ round, a: ka, b: kb, wa, wb, winner, games });
+  return winner;
+}
+function teamBattleCup() {
+  S.teamCup = null;
+  const seeds = cupStandings(true).map(r => r.key).filter(k => cupLineup(k).length >= 1);
+  if (seeds.length < 2) return null;
+  const C = { season: S.season, ties: [], winner: null, runner: null };
+  let P = 2; while (P < seeds.length) P *= 2;
+  let alive = seedOrder(P).map(sd => seeds[sd - 1] || null);
+  const rname = n => n <= 2 ? 'Final' : n <= 4 ? 'Semifinal' : 'Quarterfinal';
+  while (alive.length > 1) {
+    const nm = rname(alive.length), next = [];
+    for (let x = 0; x < alive.length; x += 2) { const a = alive[x], b = alive[x + 1]; next.push(a && b ? teamTie(a, b, nm, C) : a || b); }
+    alive = next;
+  }
+  const f = C.ties[C.ties.length - 1];
+  C.winner = f.winner; C.runner = f.winner === f.a ? f.b : f.a;
+  org(C.winner).battleCups = (org(C.winner).battleCups || 0) + 1;
+  (S.teamCupHist = S.teamCupHist || []).push({ season: S.season, winner: C.winner, runner: C.runner, score: `${Math.max(f.wa, f.wb)}–${Math.min(f.wa, f.wb)}` });
+  S.teamCup = C;
+  news(`${orgName(C.winner)} won the Season ${S.season} Team Battle Cup, beating ${orgName(C.runner)} ${Math.max(f.wa, f.wb)}–${Math.min(f.wa, f.wb)} in the final.`, C.winner === S.userOrg || C.runner === S.userOrg ? 'you' : 'title');
+  return C;
+}
+const tbcPoints = k => { const C = S.teamCup; return C && C.season === S.season ? (C.winner === k ? TBC_PTS.win : 0) + (C.runner === k ? TBC_PTS.final : 0) : 0; };
+
+// ---------- trade offers from other teams, and the trade block ----------
+// Each offseason another team may propose a one-for-one trade. Putting a trainer on the block makes offers for them likelier.
+function setBlock(id, on) { const t = T(id); if (!t || !t.user || !inParty(t)) return false; t.block = !!on; return true; }
+function tradeProposal(changes) {
+  const k = S.userOrg; if (!k) return;
+  const mine = partyLeagues(k).flatMap(i => partyOf(k, i)).filter(t => t.promise == null); if (!mine.length) return;
+  const blocked = mine.filter(t => t.block);
+  if (rand() >= (blocked.length ? 0.75 : 0.35)) return;
+  for (const k2 of shuffle(ORG_KEYS.filter(x => x !== k))) {
+    const their = partyLeagues(k2).flatMap(j => partyOf(k2, j)).filter(t => t.promise == null);
+    const deals = [];
+    for (const y of (blocked.length ? blocked : mine)) for (const x of their) {
+      const gain = tradeValue(y, k2) - tradeValue(x, k2), cost = tradeValue(y, k) - tradeValue(x, k);
+      if (gain >= 1 && cost <= 4) deals.push({ y, x, v: gain - cost });
+    }
+    const d = deals.sort((a, b) => b.v - a.v)[0];
+    if (d) { S.offers.push({ kind: 'tradeoffer', id: d.y.id, other: d.x.id, org: k2, lg: lgOf(d.y) }); changes.push(`${orgName(k2)} has offered a trade for ${dn(d.y)}.`); return; }
+  }
+}
+function answerTradeOffer(yes) {
+  const o = S.offers[0]; if (!o || o.kind !== 'tradeoffer') return false;
+  const y = T(o.id), x = T(o.other);
+  if (yes && y && x && y.org === S.userOrg && x.org === o.org && inParty(y) && inParty(x)) tradeSwap(y, x);
+  S.offers.shift(); return true;
 }

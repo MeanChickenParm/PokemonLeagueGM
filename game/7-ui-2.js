@@ -500,6 +500,14 @@ function tradeOptRow(t, o, n, act) {
   const x = T(o.id);
   return `<button class="rel" data-act="${act}" data-id="${t.id}" data-n="${n}">${orgMark(o.org)}${ORGS[o.org].short}: ${dn(x)} <span class="muted">OVR ${ovr(x)}, age ${x.age}, ${SLOT_NAMES[slotOf(x)] || ''} · ${ambText(x)}</span></button>`;
 }
+function tradeOfferPanel(o) {
+  const y = T(o.id), x = T(o.other), n = S.offers.length > 1 ? ` · 1 of ${S.offers.length}` : '';
+  const card = (t, own) => `<div>${tname(t.id)} ${ovrPill(t)}<div class="muted small">Age ${t.age} · POT ${own ? t.pot : scoutEst(t)} · ${specName(t)}</div><div class="muted small">${SLOT_NAMES[slotOf(t)] || ''}${t.prole ? ' (' + PARTY_ROLES[t.prole].name + ')' : ''} · ${ambText(t)}</div><div class="muted small">${t.team.map(m => m.sp + ' ' + Math.floor(m.lvl)).join(', ')}</div></div>`;
+  return `<section class="panel offer"><div class="eyebrow">A trade offer${n}</div><h2>${orgName(o.org)} offers ${dn(x)} for ${dn(y)}.</h2>
+    <p>One for one. Each takes the other's place in the party. A trade can't be undone.</p>
+    <div class="eyebrow">You give</div><div class="seatvs">${card(y, true)}</div><div class="eyebrow" style="margin-top:8px">You get</div><div class="seatvs">${card(x, false)}</div>
+    <div class="confirm-row"><button class="btn primary" data-act="tradeans" data-v="1">Accept the trade</button><button class="btn" data-act="tradeans" data-v="0">Turn it down</button></div></section>`;
+}
 function requestPanel(o) {
   const t = T(o.id), n = S.offers.length > 1 ? ` · 1 of ${S.offers.length}` : '';
   const who = `<div class="seatvs"><div>${tname(t.id)} ${ovrPill(t)}<div class="muted small">Age ${t.age} · ${specName(t)} · ${SLOT_NAMES[slotOf(t)] || ''}${t.prole ? ' (' + PARTY_ROLES[t.prole].name + ')' : ''}</div><div class="muted small">${AMBS[ambOf(t)].name} · ${trustWord(t)}</div></div></div>`;
@@ -517,6 +525,7 @@ function requestPanel(o) {
 }
 function offerPanel(offer) {
   let offerHtml = '';
+  if (offer.kind === 'tradeoffer') return tradeOfferPanel(offer);
   if (offer.kind === 'demand' || offer.kind === 'stepback') return requestPanel(offer);
   {
     const u = T(offer.id);
@@ -543,7 +552,7 @@ function offerPanel(offer) {
   return offerHtml;
 }
 function recapBody(L, h, offer, offerHtml, roster, mine, gift) {
-  return `${offerHtml}${worldPanel()}<div class="grid-office"><div class="col">
+  return `${offerHtml}${worldPanel()}${teamCupPanel()}<div class="grid-office"><div class="col">
     <section class="panel callout"><div class="eyebrow">Season ${S.season} recap${nLeagues() > 1 ? ' · ' + S.lgName : ''}</div><h2>${orgName(h.cup)} won the Team Cup</h2>
       <p>${tname(S.champion)} ${h.champWasNew ? 'took the crown' : 'is still Champion'}. ${h.qualifiers} trainer${h.qualifiers === 1 ? '' : 's'} reached the League.${h.metaMons && h.metaMons.length ? ` The season's top performers on the circuit: ${h.metaMons.join(', ')}.` : h.meta ? ` ${h.meta}-types were the season's dominant force.` : ''}</p>
       <p>${ORGS[S.userOrg].name} finished <b>${ordinal(h.userRank)}</b> with ${h.standings.find(r => r.key === S.userOrg).pts} points.</p></section>
@@ -565,6 +574,27 @@ function recapBody(L, h, offer, offerHtml, roster, mine, gift) {
   </div></div>`;
 }
 
+// ---------- Team Battle Cup ----------
+function teamCupPanel() {
+  const C = S.teamCup; if (!C || S.phase !== 'offseason') return '';
+  const mine = k => k === S.userOrg;
+  const tie = (t, i) => `<li><span class="eyebrow">${t.round}</span> ${orgMark(t.winner)}<b>${ORGS[t.winner].short}</b> ${Math.max(t.wa, t.wb)}–${Math.min(t.wa, t.wb)} ${orgMark(t.winner === t.a ? t.b : t.a)}${ORGS[t.winner === t.a ? t.b : t.a].short}
+    ${t.games.some(g => g.log) ? `<ul class="changes">${t.games.map((g, j) => `<li>${tname(g.w)} beat ${tname(g.w === g.a ? g.b : g.a)}${g.log ? ` <button class="btn small" data-act="watchcup" data-i="${i}" data-j="${j}">Watch</button>` : ''}</li>`).join('')}</ul>` : ''}</li>`;
+  return `<section class="panel callout world"><div class="eyebrow">Team Battle Cup · Season ${C.season}</div><h2>${orgName(C.winner)} ${mine(C.winner) ? 'won' : 'win'} the Team Battle Cup</h2>
+    <p>Every team met in a knockout after the Leagues: series of single battles, trainer against trainer in lineup order, at equal level. ${orgName(C.winner)} earns ${TBC_PTS.win} Team Cup points and ${orgName(C.runner)} ${TBC_PTS.final}. Set your lineup on the Party page.</p>
+    <ul class="worldlist">${C.ties.map(tie).join('')}</ul></section>`;
+}
+// your lineup for the Team Battle Cup: the first five battle, in this order
+function cupLinePanel() {
+  const k = S.userOrg, all = cupEligible(k); if (!all.length) return '';
+  const line = cupLineup(k), rest = all.filter(t => !line.includes(t)).sort((a, b) => teamPower(b) - teamPower(a)), order = line.concat(rest);
+  const can = S.phase !== 'league';
+  const row = (t, n) => `<div class="pt-row"><div class="pt-id"><span class="eyebrow">${n < TBC_SIZE ? `Battle ${n + 1}` : 'Reserve'}</span> ${tname(t.id)} ${ovrPill(t)} <span class="muted small">${nLeagues() > 1 ? lgShort(lgOf(t)) + ' · ' : ''}${SLOT_NAMES[slotOf(t)] || ''} · ${t.team.length} Pokémon</span></div><div class="pt-act">${can && n > 0 ? `<button class="btn small" data-act="cupup" data-id="${t.id}">Move up</button>` : ''}</div></div>`;
+  const hist = (S.teamCupHist || []).slice(-3).reverse().map(h => `Season ${h.season}: ${ORGS[h.winner] ? ORGS[h.winner].short : '?'} beat ${ORGS[h.runner] ? ORGS[h.runner].short : '?'} ${h.score}`).join(' · ');
+  return `<section class="panel"><div class="ph"><h3>Team Battle Cup lineup</h3><span class="muted">${org(k).battleCups || 0} won</span></div>
+    <p class="muted small">After the Leagues, every team meets in a knockout. Each tie is a best-of-${TBC_SIZE} series of single battles at equal level, your first trainer against theirs, and so on. Anyone in a party can battle, companions and the apprentice too. The winner earns ${TBC_PTS.win} Team Cup points, the runner-up ${TBC_PTS.final}.</p>
+    ${order.map(row).join('')}${hist ? `<p class="fine">${hist}</p>` : ''}</section>`;
+}
 // ---------- World Championship ----------
 function worldPanel() {
   const W = S.worlds; if (!W || S.phase !== 'offseason') return '';
@@ -1022,7 +1052,8 @@ const GLOSS_TERMS = {
     ['Promise', "Binding. A trainer promised a chaser spot who doesn't have one when that season's party is confirmed leaves, and every other trainer of yours trusts you less."],
     ['Trust', "How much one of your trainers believes in you. It rises when they do well, get the role they want or a promise is kept, and falls when they're kept in a role they don't want, advice goes badly or a promise to a teammate is broken. It sets how likely they are to listen in a sit-down."],
     ['Sit-down', "One conversation per party each season, before week 1, with a chaser or the apprentice. You pick a message: rebuild around your ace, widen your coverage, slow down and train, or go for it. They may not listen; you see the odds first."],
-    ['Trade', "In the offseason you can trade a trainer one for one with another team, or for an extra pick in the next draft. Other teams only offer what they think is fair."],
+    ['Trade', "In the offseason you can trade a trainer one for one with another team, or for an extra pick in the next draft. Other teams only offer what they think is fair. Some offseasons another team proposes a trade to you."],
+    ['Trade block', "Mark a trainer as available on the Party page. Other teams are much likelier to make an offer for someone on the block."],
     ['Sparring', 'The weakest chaser in a party and its apprentice level up a little faster from travelling with stronger trainers.'],
     ['Party leader', "One of the three chasers, chosen by the party itself from last season's results, time with the team and personality. Their personality sets the party's mood, which makes role bonuses a little stronger or weaker, and they sometimes bend your gym-loss policy."],
     ['Gym-loss policy', "The one in-season call that is yours, set before week 1. Patient: after any gym loss the other chasers wait a week and help prepare the rematch. Balanced: they wait after a first loss at a gym only. Push on: nobody waits. A rematch the party stayed for gets a small edge."],
@@ -1093,6 +1124,7 @@ const GLOSS_TERMS = {
     ['Champion', 'Beat the Champion to take the title. The title only changes hands in battle.'],
     ['Interim Champion', 'Won the title and lost it again in the same League, so it doesn\'t count as a full title.'],
     ['Elite Four title shot', "If no challenger reaches the Champion, the best unbeaten Elite Four member gets a title match."],
+    ['Team Battle Cup', `A knockout between every team after the Leagues. Each tie is a best-of-${TBC_SIZE} series of single battles at equal level, in lineup order, and anyone in a party can be picked. You set the lineup on the Party page. The winner earns ${TBC_PTS.win} Team Cup points and the runner-up ${TBC_PTS.final}. Nothing from these battles carries home.`],
     ['Team Cup', 'The season-long team standings: badges, League wins, titles and posts earn points.'],
     ['World Championship', 'With several Leagues, their Champions meet after the season.'],
     ['Triple Crown', 'Champion of three different Leagues across a career (it replaced the Grand Slam). Former Champions chase it: other teams move them toward Leagues they haven\'t won, a dethroned one returns to the circuit in an unwon League when there\'s room, and a trainer with titles in 2+ Leagues gets 3 extra seasons before age can retire them.'],
@@ -1264,12 +1296,12 @@ function viewParty() {
     <p>Your trainers in a League travel together as a party of six: three title chasers, two companions and one apprentice. Only chasers take on gyms and the League and score Team Cup points (plus ${PARTY_BONUS} if all three complete the badge circuit). Each companion fills a role that helps the others. The apprentice has road battles and grows from watching, for two seasons at most.</p>
     <p class="muted small">${edit ? "Tap Move on a trainer, then choose who they swap with. The number beside a role is that trainer's aptitude for it." : 'Parties are set in the offseason, after the draft.'}</p></section>
     ${S.nextLeague && S.nextLeague.told && nextRegionName() ? `<section class="panel"><p><b>Coming:</b> the ${nextRegionName()} opens in Season ${S.nextLeague.season}. You'll be able to found a party there.</p></section>` : ''}
-    ${Array.from({ length: nLeagues() }, (_, i) => fieldsIn(S.userOrg, i) ? partyPanel(S.userOrg, i, edit) : foundPanel(i)).join('')}`;
+    ${Array.from({ length: nLeagues() }, (_, i) => fieldsIn(S.userOrg, i) ? partyPanel(S.userOrg, i, edit) : foundPanel(i)).join('')}${cupLinePanel()}`;
 }
 let sitOpen = null, tradeOpen = null;
 function ambRow(t) {
   const pt = patienceText(t), sat = sitUsed(t.org, lgOf(t));
-  const btns = (canSit(t) ? `<button class="btn small${sitOpen === t.id ? ' primary' : ''}" data-act="sitopen" data-id="${t.id}">Sit down</button>` : '') + (canTrade() ? `<button class="btn small${tradeOpen === t.id ? ' primary' : ''}" data-act="tradeopen" data-id="${t.id}">Trade</button>` : '');
+  const btns = (canSit(t) ? `<button class="btn small${sitOpen === t.id ? ' primary' : ''}" data-act="sitopen" data-id="${t.id}">Sit down</button>` : '') + (canTrade() ? `<button class="btn small${tradeOpen === t.id ? ' primary' : ''}" data-act="tradeopen" data-id="${t.id}">Trade</button>` : '') + `<button class="btn small${t.block ? ' primary' : ''}" data-act="block" data-id="${t.id}" title="Other teams are likelier to make an offer for a trainer on the block">${t.block ? 'On the block' : 'Put on the block'}</button>`;
   const sit = sitOpen === t.id && canSit(t) ? `<div class="pt-life"><div class="small">One sit-down per party each season. ${t.name} takes it on board about <b>${Math.round(sitOdds(t) * 100)}%</b> of the time, going by how much they trust you.</div><div class="pt-roles">${Object.keys(SITS).map(k => `<button class="rel" data-act="sit" data-id="${t.id}" data-k="${k}" title="${esc(SITS[k].text)}">${SITS[k].name}</button>`).join('')}</div></div>` : '';
   const opts = tradeOpen === t.id && canTrade() ? tradeOptions(t) : null;
   const tr = opts ? `<div class="pt-life"><div class="small">What other teams would give for ${t.name}, one for one. A trade can't be undone.</div><div class="release">${opts.map((o, i) => tradeOptRow(t, o, i, 'gmtrade')).join('') || '<span class="muted small">No team is offering anything.</span>'}</div></div>` : '';
