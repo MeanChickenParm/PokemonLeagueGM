@@ -2020,7 +2020,7 @@ const TRADE_EVOS = { Kadabra: 'Alakazam', Machoke: 'Machamp', Graveler: 'Golem',
 const tradeWant = (t, m) => monPower(m) * (specFit(t, m.sp) === 2 ? 1.5 : onSpec(t, m.sp) ? 1.35 : 1) * (TRADE_EVOS[m.sp] ? 1.15 : 1);
 // the best swap two trainers could make, or null: each must come out ahead, and the Pokémon must be of similar strength
 function findTrade(a, b) {
-  const tradable = t => t.team.filter(m => !isSpecial(m) && !(t.mega && t.mega.uid === m.uid && hasMega(t)) && t.team.length > 1);
+  const tradable = t => t.team.filter(m => !isSpecial(m) && !m.loan && !(t.mega && t.mega.uid === m.uid && hasMega(t)) && t.team.length > 1);
   let best = null;
   for (const x of tradable(a)) for (const y of tradable(b)) {
     if (LINE[x.sp] === LINE[y.sp] || b.team.some(m => LINE[m.sp] === LINE[x.sp]) || a.team.some(m => LINE[m.sp] === LINE[y.sp])) continue;

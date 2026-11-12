@@ -35,7 +35,7 @@ function patienceText(t) {
   return p <= 0 ? 'will ask out after this season' : `will wait ${p} more season${p > 1 ? 's' : ''}`;
 }
 const trustOf = t => t.trust == null ? 50 : t.trust;
-function addTrust(t, d) { if (t && inParty(t)) t.trust = clamp(Math.round(trustOf(t) + d), 0, 100); }
+function addTrust(t, d) { if (t && inParty(t)) t.trust = clamp(Math.round(trustOf(t) + (d > 0 ? d * clamp((95 - trustOf(t)) / 45, 0.15, 1) : d)), 0, 100); }
 const trustWord = t => { const v = trustOf(t); return v >= 75 ? 'trusts you fully' : v >= 58 ? 'trusts you' : v >= 42 ? 'neutral' : v >= 25 ? 'wary of you' : 'does not trust you'; };
 
 // week 1: anyone in a role they don't want starts counting
@@ -228,4 +228,72 @@ function sitDown(id, msg) {
   if (!ok) addTrust(t, -2);
   news(ok ? `You sat down with ${dn(t)}: "${SITS[msg].name}." They took it on board.` : `You sat down with ${dn(t)}: "${SITS[msg].name}." They heard you out and will do it their own way.`, 'you', t.id);
   return { ok };
+}
+
+// ================= THE RANCH AS A SHARED POOL (2.0) =================
+// One ranch per team, shared by all its parties. Trainers help themselves in two windows a year (the offseason and
+// the midseason break): chasers and apprentices only, one ranch Pokémon out each. It is a loan for the season, and
+// becomes theirs only if it makes their registered three. Each trainer may also leave one Pokémon behind per season.
+// The GM only decides what goes in: the retirement keep, the Champion's reward and farewell gifts.
+const canBorrow = t => inParty(t) && (t.slot === 'chaser' || t.slot === 'apprentice') && !t.team.some(m => m.loan);
+const leaveTeam = (t, m) => { if (m.item) { bagAdd(t, m.item); m.item = null; } if (t.mega && t.mega.uid === m.uid) t.mega.uid = null; t.team = t.team.filter(x => x !== m); };
+// a loan that made its trainer's three is theirs now; the rest go back to the ranch
+function returnLoans(k) {
+  for (const t of org(k).roster.map(T).filter(x => x && inParty(x))) {
+    const due = t.team.filter(m => m.loan && m.loan.season <= S.season); if (!due.length) continue;
+    const keep = new Set(bestThree(t));
+    for (const m of due) {
+      delete m.loan;
+      if (keep.has(m.uid) || t.team.length <= 1 || !ranchable(m.sp)) continue;
+      farewell(t, m, `went back to ${orgName(k)}'s ranch`); leaveTeam(t, m);
+      addToRanch(k, m, { how: 'returned', season: curSeason(), from: t.id, fromName: dn(t) });
+    }
+  }
+}
+// each trainer may leave one Pokémon they would otherwise release in the ranch for a teammate
+function trainerDeposits(k) {
+  for (const t of org(k).roster.map(T).filter(x => x && inParty(x))) {
+    if (regular(t).length <= START_TEAM) continue;
+    const keep = new Set(bestThree(t));
+    const m = regular(t).filter(x => !keep.has(x.uid) && canRest(t, x) && !x.loan).sort((a, b) => ranchValue(b, t) - ranchValue(a, t))[0];
+    if (!m) continue;
+    farewell(t, m, `left in ${orgName(k)}'s ranch`); leaveTeam(t, m);
+    addToRanch(k, m, { how: 'deposit', season: curSeason(), from: t.id, fromName: dn(t) });
+  }
+}
+// how far behind a trainer is: fewer badges (or a worse last season) picks first
+const behindOf = t => S.phase === 'season' ? t.badges.length : (((t.seasonHist || []).slice(-1)[0] || {}).badges ?? 0);
+// trainers help themselves. A contested Pokémon goes to whoever it suits best by type, then whoever is furthest behind.
+function ranchBorrow(k, mid) {
+  const R = ranchOf(k); if (!R || !R.active.length) return;
+  if (!mid) {
+    returnBannedHome(k);
+    // a banned legendary (or other one-of-a-kind) waiting in the ranch goes to the weakest teammate who can take it
+    for (const m of R.active.filter(x => x.ranch && x.ranch.how === 'banned' && banUnique(x.sp)).sort((a, b) => ranchValue(b) - ranchValue(a))) {
+      const t = ranchTakers(k).filter(x => ranchCanTake(x, m)).sort((a, b) => ovr(a) - ovr(b))[0];
+      if (t) ranchHand(k, m.uid, t.id);
+    }
+  }
+  const worth = (t, m) => mid ? t.team.length < 6 && ranchValue(m, t) > Math.min(...t.team.map(x => ranchValue(x, t))) : t.team.length < 3 || ranchValue(m, t) > t.team.map(x => ranchValue(x, t)).sort((a, b) => b - a)[Math.min(2, t.team.length - 1)] * 0.92;
+  for (const m of R.active.filter(x => !(x.ranch && x.ranch.how === 'banned' && banUnique(x.sp))).sort((a, b) => ranchPickValue(b) - ranchPickValue(a))) {
+    const takers = org(k).roster.map(T).filter(t => t && canBorrow(t) && !(S.ranchGiven || {})[t.id] && ranchCanTake(t, m) && !t.team.some(y => LINE[y.sp] === LINE[m.sp]) && !(m.ranch && m.ranch.from === t.id && m.ranch.season === curSeason()) && worth(t, m));
+    if (!takers.length) continue;
+    const t = takers.sort((a, b) => specFit(b, m.sp) - specFit(a, m.sp) || behindOf(a) - behindOf(b) || ovr(a) - ovr(b))[0];
+    const got = ranchHand(k, m.uid, t.id);
+    if (got && got.gift != null) { got.loan = { org: k, season: mid ? S.season : S.season + 1 }; if (mid) got.gift = S.season; }
+  }
+}
+function ranchMidseason() { S.ranchGiven = {}; for (const k of ORG_KEYS) ranchBorrow(k, true); }
+// a party can move to a League where one of its legendaries is already held if the GM leaves that legendary in the ranch
+function leaveLegendsFor(k, from, to) {
+  const P = partyOf(k, from), out = [];
+  const held = inLeague(to, () => { const h = new Set(); for (const x of leagueTrainers()) if (!P.includes(x) && !(fieldsIn(k, to) && partyOf(k, to).includes(x)) && !['retired', 'prospect', 'free'].includes(x.role)) for (const m of x.team || []) if (SP[m.sp].legend) h.add(m.sp); return h; });
+  for (const t of P) for (const m of t.team.filter(x => SP[x.sp].legend && held.has(x.sp))) {
+    if (t.team.length <= 1) continue;
+    leaveTeam(t, m);
+    addToRanch(k, m, { how: 'banned', moved: true, season: curSeason(), from: t.id, fromName: dn(t), lgName: leagueName(to) });
+    news(`${dn(t)}'s ${m.sp} stays behind in the ${orgName(k)} ranch: one is already held in the ${leagueName(to)}.`, k === S.userOrg ? 'you' : 'move', t.id);
+    out.push(m.sp);
+  }
+  return out;
 }

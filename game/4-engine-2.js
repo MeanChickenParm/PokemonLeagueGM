@@ -320,7 +320,7 @@ function aiCatch(t) {
   if (t.team.length < 6) return addCatch(t, best);
   // release off-type Pokémon first when the new catch fits the trainer's type, but keep the wildcard
   // AI trainers hang on to special Pokémon (alphas, shinies, Deltas, legendaries...); only a special catch can push one out
-  let keepable = t.team.filter(m => !isSpecial(m));
+  let keepable = t.team.filter(m => !isSpecial(m) && !m.loan); // a ranch loan isn't theirs to release
   if (!keepable.length && isSpecial(best)) keepable = t.team.filter(m => !babyLine(m.sp));
   const offT = keepable.filter(m => !onT(m.sp) && m !== wild);
   const releasePool = onT(best.sp) ? (offT.length ? offT : keepable.filter(m => m !== wild)) : wildcardFit(best) ? keepable : keepable.filter(m => m !== wild);
@@ -1690,6 +1690,7 @@ function simWeek(plans = {}, catches = {}) {
   S.week++;
   if (S.week === TOURNEY_RULE_WEEK && featOn('tourney') && tourneyRuleCfg() === 'rotate') { const R = TOURNEY_RULES[tourneyRule()];
     if (R) news(`This season's Midseason Tournament rule, after week ${TOURNEY_WEEK}: ${R.name}. ${R.desc}`, 'league'); }
+  if (S.week === TOURNEY_WEEK) ranchMidseason(); // 2.0: the midseason break is the second ranch window
   if (S.week === TOURNEY_WEEK && featOn('tourney') && runTourney()) S.tourneyPause = true;
   S.weekOffers = {}; S.catchPicks = {};
   eachLeague(() => { maybeWormhole(); maybeOutbreak(); });
@@ -2673,7 +2674,7 @@ function worldGrowth() {
 }
 // move a whole party to a League where the team has none, or swap two of its parties. Blocked if a legendary would
 // end up in a League where one is already held.
-function movePartyBlock(k, from, to) {
+function movePartyBlock(k, from, to, leave) {
   if (S.phase !== 'offseason' && S.phase !== 'reassign') return 'Parties move in the offseason.';
   if (from === to || !fieldsIn(k, from) || to < 0 || to >= nLeagues()) return 'No move possible.';
   const A = partyOf(k, from), B = fieldsIn(k, to) ? partyOf(k, to) : [];
@@ -2681,11 +2682,13 @@ function movePartyBlock(k, from, to) {
   const held = (i, leaving) => inLeague(i, () => { const h = new Set(); for (const x of leagueTrainers()) if (!leaving.includes(x) && !['retired', 'prospect', 'free'].includes(x.role)) for (const m of x.team || []) if (SP[m.sp].legend) h.add(m.sp); return h; });
   const hTo = held(to, B), hFrom = held(from, A);
   const c1 = legs(A).find(sp => hTo.has(sp)), c2 = legs(B).find(sp => hFrom.has(sp));
+  if (leave) return null;
   if (c1) return `Someone in the ${leagueName(to)} already has ${c1}.`;
   if (c2) return `Someone in the ${leagueName(from)} already has ${c2}.`;
   return null;
 }
-function moveParty(k, from, to) {
+function moveParty(k, from, to, leave) {
+  if (leave && !movePartyBlock(k, from, to, true) && movePartyBlock(k, from, to)) { const sw = fieldsIn(k, to); leaveLegendsFor(k, from, to); if (sw) leaveLegendsFor(k, to, from); }
   const why = movePartyBlock(k, from, to); if (why) return why;
   const o = org(k), swap = fieldsIn(k, to);
   { o.party = o.party || {}; const a = o.party[from], b = o.party[to]; if (a) o.party[to] = a; else delete o.party[to]; if (swap && b) o.party[from] = b; else delete o.party[from]; }

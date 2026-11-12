@@ -23,6 +23,11 @@ const UPDATES = [
     "Trust: each of your trainers trusts you more or less, depending on how their seasons go and how you treat them. Break a promise and the whole team trusts you less.",
     "Sit-downs: once per party each season, before week 1, give a chaser or the apprentice a piece of advice. They may not listen; you see the odds first.",
     "Trades: in the offseason, trade a trainer one for one with another team, or for an extra draft pick.",
+    "The ranch is now one shared pool per team. Your trainers help themselves in the offseason and at the midseason break: chasers and the apprentice can each have one Pokémon out, as a loan for the season. One that makes their registered three becomes theirs.",
+    "Each trainer may leave one Pokémon in the ranch per season. Resting no longer improves a Pokémon, and Pokémon released at registration no longer go to the ranch.",
+    "You no longer hand ranch Pokémon out. You choose what goes in: the Champion's reward, farewell gifts and which Pokémon to keep from a retiring trainer.",
+    "The retired ranch and the historical ranch are now one Hall, with filters for title rosters and retired Pokémon.",
+    "A party can move to a League where one of its legendaries is already held, if you leave that legendary in the ranch.",
     "After each draft there's a party step: new arrivals are placed for you, and you can swap anyone's place or change a companion's role before confirming. The Party page (Office menu) shows it any time.",
     "Champions start four levels higher (95, or 96 with several Leagues), because a team's three best trainers are now the ones on the circuit.",
     "World structure: a new world has 1 to 4 Leagues, and you choose how many of them you field a party in. A team has at most one party per League, other teams choose their own Leagues, and a party is permanent once founded.",
@@ -738,7 +743,7 @@ document.addEventListener('click', ev => {
     case 'setgod': setupGod = el.dataset.v === '1'; render(); break;
     case 'fsel': { const i = +el.dataset.i, id = +el.dataset.id, a = foundPick[i] = foundPick[i] || []; const x = a.indexOf(id); if (x >= 0) a.splice(x, 1); else if (a.length < NEW_PARTY_MOVES) a.push(id); render(); break; }
     case 'found': { const i = +el.dataset.i, why = foundParty(S.userOrg, i, foundPick[i] || []); foundPick = {}; save(); render(); toast(why || `Party founded in the ${leagueName(i)}. The draft will fill it.`); break; }
-    case 'pmove': { const why = moveParty(S.userOrg, +el.dataset.f, +el.dataset.t); eachParty((k, i) => { if (k === S.userOrg) fixParty(k, i); }); partySel = null; save(); render(); toast(why || 'Party moved.'); break; }
+    case 'pmove': { const why = moveParty(S.userOrg, +el.dataset.f, +el.dataset.t, el.dataset.l === '1'); eachParty((k, i) => { if (k === S.userOrg) fixParty(k, i); }); partySel = null; save(); render(); toast(why || 'Party moved.'); break; }
     case 'godleague': { const why = godOpenLeague(); save(); render(); toast(why || `The ${leagueName(nLeagues() - 1)} is open.`); break; }
     case 'godparty': { const why = godFoundParty(el.dataset.k, +el.dataset.i); save(); render(); toast(why || 'Party added. The draft will fill it.'); break; }
     case 'godteam': { const why = godAddTeam(el.dataset.k); save(); render(); toast(why || `${ORGS[el.dataset.k].name} joined the world.`); break; }
@@ -857,6 +862,7 @@ document.addEventListener('click', ev => {
     case 'ppolicy': if (setPolicy(+el.dataset.i, el.dataset.k)) { save(); render(); } else toast('The policy is set before week 1.'); break;
     case 'banset': setBanVote(+el.dataset.l, el.dataset.sp, +el.dataset.v); save(); render(); break;
     case 'banconfirm': if (S.phase !== 'banvote') break; { confirmBanVote(); save(); const r = S.banResults, nb = r ? r.lgs.reduce((a, x) => a + x.rows.filter(y => y.passed).length, 0) : 0; afterDraft(); toast(nb ? `Votes are in: ${nb} new ban${nb === 1 ? '' : 's'}. See the news.` : 'Votes are in: no new bans.'); } break;
+    case 'halltab': hallTab = el.dataset.v; render(); break;
     case 'ranchkeep': ranchKeep = +el.dataset.u; render(); break;
     case 'ranchkeepgo': if (ranchKeep == null) break; { const m = answerRanchPick(+el.dataset.i, ranchKeep); ranchKeep = null; save(); render(); if (m) toast(`${m.sp} is in your ranch.`); } break;
     case 'ranchkeepnone': answerRanchPick(+el.dataset.i, null); ranchKeep = null; save(); render(); break;
