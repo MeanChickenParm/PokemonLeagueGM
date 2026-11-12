@@ -210,7 +210,7 @@ function settlePromises() {
 }
 
 // ---------- sit-downs ----------
-// One conversation per party per season, before week 1. The trainer may not listen: it depends on trust and temper.
+// One conversation per party per season, before week 1 or at the midseason break. The trainer may not listen: it depends on trust and temper.
 const SITS = {
   ace:      { name: 'Rebuild around your ace', text: 'Their highest-level Pokémon levels up faster this season.' },
   coverage: { name: 'Widen your coverage',     text: 'They spend more weeks exploring until the team is six strong.' },
@@ -220,7 +220,9 @@ const SITS = {
 const sitOn = (t, msg) => !!t.sit && t.sit.ok && t.sit.season === S.season && t.sit.msg === msg;
 function sitOdds(t) { const tr = traitOf(t); return clamp(0.3 + trustOf(t) / 100 * 0.55 + (tr === 'steady' || tr === 'mentor' ? 0.1 : tr === 'hothead' ? -0.15 : tr === 'streaky' ? -0.05 : 0), 0.1, 0.95); }
 const sitUsed = (k, i) => partyState(k, i).sat === upSeason();
-const canSit = t => !!t && t.user && inParty(t) && (t.slot === 'chaser' || t.slot === 'apprentice') && canSetPolicy() && !sitUsed(t.org, lgOf(t));
+// 2.0.1: before week 1, or at the midseason break if the party's sit-down hasn't been used
+const sitWindow = () => canSetPolicy() || (S.phase === 'season' && !!S.tourneyPause);
+const canSit = t => !!t && t.user && inParty(t) && (t.slot === 'chaser' || t.slot === 'apprentice') && sitWindow() && !sitUsed(t.org, lgOf(t));
 function sitDown(id, msg) {
   const t = T(id); if (!canSit(t) || !SITS[msg]) return null;
   const ok = rand() < sitOdds(t);

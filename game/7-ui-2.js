@@ -536,8 +536,9 @@ function offerPanel(offer) {
       offerHtml = `<section class="panel offer"><div class="eyebrow">A former trainer is available${S.offers.length > 1 ? ` · 1 of ${S.offers.length}` : ''}</div><h2>${dn(u)} is no longer ${was} and is back on the circuit. Bring them back to ${ORGS[S.userOrg].name}?</h2>
         <p>They left your team for that post. As their former team, you get first refusal. If you pass, they compete as an independent and any team can draft them.</p>
         <div class="seatvs"><div>${tname(u.id)} ${ovrPill(u)}<div class="muted small">Age ${u.age} · ${specName(u)}${traitOf(u) ? ' · ' + TRAITS[traitOf(u)].name : ''}</div><div class="muted small">${u.team.map(m => m.sp + ' ' + Math.floor(m.lvl)).join(', ')}</div></div></div>
+        ${ambOf(u) === 'title' ? (homeWilling(u, S.userOrg) ? `<p><b>${u.name} wants the title.</b> Bringing them back is a binding promise of a title-chaser spot this season.</p>` : `<p class="warn"><b>${u.name} wants the title</b> and wouldn't win a chaser spot in your party. They will turn you down.</p>`) : `<p class="muted small">${AMBS[ambOf(u)].name}: they'll take whatever spot you have.</p>`}
         ${full ? `<p><b>Your roster is full.</b> Choose who to release to make room:</p><div class="release">${roster.map(t => `<button class="rel${rejoinRelease === t.id ? ' on' : ''}" data-act="rejoinrel" data-id="${t.id}">${dn(t)} <span class="muted">OVR ${ovr(t)}, age ${t.age}</span></button>`).join('')}</div>` : ''}
-        <div class="confirm-row"><button class="btn primary" data-act="offer" data-v="1"${full && rejoinRelease == null ? ' disabled' : ''}>${full ? (rejoinRelease != null ? `Bring back ${u.name}, release ${T(rejoinRelease).name}` : 'Choose who to release first') : `Bring back ${u.name}`}</button><button class="btn" data-act="offer" data-v="0">Pass</button></div></section>`;
+        <div class="confirm-row"><button class="btn primary" data-act="offer" data-v="1"${(full && rejoinRelease == null) || !homeWilling(u, S.userOrg) ? ' disabled' : ''}>${full ? (rejoinRelease != null ? `Bring back ${u.name}, release ${T(rejoinRelease).name}` : 'Choose who to release first') : `Bring back ${u.name}`}</button><button class="btn" data-act="offer" data-v="0">Pass</button></div></section>`;
     } else if (offer.kind === 'leader') {
       offerHtml = `<section class="panel offer"><div class="eyebrow">An offer from the League${S.offers.length > 1 ? ` · 1 of ${S.offers.length}` : ''}</div><h2>${dn(u)} has been invited to lead ${TOWNS[offer.slot]} Gym (Badge ${offer.slot + 1}) as its new Gym Leader.</h2><p>Accepting moves ${dn(u)} off your roster for good. They'll defend the gym against future challengers, including your own. You'll fill the open spot in the draft.</p><div class="confirm-row"><button class="btn primary" data-act="offer" data-v="1">Accept the offer</button><button class="btn" data-act="offer" data-v="0">Decline and keep ${dn(u)}</button></div></section>`;
     } else {
@@ -548,6 +549,7 @@ function offerPanel(offer) {
         <div class="confirm-row"><button class="btn primary" data-act="offer" data-v="1">Challenge for the seat</button><button class="btn" data-act="offer" data-v="0">Decline and keep ${dn(u)}</button></div></section>`;
     }
   }
+  if (offer.kind !== 'rejoin' && T(offer.id) && unhappyRole(T(offer.id))) offerHtml = offerHtml.replace('<div class="confirm-row">', `<p class="warn">${T(offer.id).name} is unhappy in a support role, and may well go even if you decline.</p><div class="confirm-row">`);
   if (nLeagues() > 1) offerHtml = offerHtml.replace('<div class="eyebrow">', `<div class="eyebrow">${S.lgName} · `);
   return offerHtml;
 }
@@ -704,28 +706,12 @@ function viewReward() {
   const r = S.reward; if (S.phase !== 'reward' || !r) return viewOffice();
   const t = T(r.target), c = T(S.champion);
   return `<section class="panel callout reward"><div class="eyebrow">Champion's reward · Season ${S.season + 1}</div><h2>${ORGS[r.org].name} holds the title</h2>
-    <p>${tname(c.id)} won the championship for ${ORGS[r.org].name}. While the reign lasts, the team adds a Paradox Pokémon to its ranch after each draft. From the ranch you can hand it to any of your trainers, in any League. The choices are picked with your weakest trainer, ${tname(t.id)} (OVR ${ovr(t)}), in mind.</p>
-    <p class="muted">Once handed over, it's registered on top of the usual three in its first season, and counts as one of the three after that. It's theirs to keep, and other trainers may have the same one. Legendaries come through their own events during the season.</p></section>
+    <p>${tname(c.id)} won the championship for ${ORGS[r.org].name}. While the reign lasts, the team adds a Paradox Pokémon to its ranch after each draft. Your chasers and apprentices borrow from the ranch themselves, in any League. The choices are picked with your weakest trainer, ${tname(t.id)} (OVR ${ovr(t)}), in mind.</p>
+    <p class="muted">A borrowed Pokémon is a loan for the season, and becomes the trainer's own only if they register it as one of their three. Other trainers may have the same one. Legendaries come through their own events during the season.</p></section>
   <section class="panel"><div class="ph"><h3>Choose one for ${dn(t)}</h3><span class="muted">${t.specialty ? specName(t) + ' specialist' : 'Mixed team'}</span></div>
     <div class="offers">${r.pool.map(n => { const sp = SP[n]; return `<button class="offer-card legend-card" data-act="rewardpick" data-n="${n}">${monFace(n, false, 48, 'big')}<div class="mon-name">${n}</div><div>${chips(sp.types)}</div><div class="muted">BST ${sp.bst}${sp.paradox ? ` · ${isAncient(n) ? 'Ancient' : 'Future'}` : ''}</div>${(() => { const pm = sp.legend && pooledLegend(n); return pm && pm.partners && pm.partners.length ? `<div class="small">Returning: ${pm.partners.length} past partner${pm.partners.length > 1 ? 's' : ''}, ${wl(pm.st || blankStat())} lifetime</div>` : ''; })()}${specFit(t, sp.name) === 2 ? '<div class="tag gold">Fits both their types</div>' : specFit(t, sp.name) ? '<div class="tag gold">Fits their type</div>' : ''}<span class="btn small primary">Add ${n} to the ranch</span></button>`; }).join('')}</div></section>`;
 }
 
-// ---------- registration ----------
-function viewRegister() {
-  if (S.phase !== 'register' || !S.registration) return viewOffice();
-  const ids = Object.keys(S.registration).map(Number);
-  const ready = ids.every(id => S.registration[id].length === Math.min(START_TEAM, regular(T(id)).length));
-  return `<section class="panel callout"><div class="eyebrow">Season ${S.season + 1} registration</div><h2>Choose three Pokémon for each trainer</h2>
-    <p>Every challenger starts the season with at most ${START_TEAM} registered Pokémon. The rest are released back to the wild, so your trainers will need to explore to rebuild. The strongest three are picked for you to start with.</p></section>
-  ${ids.map(id => { const t = T(id); const sel = S.registration[id];
-    return `<section class="panel"><div class="ph"><h3>${tname(id)}</h3><span class="${sel.length === START_TEAM ? 'good' : 'bad'}">${sel.length} of ${START_TEAM} chosen</span></div>
-      ${t.team.filter(isGift).map(m => `<p class="good">${m.sp} is registered automatically (${m.met && m.met.how === 'farewell' ? 'farewell gift' : m.met && m.met.how === 'gift' ? "Champion's reward" : 'from the ranch'}).</p>`).join('')}
-      <div class="regs">${regular(t).map(m => { const sp = SP[m.sp]; const on = sel.includes(m.uid); return `<button class="reg${on ? ' on' : ''}" data-act="regtoggle" data-id="${id}" data-u="${m.uid}" aria-pressed="${on}">
-        ${monFace(m.sp, m.shiny || m.radiant, 40)}
-        <span class="reg-main"><span class="mon-name">${m.sp}${megaTag(m)}${m.shiny ? ' <span class="tag shiny">✦ Shiny</span>' : ''}${m.radiant ? ' <span class="tag radiant" title="Radiant: shiny colors, at least Good IVs and a stronger ability than its species ever gets">✧ Radiant</span>' : ''}${m.delta ? ' <span class="tag delta" title="Delta Pokémon: an unusual ' + m.delta + ' type">Δ Delta</span>' : ''}${m.alpha ? ' <span class="tag alpha">Alpha</span>' : ''}${condTags(m)}${formBadge(m)}</span><span>${chips(monTypes(m))}${learnedCov(ensureMon(m)).map(covChip).join('')}</span><span class="small muted">${m.nat} · IVs ${ivGrade(m)} · ${frTier(m.fr ?? 70)} · ${wl(stOf(m))}</span></span>
-        <span class="mon-bst">${sp.bst}<small>BST</small></span><span class="reg-check" aria-hidden="true">${on ? '✓' : ''}</span></button>`; }).join('')}</div></section>`; }).join('')}
-  <section class="panel"><div class="confirm-row"><button class="btn primary" data-act="regconfirm" ${ready ? '' : 'disabled'}>Register and start Season ${S.season + 1}</button>${ready ? '' : `<span class="warn">Pick exactly ${START_TEAM} for each trainer.</span>`}</div></section>`;
-}
 
 // ---------- League offers (offseason, before the draft) ----------
 function viewOffers() {
@@ -741,9 +727,9 @@ function viewGifts() {
   const g = (S.pendingGifts || [])[0];
   const log = (S.giftLog || []).slice();
   const line = x => `<li>${x.org ? orgMark(x.org) : ''}${tname(x.from)} ${x.to != null ? `gave <b>${x.sp}</b> to ${tname(x.to)}` : `left <b>${x.sp}</b> in ${x.org ? ORGS[x.org].short + "'s" : 'the team'} ranch`}${nLeagues() > 1 ? ` <span class="tag lg">${lgShort(x.lg)}</span>` : ''}</li>`;
-  const next = nLeagues() > 1 ? 'League reassignment' : (eachLeague(() => champOrg()).includes(S.userOrg) ? "the Champion's reward" : (g && g.org === S.userOrg) || ranchOf(S.userOrg).active.length || (S.ranchPicks || []).some(p => p.org === S.userOrg) ? 'the team ranch' : 'registration');
+  const next = nLeagues() > 1 ? 'parties and Leagues' : (eachLeague(() => champOrg()).includes(S.userOrg) ? "the Champion's reward" : (g && g.org === S.userOrg) || ranchOf(S.userOrg).active.length || (S.ranchPicks || []).some(p => p.org === S.userOrg) ? 'the team ranch' : 'the new season');
   return `<section class="panel callout"><div class="eyebrow">Season ${S.season + 1} · after the draft</div><h2>Farewell gifts</h2>
-    <p>A trainer who leaves a team for a gym, an Elite Four seat or the title leaves one Pokémon in the team's ranch. After the Champion's reward, the team can hand it to any of its trainers, in any League. It keeps its nature, IVs, moves and friendship, and in its first season with its new trainer it's registered on top of the usual three. Legendaries are never given; they move on by themselves.</p></section>
+    <p>A trainer who leaves a team for a gym, an Elite Four seat or the title leaves one Pokémon in the team's ranch. The team's chasers and apprentices can borrow it from there, in any League. It keeps its nature, IVs, moves and friendship. Legendaries are never given; they move on by themselves.</p></section>
     ${g ? inLeague(g.lg ?? lgOf(T(g.from)), () => giftPanel(g)) : ''}
     <section class="panel"><div class="ph"><h3>This offseason's farewell gifts</h3><span class="muted">${log.length} gift${log.length === 1 ? '' : 's'}</span></div>
       ${log.length ? `<ul class="changes">${log.map(line).join('')}</ul>` : '<p class="muted">No team lost a trainer to a post this offseason, so there were no farewell gifts.</p>'}</section>
@@ -756,13 +742,13 @@ function giftPanel(g) {
   if (giftPick != null && !g.mons.some(m => m.uid === giftPick)) giftPick = null;
   return `<section class="panel offer"><div class="eyebrow">Farewell gift${S.pendingGifts.length > 1 ? ` · 1 of ${S.pendingGifts.length}` : ''}</div>
     <h2>${from.name} is leaving to become ${from.role === 'e4' ? 'an Elite Four member' : 'a Gym Leader'}, and wants to leave a Pokémon with the team.</h2>
-    <p>Pick one of ${from.name}'s Pokémon to leave in your ranch. You'll hand it to one of your trainers in the ranch step, after the Champion's reward. It keeps its nature, IVs, moves and friendship, and its past record stays on its stat card.${from.role === 'e4' ? ` ${from.name} keeps the rest of their team, and the League replaces the gift with a Paradox Pokémon of their type.` : ''}</p>
+    <p>Pick one of ${from.name}'s Pokémon to leave in your ranch. Your chasers and apprentices can borrow it from there. It keeps its nature, IVs, moves and friendship, and its past record stays on its stat card.${from.role === 'e4' ? ` ${from.name} keeps the rest of their team, and the League replaces the gift with a Paradox Pokémon of their type.` : ''}</p>
     <div class="regs">${g.mons.map(m => ranchMonBtn(m, giftPick === m.uid, 'giftpick', `Lv ${Math.floor(m.lvl)} · ${natLabel(m)} · IVs ${ivGrade(m)} · ${wl(stOf(m))}, ${stOf(m).ko} KOs`)).join('')}</div>
     <div class="confirm-row"><button class="btn primary" data-act="giftgo" ${giftPick != null ? '' : 'disabled'}>${giftPick != null ? `Leave ${g.mons.find(m => m.uid === giftPick).sp} in the ranch` : 'Pick a Pokémon'}</button><button class="btn" data-act="giftskip">Skip the gift</button></div></section>`;
 }
 
 // ---------- team ranch (v189) ----------
-let ranchSel = null, ranchTo = null, ranchKeep = null;
+let ranchKeep = null;
 function ranchMonBtn(m, on, act, sub) {
   const sp = SP[m.sp];
   return `<button class="reg${on ? ' on' : ''}" data-act="${act}" data-u="${m.uid}" aria-pressed="${on}">
@@ -779,7 +765,7 @@ function ranchPickPanel(p, i, n) {
   if (ranchKeep != null && !mons.some(m => m.uid === ranchKeep)) ranchKeep = null;
   return `<section class="panel offer"><div class="eyebrow">Retirement${n > 1 ? ` · 1 of ${n}` : ''}</div>
     <h2>${p.fromName} retired. Which Pokémon stays in your ranch?</h2>
-    <p>Choose one to keep in your active ranch, where you can hand it to any of your trainers. The rest go to the retired ranch, on display for good.</p>
+    <p>Choose one to keep in your active ranch, where your trainers can borrow it. The rest go to the retired ranch, on display for good.</p>
     <div class="regs">${mons.map(m => ranchMonBtn(m, ranchKeep === m.uid, 'ranchkeep', `Lv ${Math.floor(m.lvl)} · ${natLabel(m)} · IVs ${ivGrade(m)} · ${wl(stOf(m))}, ${stOf(m).ko} KOs`)).join('')}</div>
     <div class="confirm-row"><button class="btn primary" data-act="ranchkeepgo" data-i="${i}" ${ranchKeep != null ? '' : 'disabled'}>${ranchKeep != null ? `Keep ${mons.find(m => m.uid === ranchKeep).sp}` : 'Pick a Pokémon to keep'}</button><button class="btn" data-act="ranchkeepnone" data-i="${i}">Keep none</button></div></section>`;
 }
@@ -986,7 +972,7 @@ function simManyBody() {
   const n = m.n || 5;
   return `<div class="mh"><h2>Sim multiple seasons</h2><button class="btn icon" data-act="close" aria-label="Close">×</button></div>
     <p>Plays whole seasons, drafts and offseasons in one go, then stops at the start of a season so you can take over. While it runs, your team is managed the way the AI teams are:</p>
-    <ul class="mini-list"><li>Your trainers make their own weekly calls and catches.</li><li>Drafts take the best available prospect; a full roster only swaps its weakest trainer for a clearly better one.</li><li>Champion's rewards, registration and farewell gifts use the best fit.</li><li>In the ranch step, each trainer rests their best extra Pokémon, passes the others on to the ranch, and takes one from it. Good Pokémon in their last offseason there are handed out first.</li></ul>
+    <ul class="mini-list"><li>Your trainers make their own weekly calls and catches.</li><li>Drafts take the best available prospect; a full roster only swaps its weakest trainer for a clearly better one.</li><li>Champion's rewards, farewell gifts and retirement keeps use the best fit.</li><li>Parties are set automatically, requests are answered the way another team would, and trade offers are taken when they help.</li></ul>
     <div class="eyebrow">Seasons</div><div class="segs setup-segs sim-n">${SIM_CHOICES.map(k => `<button class="seg${n === k ? ' on' : ''}" data-act="simmanyn" data-v="${k}" aria-pressed="${n === k}">${k}</button>`).join('')}</div>
     <div class="eyebrow" style="margin-top:12px">If the League invites one of your trainers to a gym or Elite Four seat</div>
     <div class="segs setup-segs">${[[false, 'Decline and keep them'], [true, 'Accept the invitation']].map(([v, l]) => `<button class="seg${!!m.accept === v ? ' on' : ''}" data-act="simmanyacc" data-v="${v ? 1 : 0}" aria-pressed="${!!m.accept === v}">${l}</button>`).join('')}</div>
@@ -1051,8 +1037,12 @@ const GLOSS_TERMS = {
     ['Request', "A trainer asking for a title-chaser spot (promote them, promise a spot for the season after next, trade them, or release them), or an older chaser asking to step back into support."],
     ['Promise', "Binding. A trainer promised a chaser spot who doesn't have one when that season's party is confirmed leaves, and every other trainer of yours trusts you less."],
     ['Trust', "How much one of your trainers believes in you. It rises when they do well, get the role they want or a promise is kept, and falls when they're kept in a role they don't want, advice goes badly or a promise to a teammate is broken. It sets how likely they are to listen in a sit-down."],
-    ['Sit-down', "One conversation per party each season, before week 1, with a chaser or the apprentice. You pick a message: rebuild around your ace, widen your coverage, slow down and train, or go for it. They may not listen; you see the odds first."],
+    ['Sit-down', "One conversation per party each season, before week 1 or at the midseason break, with a chaser or the apprentice. You pick a message: rebuild around your ace, widen your coverage, slow down and train, or go for it. They may not listen; you see the odds first."],
     ['Trade', "In the offseason you can trade a trainer one for one with another team, or for an extra pick in the next draft. Other teams only offer what they think is fair. Some offseasons another team proposes a trade to you."],
+    ['Trade desk', "The page for bigger deals: up to three of your trainers for up to three of another team's, with an extra draft pick if you're giving more. The other team accepts when what it gets is worth at least what it gives by its own valuation, which favours its preferred types and rates one strong trainer above several fringe ones. Open in the offseason, before the draft and at the party step."],
+    ['Stepping down', "In the offseason you can ask one of your title chasers to take a support role. One who doesn't want the title agrees. One who does goes by how much they trust you (you see the odds): if they agree, they make their peace with supporting; if they refuse, they ask to leave, and you keep them as a chaser or release them. One ask per trainer each offseason."],
+    ['Coming home', "A former trainer of yours back from a gym or Elite Four post can rejoin. One who wants the title comes back only if they'd win a chaser spot, and returning counts as a binding promise of one. Anyone else takes whatever spot you have."],
+    ['God mode', "An Advanced option chosen at setup. Its page opens Leagues, adds parties and teams, and edits any trainer directly: name, age, ratings, potential, ambition, trust and role aptitudes, plus their slot, companion role and which party they're in. Roster changes are open in the offseason, outside the draft."],
     ['Trade block', "Mark a trainer as available on the Party page. Other teams are much likelier to make an offer for someone on the block."],
     ['Sparring', 'The weakest chaser in a party and its apprentice level up a little faster from travelling with stronger trainers.'],
     ['Party leader', "One of the three chasers, chosen by the party itself from last season's results, time with the team and personality. Their personality sets the party's mood, which makes role bonuses a little stronger or weaker, and they sometimes bend your gym-loss policy."],
@@ -1178,7 +1168,6 @@ function glossaryBody() {
 }
 
 // ---------- Midseason Tournament (v188) ----------
-let tourneyRel = null, tourneyText = '';
 const tourneyNow = () => S.tourney && S.tourney.season === S.season ? S.tourney : null;
 // v193: this season's tournament rule, as a line for the office card and the tournament page
 function tourneyRuleLine(k) {
@@ -1203,16 +1192,6 @@ function tourneyMine(T0) {
     ${mine.map(t => { const r = tourneyRun(T0, t.id); return `<tr class="you-row"><td>${tname(t.id)}${lgTag(t)}</td><td class="${r.ok ? 'good' : ''}">${r.text}</td></tr>`; }).join('')}</tbody></table></div></section>`;
 }
 // the player's trainer won: choose the alpha
-function tourneyOfferPanel(t) {
-  const o = S.tourneyOffer; if (!o || o.id !== t.id || !tourneyNow()) return '';
-  const full = t.team.length >= 6, sug = aiTourneyChoice(t);
-  return `<div class="tourneybox"><span class="tn-k">Midseason Tournament</span> <b>${t.name} won the tournament!</b> The prize is an alpha of any Pokémon you choose (no legendaries, mythicals, Ultra Beasts, Paradox Pokémon or one-of-a-kind finds), at Lv ${o.lvl} with outstanding IVs, already on a hot streak.
-    <div class="tn-pick"><label class="cf-field"><span class="eyebrow">Pokémon</span><input id="tp-sp" class="cf-in" list="tp-list" value="${esc(tourneyText)}" placeholder="Start typing any Pokémon" autocomplete="off"></label>
-      <button class="btn primary" data-act="tourneypick" data-id="${t.id}">Give it to ${esc(t.name)}</button><button class="btn" data-act="tourneypick" data-id="${t.id}" data-sp="${esc(sug)}">Take ${esc(sug)}</button></div>
-    <datalist id="tp-list">${tourneySpecies().map(n => `<option value="${esc(n)}">`).join('')}</datalist>
-    ${full ? `<h3 class="rel-h">The team is full. Choose who makes room:</h3><div class="release">${t.team.map(m => `<button class="rel${tourneyRel === m.uid ? ' on' : ''}" data-act="tourneyrel" data-u="${m.uid}">${m.sp} <span class="muted">Lv ${Math.floor(m.lvl)}</span></button>`).join('')}</div>` : ''}
-    <div class="small muted">Evolved forms are allowed. ${esc(sug)} is ${t.name}'s own pick. If you don't choose, they take their own pick when the League starts.</div></div>`;
-}
 // office card: the bracket's status this season
 function tourneyCard() {
   if (S.phase !== 'season' || (!featOn('tourney') && !tourneyNow())) return '';
@@ -1244,7 +1223,6 @@ function viewTourney() {
       <p class="small">${tourneyRuleLine(T0.rule || null)}</p>
       <p><b>${tname(T0.winner)} won it</b>, beating ${T0.runner ? tname(T0.runner) : 'the field'} in the final.${T0.semis.length ? ` Semifinalists: ${T0.semis.map(id => tname(id)).join(', ')}.` : ''}</p>
       ${r && r.sp && r.sp !== '—' ? `<p>Prize: an alpha <b>${r.sp}</b> ${chips(SP[r.sp] ? SP[r.sp].types : [])} at Lv ${r.lvl}.</p>` : ''}${contBtn}</section>
-      ${w && w.user && S.tourneyOffer && S.tourneyOffer.id === w.id ? `<section class="panel">${tourneyOfferPanel(w)}</section>` : ''}
       ${tourneyMine(T0)}`;
     const rounds = T0.rounds.map((rd, ri) => ({ rd, ri })).reverse();
     top += rounds.map(({ rd, ri }) => { const real = rd.matches.filter(m => !m.bye).length, byes = rd.matches.length - real;
@@ -1300,13 +1278,14 @@ function viewParty() {
 }
 let sitOpen = null, tradeOpen = null;
 function ambRow(t) {
-  const pt = patienceText(t), sat = sitUsed(t.org, lgOf(t));
-  const btns = (canSit(t) ? `<button class="btn small${sitOpen === t.id ? ' primary' : ''}" data-act="sitopen" data-id="${t.id}">Sit down</button>` : '') + (canTrade() ? `<button class="btn small${tradeOpen === t.id ? ' primary' : ''}" data-act="tradeopen" data-id="${t.id}">Trade</button>` : '') + `<button class="btn small${t.block ? ' primary' : ''}" data-act="block" data-id="${t.id}" title="Other teams are likelier to make an offer for a trainer on the block">${t.block ? 'On the block' : 'Put on the block'}</button>`;
-  const sit = sitOpen === t.id && canSit(t) ? `<div class="pt-life"><div class="small">One sit-down per party each season. ${t.name} takes it on board about <b>${Math.round(sitOdds(t) * 100)}%</b> of the time, going by how much they trust you.</div><div class="pt-roles">${Object.keys(SITS).map(k => `<button class="rel" data-act="sit" data-id="${t.id}" data-k="${k}" title="${esc(SITS[k].text)}">${SITS[k].name}</button>`).join('')}</div></div>` : '';
+  const pt = patienceText(t);
+  const btns = (canSit(t) ? `<button class="btn small${sitOpen === t.id ? ' primary' : ''}" data-act="sitopen" data-id="${t.id}">Sit down</button>` : '') + (canTrade() ? `<button class="btn small${tradeOpen === t.id ? ' primary' : ''}" data-act="tradeopen" data-id="${t.id}">Trade</button>` : '') + `<button class="btn small${t.block ? ' primary' : ''}" data-act="block" data-id="${t.id}" title="Other teams are likelier to make an offer for a trainer on the block">${t.block ? 'On the block' : 'Put on the block'}</button>` + (canAskDown(t) ? `<button class="btn small" data-act="askdown" data-id="${t.id}" title="Ask them to take a support role. If they refuse, they ask to leave.">Ask to step down (${Math.round(downOdds(t) * 100)}% agree)</button>` : '');
+  const out = t.askedOut ? `<div class="pt-life"><div class="small warn"><b>${t.name} refused to step down and has asked to leave.</b> Keep them as a chaser (they trust you less) or let them go. Unanswered, they stay.</div><div class="confirm-row"><button class="btn small" data-act="askout" data-id="${t.id}" data-v="1">Keep ${t.name}</button><button class="btn small" data-act="askout" data-id="${t.id}" data-v="0">Release ${t.name}</button></div></div>` : '';
+  const sit = sitOpen === t.id && canSit(t) ? `<div class="pt-life"><div class="small">One sit-down per party each season, before week 1 or at the midseason break. ${t.name} takes it on board about <b>${Math.round(sitOdds(t) * 100)}%</b> of the time, going by how much they trust you.</div><div class="pt-roles">${Object.keys(SITS).map(k => `<button class="rel" data-act="sit" data-id="${t.id}" data-k="${k}" title="${esc(SITS[k].text)}">${SITS[k].name}</button>`).join('')}</div></div>` : '';
   const opts = tradeOpen === t.id && canTrade() ? tradeOptions(t) : null;
-  const tr = opts ? `<div class="pt-life"><div class="small">What other teams would give for ${t.name}, one for one. A trade can't be undone.</div><div class="release">${opts.map((o, i) => tradeOptRow(t, o, i, 'gmtrade')).join('') || '<span class="muted small">No team is offering anything.</span>'}</div></div>` : '';
+  const tr = opts ? `<div class="pt-life"><div class="small">What other teams would give for ${t.name}, one for one. A trade can't be undone. For bigger deals, use the <button class="tlink" data-act="nav" data-v="trade">trade desk</button>.</div><div class="release">${opts.map((o, i) => tradeOptRow(t, o, i, 'gmtrade')).join('') || '<span class="muted small">No team is offering anything.</span>'}</div></div>` : '';
   const told = t.sit && t.sit.season === upSeason() ? ` · <span class="${t.sit.ok ? 'good' : 'muted'}">${t.sit.ok ? 'following' : 'ignoring'} "${SITS[t.sit.msg].name}"</span>` : '';
-  return `<div class="pt-note small">${AMBS[ambOf(t)].name}${pt ? ` · <b class="${unhappyRole(t) ? 'warn' : ''}">${pt}</b>` : ''} · ${trustWord(t)}${told}</div>${btns ? `<div class="pt-act">${btns}${sat && !canSit(t) && (t.slot === 'chaser' || t.slot === 'apprentice') ? '' : ''}</div>` : ''}${sit}${tr}`;
+  return `<div class="pt-note small">${AMBS[ambOf(t)].name}${pt ? ` · <b class="${unhappyRole(t) ? 'warn' : ''}">${pt}</b>` : ''} · ${trustWord(t)}${told}</div>${btns ? `<div class="pt-act">${btns}</div>` : ''}${out}${sit}${tr}`;
 }
 // the leader the party chose, and the one in-season call that is yours: what happens after a gym loss
 function partyLifeRow(k, i) {
@@ -1342,7 +1321,68 @@ function expandNote() {
   const fresh = S.leagueOpened && S.leagueOpened.season === S.season + 1 && can.includes(S.leagueOpened.i);
   return `<section class="panel callout"><h2>${fresh ? `The ${leagueName(S.leagueOpened.i)} is opening` : 'Room to expand'}</h2><p>You can found a party in the ${can.map(leagueName).join(' or the ')} before the draft. You send up to ${NEW_PARTY_MOVES} of your own trainers and the draft fills the rest. A party is permanent once founded.</p><button class="btn primary" data-act="nav" data-v="party">Go to the Party page</button></section>`;
 }
+// ---------- trade desk (2.0.1): up to three trainers each way ----------
+let deskOrg = null, deskGive = [], deskGet = [], deskPick = false;
+const deskTeams = () => ORG_KEYS.filter(x => x !== S.userOrg && partyLeagues(x).some(i => partyOf(x, i).length));
+const deskRoster = k => partyLeagues(k).flatMap(i => partyOf(k, i)).sort((a, b) => lgOf(a) - lgOf(b) || (SLOT_RANK[slotOf(a)] ?? 9) - (SLOT_RANK[slotOf(b)] ?? 9) || ovr(b) - ovr(a));
+function deskRow(t, on, act, full) {
+  const held = !tradeable(t);
+  return `<div class="pt-row${on ? ' sel' : ''}"><div class="pt-id">${tname(t.id)} ${ovrPill(t)} <span class="muted small">age ${t.age} · POT ${t.user ? t.pot : scoutEst(t)} · ${nLeagues() > 1 ? lgShort(lgOf(t)) + ' · ' : ''}${SLOT_NAMES[slotOf(t)] || ''}${t.slot === 'companion' && t.prole ? ' (' + PARTY_ROLES[t.prole].name + ')' : ''}</span></div><div class="pt-act">${held ? '<span class="muted small">Promised a spot</span>' : `<button class="btn small${on ? ' primary' : ''}" data-act="${act}" data-id="${t.id}" ${!on && full ? 'disabled' : ''}>${on ? (act === 'deskgive' ? 'Sending' : 'Asking for') : (act === 'deskgive' ? 'Send' : 'Ask for')}</button>`}</div><div class="pt-note small muted">${ambText(t)}${t.user ? ' · ' + trustWord(t) : ''}</div></div>`;
+}
+function viewTrade() {
+  const k = S.userOrg, teams = S ? deskTeams() : [];
+  const head = `<section class="panel callout"><div class="eyebrow">${orgName(k)}</div><h2>Trade desk</h2>
+    <p>Offer up to ${TRADE_MAX} of your trainers for up to ${TRADE_MAX} of another team's. The other team says yes when what it gets is worth at least what it gives, by its own reckoning: it rates trainers of its favoured types higher, and one strong trainer is worth more to it than several fringe ones. If you're giving more, ask for an extra draft pick to even it out.</p>
+    <p class="muted small">Arrivals take the place of the trainers they were traded for where they can; anyone extra joins your party with the most room. A trade can't be undone, and a traded trainer starts over on trust.</p></section>`;
+  if (!canTrade()) return `${head}<section class="panel"><p class="muted">Trades are made in the offseason: before the draft, and again at the party step after it.</p></section>`;
+  if (!teams.length) return `${head}<section class="panel"><p class="muted">No other team has trainers to trade.</p></section>`;
+  if (!teams.includes(deskOrg)) { deskOrg = teams[0]; deskGet = []; }
+  const mine = deskRoster(k), theirs = deskRoster(deskOrg);
+  deskGive = deskGive.filter(id => mine.some(t => t.id === id && tradeable(t)));
+  deskGet = deskGet.filter(id => theirs.some(t => t.id === id && tradeable(t)));
+  const c = deskGive.length || deskGet.length || deskPick ? tradeCheck(deskOrg, deskGive, deskGet, deskPick) : null;
+  const lands = c && c.mine && nLeagues() > 1 && c.mine.length ? ` Arriving: ${c.mine.map(p => `${p.t.name} to your ${lgShort(p.i)} party`).join(', ')}.` : '';
+  const verdict = !c ? '<span class="muted">Choose who to send and who to ask for.</span>' : c.ok ? `<b class="good">${ORGS[deskOrg].short} would accept.</b>${lands}` : `<span class="warn">${c.why}${c.short ? ` You're about ${c.short}% short in their eyes.` : ''}</span>`;
+  return `${head}
+    <section class="panel"><div class="ph"><h3>Trade with</h3></div><div class="release">${teams.map(x => `<button class="rel${deskOrg === x ? ' on' : ''}" data-act="deskorg" data-k="${x}">${orgMark(x)}${ORGS[x].short}</button>`).join('')}</div></section>
+    <div class="grid-office"><div class="col"><section class="panel"><div class="ph"><h3>You send</h3><span class="muted">${deskGive.length}/${TRADE_MAX}</span></div>${mine.map(t => deskRow(t, deskGive.includes(t.id), 'deskgive', deskGive.length >= TRADE_MAX)).join('')}</section></div>
+    <div class="col"><section class="panel"><div class="ph"><h3>${ORGS[deskOrg].short} sends</h3><span class="muted">${deskGet.length}/${TRADE_MAX}</span></div>${theirs.map(t => deskRow(t, deskGet.includes(t.id), 'deskget', deskGet.length >= TRADE_MAX)).join('')}
+      <div class="confirm-row"><button class="btn small${deskPick ? ' primary' : ''}" data-act="deskpick" aria-pressed="${deskPick}">${deskPick ? 'Also asking for an extra draft pick' : 'Also ask for an extra draft pick'}</button></div></section></div></div>
+    <section class="panel"><div class="confirm-row"><button class="btn primary" data-act="deskgo" ${c && c.ok ? '' : 'disabled'}>Make the trade</button><span class="small">${verdict}</span></div></section>`;
+}
 // ---------- god mode ----------
+let godTeam = null, godLg = 0, godPick = null;
+const GOD_RATINGS = { str: 'Strategy', trn: 'Training', bnd: 'Bonding', sct: 'Scouting', nrv: 'Nerve' };
+function godEditor() {
+  const open = godRosterOpen();
+  if (godTeam !== '_ind' && !ORG_KEYS.includes(godTeam)) godTeam = S.userOrg || ORG_KEYS[0];
+  if (godLg >= nLeagues()) godLg = 0;
+  const list = inLeague(godLg, () => godTeam === '_ind' ? independents().slice().sort((a, b) => ovr(b) - ovr(a)).slice(0, 40) : partyOf(godTeam, godLg).slice().sort((a, b) => (SLOT_RANK[slotOf(a)] ?? 9) - (SLOT_RANK[slotOf(b)] ?? 9) || ovr(b) - ovr(a)));
+  const t = godPick != null && T(godPick) && list.some(x => x.id === godPick) ? T(godPick) : null;
+  const row = x => `<div class="pt-row${t === x ? ' sel' : ''}"><div class="pt-id">${tname(x.id)} ${ovrPill(x)} <span class="muted small">age ${x.age} · POT ${x.pot}${x.org ? ' · ' + (SLOT_NAMES[slotOf(x)] || '') + (x.slot === 'companion' && x.prole ? ' (' + PARTY_ROLES[x.prole].name + ')' : '') : ''} · ${AMBS[ambOf(x)].name}</span></div><div class="pt-act"><button class="btn small${t === x ? ' primary' : ''}" data-act="godpick" data-id="${x.id}">${t === x ? 'Close' : 'Edit'}</button></div></div>`;
+  const num = (id, label, v, lo, hi) => `<label class="cf-field"><span class="eyebrow">${label}</span><input id="${id}" class="cf-in" type="number" inputmode="numeric" min="${lo}" max="${hi}" value="${v}"></label>`;
+  let form = '';
+  if (t) {
+    const dest = [];
+    for (const k of ORG_KEYS) for (const i of partyLeagues(k)) if (!(t.org === k && lgOf(t) === i)) dest.push(`<button class="rel" data-act="godmove" data-id="${t.id}" data-k="${k}" data-i="${i}" ${open && partyOf(k, i).length < PARTY_SIZE ? '' : 'disabled'}>${orgMark(k)}${ORGS[k].short}${nLeagues() > 1 ? ' · ' + lgShort(i) : ''} <span class="muted">${partyOf(k, i).length}/${PARTY_SIZE}</span></button>`);
+    const slots = t.org ? `<div class="eyebrow" style="margin-top:10px">Slot</div><div class="release">${['chaser', 'companion', 'apprentice'].map(s => `<button class="rel${t.slot === s ? ' on' : ''}" data-act="godslot" data-id="${t.id}" data-k="${s}" ${open ? '' : 'disabled'}>${SLOT_NAMES[s]}</button>`).join('')}</div><p class="fine">If the slot is full, they trade places with the weakest trainer in it. Making someone an apprentice gives them a season in the slot even if their two are up.</p>` : '';
+    const roles = t.slot === 'companion' ? `<div class="eyebrow" style="margin-top:10px">Companion role</div><div class="release">${ROLE_KEYS.map(r => `<button class="rel${t.prole === r ? ' on' : ''}" data-act="godrole" data-id="${t.id}" data-k="${r}" ${open ? '' : 'disabled'}>${PARTY_ROLES[r].name}</button>`).join('')}</div>` : '';
+    form = `<div class="pt-life"><div class="ph"><h3>${dn(t)}</h3><span class="muted">OVR ${ovr(t)}</span></div>
+      <div class="cf-grid six"><label class="cf-field"><span class="eyebrow">Name</span><input id="ge-name" class="cf-in" maxlength="24" value="${esc(t.name)}" autocomplete="off"></label>
+        ${num('ge-age', 'Age', t.age, 10, 70)}${num('ge-pot', 'Potential', t.pot, 1, 99)}${num('ge-trust', 'Trust in their GM', trustOf(t), 0, 100)}
+        <label class="cf-field"><span class="eyebrow">Ambition</span><select id="ge-amb">${Object.keys(AMBS).map(a => `<option value="${a}"${ambOf(t) === a ? ' selected' : ''}>${AMBS[a].name}</option>`).join('')}</select></label></div>
+      <div class="eyebrow">Ratings</div><div class="cf-grid six">${RK.map(r => num('ge-' + r, GOD_RATINGS[r], t.r[r], 1, 99)).join('')}</div>
+      <div class="eyebrow">Role aptitudes</div><div class="cf-grid six">${ROLE_KEYS.map(r => num('ge-apt-' + r, PARTY_ROLES[r].name, aptOf(t)[r], 5, 99)).join('')}</div>
+      <div class="confirm-row"><button class="btn primary" data-act="godsave" data-id="${t.id}">Save changes</button>${(t.appSeasons || 0) > 0 ? `<button class="btn" data-act="godapp" data-id="${t.id}">Reset apprentice seasons (${t.appSeasons} used)</button>` : ''}</div>
+      ${t.role === 'challenger' ? `${slots}${roles}<div class="eyebrow" style="margin-top:10px">Move to a party</div><div class="release">${dest.join('')}${t.org ? `<button class="rel" data-act="godmove" data-id="${t.id}" data-k="" ${open ? '' : 'disabled'}>Release as an independent</button>` : ''}</div>
+      <p class="fine">${open ? `Moving between Leagues: a legendary can't follow into a League where one of its kind is already held, and returns to the wild.` : 'Slots, roles and moves are open in the offseason, outside the draft. Names, ages and ratings can be changed any time.'}</p>` : ''}</div>`;
+  }
+  return `<section class="panel"><div class="ph"><h3>Trainers and rosters</h3><span class="muted">${list.length} shown</span></div>
+    <div class="release">${ORG_KEYS.map(k => `<button class="rel${godTeam === k ? ' on' : ''}" data-act="godteamsel" data-k="${k}">${orgMark(k)}${ORGS[k].short}</button>`).join('')}<button class="rel${godTeam === '_ind' ? ' on' : ''}" data-act="godteamsel" data-k="_ind">Independents</button></div>
+    ${nLeagues() > 1 ? `<div class="release" style="margin-top:6px">${lgRange().map(i => `<button class="rel${godLg === i ? ' on' : ''}" data-act="godlgsel" data-i="${i}">${lgShort(i)}</button>`).join('')}</div>` : ''}
+    ${form}${list.map(row).join('') || `<p class="muted">${godTeam === '_ind' ? 'No independents here.' : 'This team has no party in this League.'}</p>`}
+    ${godTeam === '_ind' && list.length === 40 ? '<p class="fine">The 40 strongest independents are shown.</p>' : ''}</section>`;
+}
 function viewGod() {
   if (!godOn()) return viewOffice();
   const off = S.phase === 'offseason';
@@ -1350,12 +1390,11 @@ function viewGod() {
   const rows = ORG_KEYS.map(k => `<tr><td>${orgMark(k)} ${ORGS[k].short}${k === S.userOrg ? ' <span class="tag">You</span>' : ''}</td>${lgRange().map(i => `<td>${cell(k, i)}</td>`).join('')}</tr>`).join('');
   const out = ALL_ORG_KEYS.filter(k => !ORG_KEYS.includes(k));
   return `<section class="panel callout"><div class="eyebrow">God mode</div><h2>Shape the world by hand</h2>
-    <p>Open a League, give any team a party in any League, or bring a new team into the world. These skip the usual limits.${off ? '' : ' <b>They work in the offseason, before the draft</b>, so the draft can fill the new spots.'}</p>
-    <p class="muted small">Editing trainers, roles and rosters directly comes in a later version.</p></section>
+    <p>Open a League, give any team a party in any League, bring a new team into the world, or edit any trainer and roster directly. These skip the usual limits.${off ? '' : ' <b>Leagues, parties and teams are added in the offseason, before the draft</b>, so the draft can fill the new spots.'}</p></section>
   <section class="panel"><div class="ph"><h3>Leagues</h3><span class="muted">${nLeagues()} of ${MAX_LEAGUES} regions open</span></div>
     <p>${lgRange().map(leagueName).join(' · ')}${S.nextLeague ? ` · next opening on its own in Season ${S.nextLeague.season}` : ''}</p>
     <div class="confirm-row"><button class="btn primary" data-act="godleague" ${off && nLeagues() < MAX_LEAGUES ? '' : 'disabled'}>${nLeagues() < MAX_LEAGUES ? `Open the ${nextRegionName()} now` : 'Every region is open'}</button></div></section>
   <section class="panel"><div class="ph"><h3>Parties</h3></div><div class="tblwrap"><table class="tbl"><thead><tr><th>Team</th>${lgRange().map(i => `<th>${lgShort(i)}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div></section>
   <section class="panel"><div class="ph"><h3>Add a team</h3><span class="muted">${ORG_KEYS.length} in the world</span></div>
-    ${out.length ? `<div class="release">${out.map(k => `<button class="rel" data-act="godteam" data-k="${k}" ${off ? '' : 'disabled'}>${ORGS[k].name}</button>`).join('')}</div><p class="fine">A new team starts with no parties. Give it one above.</p>` : '<p class="muted">Every team is already in the world.</p>'}</section>`;
+    ${out.length ? `<div class="release">${out.map(k => `<button class="rel" data-act="godteam" data-k="${k}" ${off ? '' : 'disabled'}>${ORGS[k].name}</button>`).join('')}</div><p class="fine">A new team starts with no parties. Give it one above.</p>` : '<p class="muted">Every team is already in the world.</p>'}</section>${godEditor()}`;
 }

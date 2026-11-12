@@ -1,5 +1,17 @@
 const verName = u => u.ver || u.id;
 const UPDATES = [
+  { id: 205, ver: '2.0.1', date: 'November 12, 2026', time: '9:17 AM ET', title: 'Trade desk, the god-mode editor, and a clean-up', items: [
+    "Trade desk: a new page (Office menu, in the offseason) for bigger deals. Offer up to three of your trainers for up to three of another team's, and ask for an extra draft pick if you're giving more. It tells you whether the other team would accept before you commit.",
+    "Other teams judge a deal by their own valuation: trainers of their favoured types are worth more to them, and one strong trainer is worth more than several fringe ones. Arrivals take the place of the trainers they were traded for; anyone extra joins your party with the most room.",
+    "Asking a chaser to step down: on the Party page in the offseason. A chaser who doesn't want the title agrees. One who does goes by how much they trust you, and you see the odds first. If they agree they settle into supporting; if they refuse they ask to leave, and you keep them as a chaser or release them.",
+    "Coming home now goes by ambition. A former trainer who wants the title returns only if they'd win a chaser spot, and bringing them back is a binding promise of one. Anyone else takes whatever spot you have.",
+    "A trainer who is unhappy in a support role can now be invited to a gym, and may take a gym or Elite Four invitation even if you decline it. The offer warns you. Other teams' unhappy trainers are likelier to be picked for posts too.",
+    "Sit-downs can also be held at the midseason break, if the party hasn't had its one for the season.",
+    "God mode: the trainer and roster editor. Pick any team's party (or the independents) and edit a trainer's name, age, ratings, potential, ambition, trust and role aptitudes. In the offseason you can also set their slot and companion role, move them to any party with room, or release them.",
+    "Clean-up: removed the old screens and code for choices trainers now make themselves (weekly plans, catch and item pickers, Mega Stone placement, registration, snag, road-trade and legendary panels, the tournament prize picker, and the old ranch hand-out and resting controls), along with unused styles.",
+    "Wording fixed in several places that still described handing ranch Pokémon out yourself or a registration step.",
+    "Multi battles are not in this version. They need a doubles battle engine, which is still on the to-do list.",
+  ] },
   { id: 204, ver: '2.0.0', date: 'November 12, 2026', time: '8:16 AM ET', title: '2.0: you run the team, your trainers run themselves', items: [
     "This is the first step of Pokémon League GM 2.0, a rework where you manage the team and your trainers make their own decisions.",
     "Your trainers now choose their own week: when to challenge a gym, train, explore, seek a legendary, confront villains or purify. There are no weekly plans to set.",
@@ -611,13 +623,13 @@ function render() {
   if (view === 'trainers') v = viewTrainers();
   if (view === 'recap') v = viewRecap();
   if (view === 'draft') v = viewDraft();
-  if (view === 'register') v = viewRegister();
   if (view === 'reward') v = viewReward();
   if (view === 'ranch') v = viewRanch();
   if (view === 'ranchhist') v = viewRanchHistory();
   if (view === 'reassign') v = viewReassign();
   if (view === 'party') v = viewParty();
   if (view === 'god') v = viewGod();
+  if (view === 'trade') v = viewTrade();
   if (view === 'banvote') v = viewBanVote();
   if (view === 'offers') v = viewOffers();
   if (view === 'gifts') v = viewGifts();
@@ -685,18 +697,11 @@ function go(v) { view = v; render(); window.scrollTo(0, 0); }
 function fixView() { if (/^t\d+$/.test(view)) { const t = T(+view.slice(1)); if (!t || !t.user) view = 'office'; } }
 
 // ---------- actions ----------
-function afterDraft() { if (S.phase === 'gifts') go('gifts'); else if (S.phase === 'reassign') go('reassign'); else if (S.phase === 'banvote') go('banvote'); else if (S.phase === 'reward') go('reward'); else if (S.phase === 'ranch') go('ranch'); else if (S.phase === 'register') go('register'); else if (S.phase === 'season') { go('office'); toast(`Season ${S.season} is underway.`); } else render(); }
-function planFor(t) { let p = S.plans[t.id] || 'auto'; if (p === 'challenge' && (t.role === 'champion' || t.badges.length >= 8 || gymClosed(t.badges.length))) p = 'auto'; if (p === 'raid' && (t.role !== 'challenger' || !eventFoe())) p = 'auto'; if (p === 'purify') p = 'auto'; if (p === 'seek' && (t.role !== 'challenger' || !S.legend || legendBlocked(t, S.legend.sp))) p = 'auto'; return p; }
+function afterDraft() { if (S.phase === 'gifts') go('gifts'); else if (S.phase === 'reassign') go('reassign'); else if (S.phase === 'banvote') go('banvote'); else if (S.phase === 'reward') go('reward'); else if (S.phase === 'ranch') go('ranch'); else if (S.phase === 'season') { go('office'); toast(`Season ${S.season} is underway.`); } else render(); }
+
 function playWeek() {
   if (S.phase !== 'season') return;
-  finishWeek({}, true);
-}
-// auto: Sim week. Your trainers decide for themselves (AI plans and catches), ignoring this week's plans and picks
-function finishWeek(choices, auto) {
-  const plans = {};
-  if (!auto) for (const t of userTrainers()) plans[t.id] = planFor(t);
-  simWeek(plans, auto ? {} : choices);
-  S.catchPicks = {};
+  simWeek();
   save();
   render();
   const found = userTrainers().map(t => t.weekLog[t.weekLog.length - 1]).filter(e => e && e.found && ITEMS[e.found]).map(e => ITEMS[e.found].name);
@@ -738,7 +743,6 @@ document.addEventListener('click', ev => {
     case 'imgclearno': imgClearArm = false; imgRefresh(); break;
     case 'imgclearyes': imgClearAll().then(() => render()); break;
     case 'setteams': setupTeams = +el.dataset.v; render(); break;
-    case 'setroster': setupRoster = +el.dataset.v; render(); break;
     case 'setleagues': setupLeagues = +el.dataset.v; setupParties = Math.min(setupParties, setupLeagues); render(); break;
     case 'setparties': setupParties = +el.dataset.v; render(); break;
     case 'setgrowth': setupGrowth = el.dataset.v === '1'; render(); break;
@@ -798,7 +802,7 @@ document.addEventListener('click', ev => {
     case 'packall': { const on = el.dataset.v === '1'; setupBaseOff = !on; setupPacks = { ...setupPacks, ...Object.fromEntries(Object.keys(FAMOUS_PACKS).filter(k => !FAMOUS_PACKS[k].custom).map(k => [k, on])) }; render(); break; }
     case 'advfold': setupFold[el.dataset.k] = !setupFold[el.dataset.k]; render(); break;
     case 'advfoldall': { const shut = el.dataset.v === '1'; setupFold = Object.fromEntries(['rules', 'features', 'packs', 'mypacks', 'dex', 'images', 'load', ...FEATURES.map(g => 'feat-' + g.group)].map(k => [k, shut])); render(); break; }
-    case 'pickorg': viewLg = 0; newWorld(el.dataset.k, { leagues: setupLeagues, parties: Math.min(setupParties, setupLeagues), growth: setupLeagues < 4 && setupGrowth, god: setupGod, teams: setupTeams, roster: setupRoster, allFamous: setupAdv.allFamous, baseOff: setupBaseOff, packs: Object.keys(setupPacks).filter(k => setupPacks[k]), off: Object.keys(setupOff).filter(k => setupOff[k]), tourneyRule: setupTourneyRule }); S.catchPicks = {}; setupPage = 'main'; save(); go('draft'); break;
+    case 'pickorg': viewLg = 0; newWorld(el.dataset.k, { leagues: setupLeagues, parties: Math.min(setupParties, setupLeagues), growth: setupLeagues < 4 && setupGrowth, god: setupGod, teams: setupTeams, allFamous: setupAdv.allFamous, baseOff: setupBaseOff, packs: Object.keys(setupPacks).filter(k => setupPacks[k]), off: Object.keys(setupOff).filter(k => setupOff[k]), tourneyRule: setupTourneyRule }); S.catchPicks = {}; setupPage = 'main'; save(); go('draft'); break;
     case 'nav': navOpen = null; modal = null; renderModal(); go(el.dataset.v); break;
     case 'navgrp': navOpen = navOpen === el.dataset.k ? null : el.dataset.k; syncNav(); break;
     case 'profile': modal = { kind: 'profile', id: +el.dataset.id, back: recBack() }; renderModal(); break;
@@ -809,14 +813,7 @@ document.addEventListener('click', ev => {
     case 'updates': navOpen = null; modal = null; renderModal(); markUpdatesSeen(); go('updates'); break;
     case 'close': if (modal && modal.kind === 'simmany' && modal.running) break; clearInterval(player); modal = modal && modal.back ? modal.back : null; renderModal(); break;
     case 'simmany': modal = { kind: 'simmany', n: 5, accept: false }; renderModal(); break;
-    case 'legrel': { const id = +el.dataset.id; const m = answerLegend(id, +el.dataset.u); save(); render(); if (m) toast(`${m.sp} joined the team!`); break; }
-    case 'legno': { answerLegend(+el.dataset.id, null); save(); render(); break; }
-    case 'snagsel': { const id = +el.dataset.id; S.snagPick = S.snagPick || {}; S.snagPick[id] = { i: +el.dataset.i, release: (S.snagPick[id] || {}).release }; render(); break; }
-    case 'snagrel': { const id = +el.dataset.id; S.snagPick = S.snagPick || {}; S.snagPick[id] = Object.assign(S.snagPick[id] || {}, { release: +el.dataset.u }); render(); break; }
-    case 'snaggo': { const id = +el.dataset.id; const pk = (S.snagPick || {})[id]; if (pk) { const m = answerSnag(id, pk.i, pk.release); delete S.snagPick[id]; save(); render(); if (m) toast(`Snagged a Shadow ${m.sp}.`); } break; }
-    case 'snagno': { const id = +el.dataset.id; answerSnag(id, null); if (S.snagPick) delete S.snagPick[id]; save(); render(); break; }
     case 'tradeans': { const o = S.offers[0]; if (o && o.kind === 'tradeoffer') { answerTradeOffer(el.dataset.v === '1'); save(); render(); toast(el.dataset.v === '1' ? 'Traded.' : 'Turned down.'); } break; }
-    case 'megaset': { const t = T(+el.dataset.id); if (t && t.user) { assignMegaStone(t, +el.dataset.u, el.dataset.v); save(); render(); } break; }
     case 'hoflg': hofLg = el.dataset.v; render(); break;
     case 'hofsort': hofSort = el.dataset.v; render(); break;
     case 'recmore': modal = { kind: 'recmore', key: el.dataset.k }; renderModal(); break;
@@ -827,20 +824,11 @@ document.addEventListener('click', ev => {
     case 'simmanystop': modal.stopRequested = true; renderModal(); break;
     case 'simmanyclose': modal = null; renderModal(); go('office'); break;
     case 'simmanyrecords': modal = null; renderModal(); go('records'); break;
-    case 'plan': S.plans[+el.dataset.id] = el.dataset.v; save(); render(); break;
     case 'playweek': playWeek(); break;
-    case 'csel': { const id = +el.dataset.id; const prev = S.catchPicks[id]; S.catchPicks[id] = { i: +el.dataset.i, release: prev ? prev.release : null }; save(); render(); break; }
-    case 'crel': { const id = +el.dataset.id; if (S.catchPicks[id]) S.catchPicks[id].release = +el.dataset.u; save(); render(); break; }
-    case 'cclear': delete S.catchPicks[+el.dataset.id]; save(); render(); break;
-    case 'itemtake': { const k = takeItemOffer(+el.dataset.id, +el.dataset.i); save(); render(); if (k) toast(`${ITEMS[k].name} added to the bag.`); break; }
-    case 'itemopen': itemOpen = itemOpen === +el.dataset.u ? null : +el.dataset.u; render(); break;
-    case 'itemset': setItem(+el.dataset.id, +el.dataset.u, el.dataset.k || null); save(); render(); break;
-    case 'itemauto': { const t = T(+el.dataset.id); if (t) { t.itemsManual = false; autoEquip(t); itemOpen = null; save(); render(); toast('Items equipped.'); } break; }
     case 'tourneydone': S.tourneyPause = false; save(); go('office'); toast(`On to week ${S.week + 1}.`); break;
-    case 'simweek': if (S.phase !== 'season') break; finishWeek({}, true); break;
     case 'autoseasonask': modal = { kind: 'confirmsim' }; renderModal(); setTimeout(() => { const b = document.querySelector('[data-act="autoseason"]'); if (b && b.focus) b.focus(); }, 0); break;
     case 'autoseason': { const stop = tourneyAhead() && simStopTourney; modal = null; renderModal(); S.tourneyPause = false;
-      if (stop) simToTourney(); else while (S.phase === 'season') simWeek({}, {});
+      if (stop) simToTourney(); else while (S.phase === 'season') simWeek();
       save(); go('office'); toast(stop ? `Played to week ${TOURNEY_WEEK}. The Midseason Tournament is played after this week.` : 'Played to the end of the regular season.'); break; }
     case 'runleague': runLeague(); save(); go('recap'); break;
     case 'giftpick': giftPick = +el.dataset.u; render(); break;
@@ -857,6 +845,23 @@ document.addEventListener('click', ev => {
     case 'prole': setPartyRole(+el.dataset.id, el.dataset.k); save(); render(); break;
     case 'req': { const ok = answerRequest(el.dataset.c, el.dataset.a ? +el.dataset.a : undefined); save(); render(); if (!ok) toast("That couldn't be done."); break; }
     case 'reqtrade': { const ok = answerRequest('trade', +el.dataset.n); save(); render(); toast(ok ? 'Traded.' : 'That offer is gone.'); break; }
+    case 'askdown': { const t = T(+el.dataset.id), r = askStepDown(+el.dataset.id); save(); render(); if (r) toast(r.ok ? `${t.name} agreed to step into a support role.` : `${t.name} refused, and has asked to leave.`); break; }
+    case 'askout': { const t = T(+el.dataset.id), keep = el.dataset.v === '1'; if (answerAskOut(+el.dataset.id, keep)) { save(); render(); toast(keep ? `${t.name} stays as a chaser.` : `${t.name} was released.`); } break; }
+    case 'deskorg': deskOrg = el.dataset.k; deskGet = []; deskPick = false; render(); break;
+    case 'deskgive': case 'deskget': { const L = a === 'deskgive' ? deskGive : deskGet, id = +el.dataset.id, i = L.indexOf(id); if (i >= 0) L.splice(i, 1); else if (L.length < TRADE_MAX) L.push(id); render(); break; }
+    case 'deskpick': deskPick = !deskPick; render(); break;
+    case 'deskgo': { const why = tradeMany(deskOrg, deskGive, deskGet, deskPick); if (!why) { deskGive = []; deskGet = []; deskPick = false; } save(); render(); toast(why || 'Traded.'); break; }
+    case 'godteamsel': godTeam = el.dataset.k; godPick = null; render(); break;
+    case 'godlgsel': godLg = +el.dataset.i; godPick = null; render(); break;
+    case 'godpick': godPick = godPick === +el.dataset.id ? null : +el.dataset.id; render(); break;
+    case 'godsave': { const id = +el.dataset.id, val = k => { const x = $('#ge-' + k); return x ? x.value : null; }; const errs = [];
+      for (const f of ['name', 'age', ...RK, 'pot', 'trust', 'amb']) { const v = val(f); if (v != null) { const w = godEdit(id, f, v); if (w) errs.push(w); } }
+      for (const r of ROLE_KEYS) { const v = val('apt-' + r); if (v != null) { const w = godEdit(id, 'apt:' + r, v); if (w) errs.push(w); } }
+      save(); render(); toast(errs[0] || 'Saved.'); break; }
+    case 'godapp': godEdit(+el.dataset.id, 'app'); save(); render(); toast('Apprentice seasons reset.'); break;
+    case 'godmove': { const why = godMove(+el.dataset.id, el.dataset.k || null, +el.dataset.i || 0); if (!why) godPick = null; save(); render(); toast(why || 'Moved.'); break; }
+    case 'godslot': { const why = godSlot(+el.dataset.id, el.dataset.k); save(); render(); if (why) toast(why); break; }
+    case 'godrole': { const why = godRole(+el.dataset.id, el.dataset.k); save(); render(); if (why) toast(why); break; }
     case 'block': { const t = T(+el.dataset.id); if (t) { setBlock(t.id, !t.block); save(); render(); } break; }
     case 'sitopen': sitOpen = sitOpen === +el.dataset.id ? null : +el.dataset.id; tradeOpen = null; render(); break;
     case 'tradeopen': tradeOpen = tradeOpen === +el.dataset.id ? null : +el.dataset.id; sitOpen = null; render(); break;
@@ -869,27 +874,13 @@ document.addEventListener('click', ev => {
     case 'ranchkeep': ranchKeep = +el.dataset.u; render(); break;
     case 'ranchkeepgo': if (ranchKeep == null) break; { const m = answerRanchPick(+el.dataset.i, ranchKeep); ranchKeep = null; save(); render(); if (m) toast(`${m.sp} is in your ranch.`); } break;
     case 'ranchkeepnone': answerRanchPick(+el.dataset.i, null); ranchKeep = null; save(); render(); break;
-    case 'ranchsel': ranchSel = ranchSel === +el.dataset.u ? null : +el.dataset.u; render(); break;
-    case 'ranchto': ranchTo = +el.dataset.id; render(); break;
-    case 'ranchgo': if (ranchSel == null || ranchTo == null || S.phase !== 'ranch') break; { const m = ranchHand(S.userOrg, ranchSel, ranchTo); ranchSel = null; ranchTo = null; save(); render(); if (m) toast(`${m.sp} is on its way.`); } break;
-    case 'ranchshelf': { const lg = (() => { const R = ranchOf(S.userOrg), x = R && R.active.find(y => y.uid === ranchSel); return x && isLegendLine(x.sp) && x.partners; })(); const m = ranchShelf(S.userOrg, ranchSel); if (!m) break; ranchSel = null; save(); render(); toast(lg ? `${m.sp} moved on.` : `${m.sp} moved to the historical ranch.`); } break;
-    case 'ranchrest': if (S.phase !== 'ranch') break; { const t = T(+el.dataset.id), m = t && t.org === S.userOrg ? restMon(t, +el.dataset.u) : null; save(); render(); if (m) toast(`${m.sp} is resting at the ranch.`); } break;
-    case 'ranchunrest': if (S.phase !== 'ranch') break; { const t = T(+el.dataset.id), m = t && t.org === S.userOrg ? unrestMon(t) : null; save(); render(); if (m) toast(`${m.sp} stays on the team.`); } break;
     case 'ranchdone': if ((S.ranchPicks || []).some(p => p.org === S.userOrg)) break; confirmRanch(); save(); afterDraft(); break;
     case 'rewardpick': confirmReward(el.dataset.n); save(); afterDraft(); break;
-    case 'regtoggle': { const id = +el.dataset.id, u = +el.dataset.u; const sel = S.registration[id]; const i = sel.indexOf(u); if (i >= 0) sel.splice(i, 1); else if (sel.length < START_TEAM) sel.push(u); else { sel.shift(); sel.push(u); } save(); render(); break; }
-    case 'regconfirm': if (!Object.entries(S.registration).every(([id, sel]) => sel.length === Math.min(START_TEAM, regular(T(+id)).length))) break; confirmRegistration(); save(); go('office'); toast(`Season ${S.season} is underway.`); break;
     case 'rejoinrel': rejoinRelease = +el.dataset.id; render(); break;
     case 'offer': { if (el.dataset.v === '1' && S.offers[0] && S.offers[0].kind === 'rejoin' && lgRoster(S.userOrg, S.offers[0].lg || 0).length >= ROSTER && rejoinRelease == null) break; acceptOffer(el.dataset.v === '1', rejoinRelease); rejoinRelease = null; save(); render(); if (S.lastSeatBattle) { modal = { kind: 'battle', r: S.lastSeatBattle }; renderModal(); S.lastSeatBattle = null; } break; }
     case 'releaseask': el.parentElement.innerHTML = `<span>Release ${dn(T(+el.dataset.id))}?</span><button class="btn danger" data-act="releasego" data-id="${el.dataset.id}">Release</button><button class="btn" data-act="nav" data-v="${view}">Keep</button>`; break;
     case 'releasego': userRelease(+el.dataset.id); save(); render(); toast('Released. They stay on the circuit as an independent.'); break;
     case 'watchtourney': { const T0 = S.tourney, r = T0 && T0.rounds[+el.dataset.r], m = r && r.matches[+el.dataset.m]; if (m && m.log) { modal = { kind: 'battle', r: m.log }; renderModal(); } break; }
-    case 'tourneyrel': tourneyRel = +el.dataset.u; render(); break;
-    case 'tourneypick': { const id = +el.dataset.id, t = T(id), inp = $('#tp-sp'), raw = (inp ? inp.value : '').trim(); tourneyText = raw;
-      const sp = el.dataset.sp || tourneySpecies().find(n => n.toLowerCase() === raw.toLowerCase());
-      if (!sp) { toast(raw ? `${raw} can't be chosen. Pick a Pokémon from the list.` : 'Type a Pokémon first.'); break; }
-      if (t.team.length >= 6 && tourneyRel == null) { toast('The team is full. Choose who makes room first.'); break; }
-      const m = tourneyPick(id, sp, tourneyRel); tourneyRel = null; tourneyText = ''; save(); render(); if (m) toast(`An alpha ${m.sp} joined ${t.name}'s team!`); break; }
     case 'watchcup': { const t = S.teamCup && S.teamCup.ties[+el.dataset.i], g = t && t.games[+el.dataset.j]; if (g && g.log) { modal = { kind: 'battle', r: g.log }; renderModal(); } break; }
     case 'cupup': { const k = S.userOrg, all = cupEligible(k), line = cupLineup(k), order = line.concat(all.filter(t => !line.includes(t)).sort((a, b) => teamPower(b) - teamPower(a))).map(t => t.id), at = order.indexOf(+el.dataset.id); if (at > 0) { [order[at - 1], order[at]] = [order[at], order[at - 1]]; setCupLineup(order); save(); render(); } break; }
     case 'watchworld': { const m = S.worlds && S.worlds.matches[+el.dataset.i]; if (m) { modal = { kind: 'battle', r: m.log }; renderModal(); } break; }
@@ -967,12 +958,12 @@ document.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === 
 
 // take over a save: fill in anything older saves are missing and open the right screen for its phase
 function adoptSave(v, keepView) {
-  S = v; applyDex(S.cfg && S.cfg.dex); applyCfg(); S.catchPicks = S.catchPicks || {};
+  S = v; applyDex(S.cfg && S.cfg.dex); applyCfg();
   for (const t of Object.values(S.trainers)) {
     if (['leader', 'e4', 'champion'].includes(t.role) && !(t.posts || []).length) t.posts = [{ role: t.role, place: postPlace(t, t.role), from: t.joined || 1, to: null }];
     if (t.org && !(t.teams || []).length) t.teams = [{ org: t.org, from: t.joined || 1, to: null }];
   }
-  view = keepView || (S.phase === 'draft' ? 'draft' : S.phase === 'gifts' ? 'gifts' : S.phase === 'reassign' ? 'reassign' : S.phase === 'banvote' ? 'banvote' : S.phase === 'register' ? 'register' : S.phase === 'reward' ? 'reward' : S.phase === 'ranch' ? 'ranch' : 'office');
+  view = keepView || (S.phase === 'draft' ? 'draft' : S.phase === 'gifts' ? 'gifts' : S.phase === 'reassign' ? 'reassign' : S.phase === 'banvote' ? 'banvote' : S.phase === 'reward' ? 'reward' : S.phase === 'ranch' ? 'ranch' : 'office');
 }
 // Download save file: inside claude.ai the viewer's downloads capability offers the file (with a confirmation);
 // opened as a plain local file, an ordinary browser download does it

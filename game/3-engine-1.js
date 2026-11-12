@@ -445,7 +445,6 @@ function temperMul(t, foe, m, stakes, eq, calm) {
 }
 // Coverage: attack types a line can learn beyond its own, by the type it belongs to
 const COVER = { Bird: [], Normal: ['Fighting', 'Ground', 'Dark', 'Ghost', 'Electric'], Fire: ['Fighting', 'Ground', 'Dragon', 'Rock', 'Flying'], Water: ['Ice', 'Ground', 'Dark', 'Fighting', 'Psychic'], Electric: ['Steel', 'Flying', 'Ice', 'Grass', 'Fairy'], Grass: ['Poison', 'Ground', 'Fairy', 'Fighting', 'Dark'], Ice: ['Water', 'Ground', 'Fighting', 'Rock', 'Psychic'], Fighting: ['Rock', 'Dark', 'Ground', 'Steel', 'Ice'], Poison: ['Ground', 'Dark', 'Grass', 'Fire', 'Bug'], Ground: ['Rock', 'Steel', 'Dragon', 'Bug', 'Fire'], Flying: ['Steel', 'Fighting', 'Dark', 'Ground', 'Normal'], Psychic: ['Fighting', 'Fairy', 'Dark', 'Ghost', 'Electric'], Bug: ['Rock', 'Fighting', 'Poison', 'Steel', 'Flying'], Rock: ['Ground', 'Fighting', 'Steel', 'Dark', 'Fire'], Ghost: ['Dark', 'Fighting', 'Psychic', 'Poison', 'Ice'], Dragon: ['Fire', 'Ground', 'Steel', 'Flying', 'Electric'], Dark: ['Fighting', 'Poison', 'Ghost', 'Steel', 'Fire'], Steel: ['Ground', 'Rock', 'Fighting', 'Dark', 'Electric'], Fairy: ['Psychic', 'Fire', 'Steel', 'Normal', 'Grass'] };
-const COVER_POWER = 0.72; // coverage hits without the same-type bonus
 function hashStr(x) { let h = 2166136261; for (const c of x) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
 function lineTypes(sp) { const root = LINE[sp] || sp, out = new Set(), q = [root]; while (q.length) { const n = q.shift(); SP[n].types.forEach(t => out.add(t)); for (const e of SP[n].evos || []) q.push(e.to); } return out; }
 // each evolution line has three coverage options, the same for every member of the species; an individual learns two of them
@@ -1631,14 +1630,12 @@ function refreshMoves(m) {
   MOVE_KEYS.set(m, moveKey(m, want));
   return changes;
 }
-const moveOf = n => MOVES[n];
 
 // ================= ABILITIES =================
 // ABILITY_RAW (ability slots): in pokemon-data.js
 const SPECIES_AB = {};
 for (const line of ABILITY_RAW.split('\n')) { const [n, a, b, h] = line.split('|'); SPECIES_AB[n] = { 0: a || null, 1: b || null, H: h || null }; }
 const HIDDEN_CHANCE = 0.25, HIDDEN_CHANCE_SPECIAL = 0.5;
-const PUNCH_TYPES = ['Fighting', 'Fire', 'Ice', 'Electric'], BITE_TYPES = ['Dark', 'Fire', 'Ice', 'Electric', 'Psychic', 'Poison'], PULSE_TYPES = ['Water', 'Dark', 'Dragon', 'Fighting'];
 const NO_DROP = ['Clear Body', 'White Smoke', 'Full Metal Body', 'Hyper Cutter'], NO_INTIMIDATE = ['Own Tempo', 'Oblivious', 'Inner Focus', 'Scrappy'];
 // short descriptions (shown on the Pokémon card); "adapted" ones stand in for a mechanic the game doesn't have
 const ABILITIES = {
@@ -1732,7 +1729,6 @@ const ABILITIES = {
   'Chilling Neigh': 'Attack rises with every knockout.', 'Grim Neigh': 'Sp. Atk rises with every knockout.', 'Tera Shell': 'At full HP, every hit on it is not very effective.',
   'Poison Puppeteer': 'Pokémon it poisons also have their Attack and Sp. Atk lowered (adapted).', "Mind's Eye": "Ignores the opponent's evasion, and its Normal and Fighting moves hit Ghost types.",
 };
-const abilityName = k => k;
 // which ability a Pokémon has right now: its slot's ability on its current species, or another built one of the species'
 function abilityOf(m) {
   if (!m || !featOn('abilities')) return null;
@@ -1919,16 +1915,6 @@ function gymItemOffer(t, g, leader) {
   const best = opts.slice().sort((a, b) => itemGain(t, b) - itemGain(t, a))[0];
   bagAdd(t, best); autoEquip(t);
 }
-// the player's pick from a gym reward (i = null takes the first, as when simming)
-function takeItemOffer(id, i) {
-  const t = T(id); if (!t || !(t.itemOffers || []).length) return null;
-  const o = t.itemOffers.shift();
-  const k = i == null ? o.opts.slice().sort((a, b) => itemGain(t, b) - itemGain(t, a))[0] : o.opts[i];
-  bagAdd(t, k);
-  if (!t.itemsManual) autoEquip(t);
-  return k;
-}
-function settleItemOffers(t) { while ((t.itemOffers || []).length) takeItemOffer(t.id, null); }
 // exploring sometimes turns up an item
 const ITEM_FIND = 0.06;
 function exploreFind(t) {
@@ -1936,38 +1922,8 @@ function exploreFind(t) {
   // (Run Away: 1.5x)
   if (!itemsOn() || rand() >= ITEM_FIND * (1 + roleStr(t, 'connoisseur')) * (t.team.some(m => abilityOf(m) === 'Pickup') ? 2 : t.team.some(m => abilityOf(m) === 'Run Away') ? 1.5 : 1)) return null;
   const k = rollItem(S.week >= 16 ? 3 : S.week >= 8 ? 2 : 1);
-  bagAdd(t, k); if (!t.itemsManual) autoEquip(t);
+  bagAdd(t, k); autoEquip(t);
   return k;
-}
-// the player sets an item by hand: k from the bag (null takes the item off)
-function setItem(id, uid, k) {
-  const t = T(id); if (!t) return; const m = t.team.find(x => x.uid === uid); if (!m) return;
-  t.bag = t.bag || [];
-  if (k != null) { const i = t.bag.indexOf(k); if (i < 0) return; t.bag.splice(i, 1); }
-  if (m.item) t.bag.push(m.item);
-  m.item = k || null; t.itemsManual = true; trimBag(t);
-}
-// v181: what each gym-reward option would do for the team, so the best pick is marked without checking the bag.
-// For each option: gain (team value it adds), who would hold it in the best set, and a short reason.
-function offerAdvice(t, opts) {
-  const pool = heldPool(t), team = t.team || [];
-  const out = opts.map(k => {
-    const gain = itemGain(t, k);
-    const { pick } = bestItemPlan(team, pool.concat([k]), t);
-    const r = pick.indexOf(pool.length), holder = r >= 0 ? team[r] : null;
-    let note;
-    if (gain < 0.05) note = !ITEMS[k].type && pool.includes(k) ? 'You already have one' : 'No one on the team can use it';
-    else note = holder ? `Best on ${holder.sp}` : 'A small upgrade';
-    return { k, gain, note, useless: gain < 0.05 };
-  });
-  let bi = -1; out.forEach((o, i) => { if (!o.useless && (bi < 0 || o.gain > out[bi].gain)) bi = i; });
-  if (bi >= 0) out[bi].best = true;
-  return out;
-}
-// how much the items currently held are worth vs. the best possible set from everything owned
-function itemSetGap(t) {
-  const now = (t.team || []).reduce((a, m) => a + (m.item ? Math.max(0, itemScore(m, m.item, t)) : 0), 0);
-  return teamItemValue(t, heldPool(t)) - now;
 }
 
 // ================= POKÉMON STATS =================
@@ -2076,14 +2032,6 @@ function roadTrades() {
       break;
     }
   }
-}
-// the player's answer to a trade offer this week
-function answerTrade(id, accept) {
-  const o = S.tradeOffers && S.tradeOffers[id]; if (!o) return null;
-  delete S.tradeOffers[id];
-  const me = T(id), them = T(o.with);
-  if (!accept || !me || !them) { if (me && them) news(`${dn(me)} turned down ${dn(them)}'s trade.`, 'you', me.id); return null; }
-  return doTrade(me, them, o.give, o.get);
 }
 // ---------- Battle Bond ----------
 // Like Ash-Greninja: a Pokémon that's been with its trainer for 4+ seasons at max friendship can form a bond (one per

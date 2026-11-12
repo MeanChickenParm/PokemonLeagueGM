@@ -27,8 +27,7 @@ const legendBlocked = (t, sp) => (isLegendLine(sp) && wasPartner(t, pooledLegend
 function legendFull(t) {
   if (!t || !t.team) return false;
   if (t.team.some(m => isLegendLine(m.sp))) return true;
-  if ((S.legendGifts || []).some(g => g.id === t.id)) return true;
-  return !!(S.legendOffers && S.legendOffers[t.id]);
+  return (S.legendGifts || []).some(g => g.id === t.id);
 }
 const statSnap = m => { const x = m.st || {}; return { b: x.b || 0, w: x.w || 0, l: x.l || 0, ko: x.ko || 0 }; };
 // a legendary-line Pokémon joins t: if this League's one is waiting, t gets that one (same Pokémon, t's level and
@@ -308,7 +307,7 @@ function wildcardOf(t) {
   return off.length ? off.reduce((a, b) => (monPower(a) * linePeak(a.sp) > monPower(b) * linePeak(b.sp) ? a : b)) : null;
 }
 function aiCatch(t) {
-  // your trainer left to decide picks from the same wild Pokémon you were shown this week
+  // your own trainers pick from the same wild Pokémon their page showed this week
   const offers = (t.user && S.weekOffers && S.weekOffers[t.id]) || wildOffers(t);
   if (!offers.length) return null;
   const onT = sp => onSpec(t, sp);
@@ -424,14 +423,6 @@ const eventActive = () => !!(S.event && !S.event.done && S.phase === 'season');
 const eventTeam = () => (S.event ? VILLAIN_TEAMS[S.event.team] : null);
 const eventFoe = () => (eventActive() ? S.event.ladder[S.event.stage] || null : null);
 const gymClosed = g => !!(eventActive() && S.event.gym === g);
-// weather schemes change every battle while they last
-function eventWeather(ty) {
-  if (!eventActive()) return 1;
-  const sc = eventTeam().scheme;
-  if (sc === 'drought') return ty === 'Fire' ? 1.25 : ty === 'Water' ? 0.75 : 1;
-  if (sc === 'rain') return ty === 'Water' ? 1.25 : ty === 'Fire' ? 0.75 : 1;
-  return 1;
-}
 // Galactic's time distortion: each trainer's level gains swing each time they grow
 const timeWarp = () => (eventActive() && eventTeam().scheme === 'time' ? 0.5 + rand() * 1.1 : 1);
 // ---------- Shadow Pokémon ----------
@@ -539,14 +530,6 @@ function snag(t, m, releaseUid) {
   t.career.snagged = (t.career.snagged || 0) + 1;
   catchNews(`${dn(t)} snagged a Shadow ${m.sp} from Cipher.`, t.user ? 'you' : 'circuit', t.id);
   return m;
-}
-function answerSnag(id, i, releaseUid) {
-  const o = S.snagOffers && S.snagOffers[id]; if (!o) return null;
-  const t = T(id); if (!t) return null;
-  if (i == null) { delete S.snagOffers[id]; news(`${dn(t)} let ${o.from}'s Shadow Pokémon go.`, 'you', t.id); return null; }
-  const m = o.mons[i]; if (!m) return null;
-  const r = snag(t, m, releaseUid); if (r) delete S.snagOffers[id];
-  return r;
 }
 function endVillainEvent(hero) {
   const e = S.event, v = eventTeam(); if (!e || e.done) return;
@@ -733,13 +716,6 @@ function legendState(L) { if (L && !L.dmg) { L.dmg = {}; L.tries = {}; L.total =
 const legendRank = L => Object.entries(legendState(L).dmg).map(([id, d]) => ({ id: +id, d, n: L.tries[id] || 0 })).sort((a, b) => b.d - a.d);
 const greatFree = sp => !ownedLegends().has(sp) && !bannedIn(sp, S.lg || 0);
 const everCaught = sp => !!(S.greatCaught && S.greatCaught[sp]);
-// the weather Groudon and Kyogre bring stays until they're caught (or the season ends)
-function legendWeather(ty) {
-  const L = S.legend; if (!L || S.phase !== 'season') return 1;
-  if (L.sp === 'Groudon') return ty === 'Fire' ? 1.25 : ty === 'Water' ? 0.75 : 1;
-  if (L.sp === 'Kyogre') return ty === 'Water' ? 1.25 : ty === 'Fire' ? 0.75 : 1;
-  return 1;
-}
 // the Darkest Day: every battle swings wildly while Eternatus is loose
 const legendChaos = () => (S.legend && S.legend.sp === 'Eternatus' && S.phase === 'season' ? 0.7 + rand() * 0.7 : 1);
 function recordGreat(t, m, how) {
@@ -766,16 +742,6 @@ function joinLegend(t, sp, how, why) {
   }
   const m = legendMon(t, sp); t.team.push(m); recordGreat(t, m, how);
   news(`${why} ${sp} joined ${dn(t)}!`, t.user ? 'you' : 'title', t.id);
-  return m;
-}
-function answerLegend(id, releaseUid) {
-  const o = S.legendOffers && S.legendOffers[id]; const t = T(id); if (!o || !t) return null;
-  delete S.legendOffers[id];
-  if (releaseUid == null) { news(`${dn(t)} let ${o.sp} go. It may appear again one day.`, 'you', t.id); return null; }
-  const i = t.team.findIndex(x => x.uid === releaseUid); if (i < 0 || !greatFree(o.sp) || legendBlocked(t, o.sp)) return null;
-  farewell(t, t.team[i], `released to make room for ${o.sp}`); t.team.splice(i, 1);
-  const m = legendMon(t, o.sp); t.team.push(m); recordGreat(t, m, o.how);
-  news(`${o.why} ${o.sp} joined ${dn(t)}!`, 'you', t.id);
   return m;
 }
 const LEGEND_STORY = {
@@ -1283,7 +1249,7 @@ function bringThree(t, opp, n = 3) {
 function tourneyBattle(a, b, round) {
   const rule = tourneyRule(), R = rule ? TOURNEY_RULES[rule] : null;
   return inLeague(lgOf(a), () => {
-    for (const t of [a, b]) if (itemsOn() && (!t.user || !t.itemsManual)) autoEquip(t, t === a ? b : a);
+    for (const t of [a, b]) if (itemsOn()) autoEquip(t, t === a ? b : a);
     // the rule may field only part of each team for this battle; the full teams come back afterwards
     const full = [a.team, b.team];
     if (rule === 'nolegends') for (const t of [a, b]) { const f = t.team.filter(m => !tourneyBanned(m)); if (f.length) t.team = f; }
@@ -1294,7 +1260,7 @@ function tourneyBattle(a, b, round) {
     BATTLE_RULE = rule;
     try { r = battle(a, b, 'tourney', `Midseason Tournament ${round} · ${dn(a)} vs ${dn(b)}`, { equal: rule === 'flat' ? 50 : 0, ruleNote: R ? `Tournament rule: ${R.name}. ${R.desc}` : null }); }
     finally { BATTLE_RULE = null; a.team = full[0]; b.team = full[1]; }
-    for (const t of [a, b]) if (itemsOn() && (!t.user || !t.itemsManual)) autoEquip(t);
+    for (const t of [a, b]) if (itemsOn()) autoEquip(t);
     return r;
   });
 }
@@ -1343,7 +1309,7 @@ function aiTourneyChoice(t) {
 function tourneyPick(id, sp, releaseUid) {
   const t = T(id), T0 = S.tourney;
   if (!t || !T0 || !T0.reward || T0.reward.id !== id || T0.reward.sp || !tourneySpOk(sp) || bannedIn(sp, lgOf(t))) return null;
-  if (t.role === 'retired' || !t.team) { T0.reward.sp = '—'; S.tourneyOffer = null; return null; }
+  if (t.role === 'retired' || !t.team) { T0.reward.sp = '—'; return null; }
   if (t.team.length >= 6) {
     let out = releaseUid != null ? t.team.find(m => m.uid === releaseUid) : null;
     if (!out) out = t.team.filter(m => !isSpecial(m) && !(t.mega && t.mega.uid === m.uid) && m.bond !== t.id).sort((a, b) => monPower(a) - monPower(b))[0] || t.team.filter(m => !isLegendLine(m.sp)).sort((a, b) => monPower(a) - monPower(b))[0];
@@ -1356,15 +1322,8 @@ function tourneyPick(id, sp, releaseUid) {
   t.team.push(m);
   T0.reward.sp = sp;
   const h = (S.tourneyHist || []).find(x => x.season === T0.season && x.winner === id); if (h) h.sp = sp;
-  if (S.tourneyOffer && S.tourneyOffer.id === id) S.tourneyOffer = null;
   inLeague(lgOf(t), () => catchNews(`${dn(t)} chose an alpha ${sp} as the Midseason Tournament prize.`, t.user ? 'you' : 'title', t.id));
   return m;
-}
-// a prize the player never chose is decided for them when the League starts (or a sim runs past it)
-function settleTourneyOffer() {
-  const o = S.tourneyOffer; if (!o) return;
-  const t = T(o.id); if (!t) { S.tourneyOffer = null; return; }
-  if (!tourneyPick(o.id, aiTourneyChoice(t), t.team.length >= 6 ? t.team.filter(m => !isSpecial(m)).sort((a, b) => monPower(a) - monPower(b))[0]?.uid ?? t.team.slice().sort((a, b) => monPower(a) - monPower(b))[0].uid : null)) S.tourneyOffer = null;
 }
 
 // ================= TEAMS =================
@@ -1404,7 +1363,7 @@ function applyCfg() {
 // ---------- several Leagues ----------
 // Each League keeps its own gyms, Elite Four, Champion, circuit, events and history. The bound League's state sits
 // directly on S (so S.gyms is always "this League's gyms"); the others wait in S.leagues until bound.
-const LEAGUE_FIELDS = ['gyms', 'e4', 'champion', 'challengers', 'event', 'legend', 'legendSeason', 'legendGifts', 'legendOffers', 'greatCaught', 'rayquazaDue', 'wealdSeason', 'shadowWild', 'outbreak', 'outbreakLog', 'wormhole', 'metaMons', 'meta', 'league', 'history', 'eventLog', 'seatBattles', 'lastBattles', 'snagOffers', 'snagPick', 'tradeOffers', 'stats', 'towns', 'lgName', 'pkrsSeason', 'legendPool', 'roamer', 'roamSeason', 'storm', 'stormSeason', 'forcesStorm', 'landorusSeason', 'skyLog', 'roamPlan', 'stormPlan', 'bans', 'banBallot', 'banLog', 'banCount'];
+const LEAGUE_FIELDS = ['gyms', 'e4', 'champion', 'challengers', 'event', 'legend', 'legendSeason', 'legendGifts', 'greatCaught', 'rayquazaDue', 'wealdSeason', 'shadowWild', 'outbreak', 'outbreakLog', 'wormhole', 'metaMons', 'meta', 'league', 'history', 'eventLog', 'seatBattles', 'lastBattles', 'snagOffers', 'snagPick', 'tradeOffers', 'stats', 'towns', 'lgName', 'pkrsSeason', 'legendPool', 'roamer', 'roamSeason', 'storm', 'stormSeason', 'forcesStorm', 'landorusSeason', 'skyLog', 'roamPlan', 'stormPlan', 'bans', 'banBallot', 'banLog', 'banCount'];
 const nLeagues = () => (S && S.leagues ? S.leagues.length : 1);
 const lgOf = t => (t && t.lg) || 0;
 // the League that actually lists a trainer (circuit or post); falls back to their tag. Used before anything that
@@ -1605,7 +1564,7 @@ function cupStandings(live) {
 function champOrg() { const c = T(S.champion); return c ? c.champOrg || null : null; }
 
 // ================= SEASON =================
-function doAction(t, act, userCatch) {
+function doAction(t, act) {
   // a gym held by Team Skull can't be challenged; a closed plan falls back to training
   if (act === 'challenge' && t.role === 'challenger' && gymClosed(t.badges.length)) act = 'train';
   if (act === 'raid' && (t.role !== 'challenger' || !eventFoe())) act = 'train';
@@ -1626,7 +1585,7 @@ function doAction(t, act, userCatch) {
     evos = gainLevels(t, entry.raid && entry.raid.won ? PACE.win : PACE.loss);
   } else if (act === 'challenge' && t.role === 'challenger' && t.badges.length < 8) {
     const g = t.badges.length, gym = S.gyms[g], leader = T(gym.leader);
-    const autoItems = itemsOn() && (!t.user || !t.itemsManual);
+    const autoItems = itemsOn();
     if (autoItems) autoEquip(t, leader); // items picked for this gym
     const res = battle(t, leader, 'gym', `${TOWNS[g]} Gym · Badge ${g + 1}`);
     if (autoItems) autoEquip(t); // back to the everyday set (Lucky Egg and the like)
@@ -1646,8 +1605,7 @@ function doAction(t, act, userCatch) {
     entry.left = res.sides[0].left;
     for (const m of shadows) openHeart(t, m, HEART_GYM);
   } else if (act === 'explore') {
-    // userCatch undefined = let the trainer decide; null = skipped the catch
-    const m = userCatch === undefined ? aiCatch(t) : userCatch ? addCatch(t, userCatch.offer, userCatch.release) : null;
+    const m = aiCatch(t);
     const ob = activeOutbreak();
     if (m && ob && LINE[m.sp] === LINE[ob.sp]) { ob.caught++; if (m.alpha) ob.alpha++; if (m.shiny) ob.shiny++; if (t.user) ob.user = true; entry.outbreak = true; }
     if (m) { entry.caught = m.sp; if (m.alpha) entry.alpha = true; if (m.shiny) entry.shiny = true; if (m.radiant) entry.radiant = true; if (m.delta) entry.delta = m.delta;
@@ -1681,10 +1639,9 @@ function doAction(t, act, userCatch) {
   t.weekLog.push(entry);
   return entry;
 }
-// plans: {trainerId: 'auto'|'challenge'|'train'|'explore'}; catches: {trainerId: {offer, release} | null}
-function simWeek(plans = {}, catches = {}) {
+function simWeek() {
   S.tourneyPause = false; // v188: the season stops after the Midseason Tournament until it's continued
-  eachLeague(() => leagueWeek(plans, catches));
+  eachLeague(leagueWeek);
   // v193: a save from before tournament rules draws this season's rule now, if it's early enough to announce it
   if (featOn('tourney') && !(S.tourneyRule && S.tourneyRule.season === S.season) && S.week < TOURNEY_RULE_WEEK) drawTourneyRule();
   S.week++;
@@ -1692,7 +1649,7 @@ function simWeek(plans = {}, catches = {}) {
     if (R) news(`This season's Midseason Tournament rule, after week ${TOURNEY_WEEK}: ${R.name}. ${R.desc}`, 'league'); }
   if (S.week === TOURNEY_WEEK) ranchMidseason(); // 2.0: the midseason break is the second ranch window
   if (S.week === TOURNEY_WEEK && featOn('tourney') && runTourney()) S.tourneyPause = true;
-  S.weekOffers = {}; S.catchPicks = {};
+  S.weekOffers = {};
   eachLeague(() => { maybeWormhole(); maybeOutbreak(); });
   if (S.week >= SEASON_WEEKS) {
     S.phase = 'league';
@@ -1701,14 +1658,9 @@ function simWeek(plans = {}, catches = {}) {
   }
 }
 // one League's week
-function leagueWeek(plans, catches) {
+function leagueWeek() {
   S.lastBattles = [];
-  S.snagOffers = {}; S.snagPick = {};
-  const run = t => {
-    const p = t.user ? (plans[t.id] || 'auto') : 'auto';
-    const act = p === 'auto' ? aiAction(t) : p;
-    doAction(t, act, p === 'explore' && t.id in catches ? catches[t.id] : undefined);
-  };
+  const run = t => doAction(t, aiAction(t));
   for (const id of shuffle(S.challengers)) run(T(id));
   const champ = T(S.champion);
   if (champ.user) run(champ);
@@ -1728,7 +1680,7 @@ function leagueWeek(plans, catches) {
 
 // ================= LEAGUE =================
 function runLeague() {
-  settleTourneyOffer(); S.tourneyPause = false;
+  S.tourneyPause = false;
   eachLeague(() => leagueFinals());
   S.worlds = null;
   if (nLeagues() > 1) worldChampionship();
@@ -1778,15 +1730,12 @@ function worldChampionship() {
   (() => news(`${dn(t)}, Champion of the ${leagueName(lgOf(t))}, won the Season ${S.season} World Championship, beating ${dn(T(f.l))} of the ${leagueName(lgOf(T(f.l)))} in the final!`, t.user || T(f.l).user ? 'you' : 'title', t.id));
 }
 function leagueFinals() {
-  for (const t of challengers()) settleItemOffers(t);
   const qs = challengers().filter(t => t.badges.length === 8).sort((a, b) => a.badgeWeek - b.badgeWeek || ovr(b) - ovr(a));
   S.wormhole = null; S.outbreak = null;
   if (S.event && !S.event.done) endVillainEvent(null);
-  S.snagOffers = {};
   if (S.legend) settleLegend(`The season is over and ${S.legend.sp} is leaving.`, true);
   if (S.storm) settleStorm(true);
   if (S.roamer) { news(`The season is over, and ${S.roamer.sp} has left the region.`, 'title'); logSky(`${S.roamer.sp} left the region uncaught`); S.roamer = null; }
-  S.legendOffers = {};
   settleMegaStones();
   const L = { entries: [], logs: [], startChamp: S.champion, dethroned: [] };
   for (const q of qs) {
@@ -1795,7 +1744,7 @@ function leagueFinals() {
     let ok = true;
     for (let i = 0; i < 4; i++) {
       const foe = T(S.e4[i]);
-      if (itemsOn() && (!q.user || !q.itemsManual)) autoEquip(q, foe);
+      if (itemsOn()) autoEquip(q, foe);
       const r = battle(q, foe, 'league', `Elite Four · ${dn(foe)}`);
       if (q.user || foe.user) L.logs.push(r);
       if (r.winner === 1) { ok = false; e.stage = i; e.lostTo = foe.id; foe.career.e4Wins++; break; }
@@ -1812,7 +1761,7 @@ function leagueFinals() {
   L.titleOrder = finalists.map(f => ({ id: f.q.id, w: f.r.w, l: f.r.l }));
   for (const { e, q } of finalists) {
     const champ = T(S.champion);
-    if (itemsOn() && (!q.user || !q.itemsManual)) autoEquip(q, champ);
+    if (itemsOn()) autoEquip(q, champ);
     const r = battle(q, champ, 'title', `Championship · ${dn(champ)}`);
     L.logs.push(r);
     if (r.winner === 0) {
@@ -1839,7 +1788,7 @@ function leagueFinals() {
   if (itemsOn()) for (const e of L.entries) {
     const q = T(e.id); if (!q || e.stage < 3 || q.role !== 'challenger') continue;
     let k = rollItem(3); for (let i = 0; i < 20 && ITEMS[k].tier < 2; i++) k = rollItem(3);
-    bagAdd(q, k); if (!q.itemsManual) autoEquip(q);
+    bagAdd(q, k); autoEquip(q);
     if (q.user) news(`For their League run, ${dn(q)} received a ${itemName(k)}.`, 'you', q.id);
   }
   S.league = L;
@@ -1974,8 +1923,6 @@ function promote(t, role, slot) {
   leaveOrg(t);
   installElite(t, role, slot);
 }
-// a team's challengers who could use a farewell gift (any League: since v189 gifts go through the team ranch)
-function giftTeammates(t, k) { return org(k).roster.map(T).filter(x => x && x.id !== t.id && x.role === 'challenger'); }
 // v168: a farewell gift is decided after the draft, on its own screen: the departing trainer's Pokémon are noted now.
 // v189: the gift goes into the team's active ranch, and the team hands it to any of its trainers in the ranch step
 function farewellGift(t, k) {
@@ -2066,7 +2013,6 @@ const POST_RETIRE_AGE = 45, POST_RETIRE_CAREER = 10;
 // guaranteed seasons on the circuit afterwards
 const COMEBACK_MIN = 6, COMEBACK_ODDS = [1 / 3, 1 / 2], COMEBACK_GUARD = 5;
 const retiresOnLosingPost = t => !comebackProtected(t) && !slamProtected(t) && t.age > POST_RETIRE_AGE && (t.seasons || 0) >= POST_RETIRE_CAREER;
-function retireChance(t) { return retiresOnLosingPost(t) ? 1 : 0; }
 function returnToCircuit(t, why) {
   closePost(t);
   if (t.role === 'challenger') return;
@@ -2089,6 +2035,8 @@ function rejoin(t, k, releaseId) {
   if (releaseId != null) { const r = T(releaseId); if (r && r.org === k && r.role === 'challenger') release(r, `to bring back ${t.name}`); }
   if (lgRoster(k, lgOf(t)).length >= ROSTER) return false;
   joinOrg(t, k); t.rejoined = (t.rejoined || 0) + 1;
+  // 2.0.1: someone who wants the title came back for a chaser spot, and holds the team to it
+  if (ambOf(t) === 'title') { t.ambKnown = true; if (k === S.userOrg) t.promise = upSeason(); else t.forceChase = upSeason(); }
   news(`${orgName(k)} welcomed back ${dn(t)}, their former trainer.`, k === S.userOrg ? 'you' : 'move', t.id);
   return true;
 }
@@ -2101,7 +2049,8 @@ function offerRejoin(t) {
     return;
   }
   const c = rejoinChoice(t, k);
-  if (c.ok) rejoin(t, k, c.release);
+  if (c.ok && !homeWilling(t, k)) { t.ambKnown = true; news(`${dn(t)} wants the title, and ${orgName(k)} had no chaser spot to offer. They go on as an independent.`, 'move', t.id); }
+  else if (c.ok) rejoin(t, k, c.release);
   else news(`${orgName(k)} passed on bringing back ${dn(t)}, who goes on as an independent.`, 'move', t.id);
 }
 function retireOrReturn(t, why) {
@@ -2176,7 +2125,7 @@ function gmOffered(k) { return !!(k && S.gmOffers && S.gmOffers[k]); }
 function markGmOffer(k) { if (k) (S.gmOffers = S.gmOffers || {})[k] = S.season; }
 // a Gym Leader back on the circuit for a title run isn't offered a gym again during their guaranteed seasons
 function bestCandidate(exclude) {
-  return challengers().filter(t => !t.user && !exclude.includes(t.id) && !gmOffered(t.org) && !comebackProtected(t) && t.age >= 17 && t.seasons >= 2 && ovr(t) >= 58).sort((a, b) => ovr(b) + b.career.badges / 4 - ovr(a) - a.career.badges / 4)[0];
+  return challengers().filter(t => !t.user && !exclude.includes(t.id) && !gmOffered(t.org) && !comebackProtected(t) && t.age >= 17 && t.seasons >= 2 && ovr(t) >= 58).sort((a, b) => ovr(b) + b.career.badges / 4 + (unhappyRole(b) ? 6 : 0) - ovr(a) - a.career.badges / 4 - (unhappyRole(a) ? 6 : 0))[0];
 }
 function offseason() {
   const changes = [];
@@ -2314,7 +2263,7 @@ function leagueOffseason(standings, changes) {
   }
 
   // --- gym leaders
-  const userPick = () => userTrainers().filter(t => t.role === 'challenger' && S.challengers.includes(t.id) && !comebackProtected(t) && t.badges.length >= 6 && ovr(t) >= 55 && t.age >= 16).sort((a, b) => ovr(b) - ovr(a))[0];
+  const userPick = () => userTrainers().filter(t => t.role === 'challenger' && S.challengers.includes(t.id) && !comebackProtected(t) && (t.badges.length >= 6 || (unhappyRole(t) && ovr(t) >= 60)) && ovr(t) >= 55 && t.age >= 16).sort((a, b) => ovr(b) - ovr(a))[0];
   // gyms ranked by how often they held this season (rotation changes each gym's difficulty, so it's relative)
   const holdOf = g => { const p = g.w + g.l; return p ? g.w / p : 1; }, holdRank = S.gyms.map(holdOf).sort((a, b) => b - a);
   S.gyms.forEach((g, i) => {

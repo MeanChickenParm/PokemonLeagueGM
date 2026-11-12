@@ -13,7 +13,7 @@ import os, re, sys, zipfile
 SRC = sys.argv[1] if len(sys.argv) > 1 else os.path.dirname(os.path.abspath(__file__))
 OUT = sys.argv[2] if len(sys.argv) > 2 else 'dist'
 PAGE, DATA, END = '1-page.html', '2-pokemon-data.js', '9-end.html'
-ENGINE = ['3-engine-1.js', '4-engine-2.js', '4b-engine-2b.js', '5-engine-3.js']
+ENGINE = ['3-engine-1.js', '4-engine-2.js', '4b-engine-2b.js', '4c-engine-2c.js', '5-engine-3.js']
 UI = ['6-ui-1.js', '7-ui-2.js', '8-ui-3.js']
 # a piece over this size can't be read back whole by a later chat, so the build refuses it
 LIMIT = 240_000

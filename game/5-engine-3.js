@@ -907,10 +907,6 @@ function tradeValue(t, k) {
   if (k && t.legacy && t.legacy.org === k) v += 5;
   return v;
 }
-function autoResolveGifts() {
-  let guard = 0;
-  while ((S.pendingGifts || []).length && guard++ < 50) autoGift();
-}
 function setupDraft(snakeRounds) {
   // v168: farewell gifts wait until after the draft (beginGifts), so nothing is resolved here
   S.phase = 'draft';
@@ -1046,7 +1042,7 @@ function autoGift() {
 }
 // one step through whatever the current phase needs. acceptInvites: answer League invitations yes or no
 function autoStep(acceptInvites) {
-  if (S.phase === 'season') { while (S.phase === 'season') simWeek({}, {}); return; }
+  if (S.phase === 'season') { while (S.phase === 'season') simWeek(); return; }
   if (S.phase === 'league') { runLeague(); return; }
   if (S.phase === 'offseason') {
     let g = 0;
@@ -1064,7 +1060,6 @@ function autoStep(acceptInvites) {
   if (S.phase === 'draft') { autoUserDraft(); if (S.phase === 'draft') runDraft(); return; }
   if (S.phase === 'ranch') { let g = 0; while ((S.ranchPicks || []).length && g++ < 40) autoRanchPick(0); confirmRanch(); return; }
   if (S.phase === 'reward') { const tg = T(S.reward.target); confirmReward(S.reward.pool.slice().sort((a, b) => SP[b].bst + (onSpec(tg, b) ? 60 : 0) - SP[a].bst - (onSpec(tg, a) ? 60 : 0))[0]); return; }
-  if (S.phase === 'register') { confirmRegistration(); return; }
   if (S.phase === 'gifts') { let g = 0; while ((S.pendingGifts || []).length && g++ < 40) autoGift(); confirmGifts(); return; }
   if (S.phase === 'reassign') { if (S.userOrg) eachParty((k, i) => { if (k === S.userOrg) autoParty(k, i); }); confirmReassign(); return; }
   if (S.phase === 'banvote') { autoBanVote(); confirmBanVote(); return; }
@@ -1285,53 +1280,12 @@ function ranchHand(k, ranchUid, toId) {
 // a team's own choices: the trainers who need it most (lowest OVR) get first pick of what suits them best.
 // v192: a Pokémon in its last offseason in the ranch counts for more, so a good one is used before it goes on display.
 const RANCH_LAST_BONUS = 120;
-const ranchGreat = m => isSpecial(m) || !!SP[m.sp].paradox || (m.ranch && m.ranch.how === 'reward') || linePeak(m.sp) >= 500 || ivTotal(m) >= 150;
 const ranchPickValue = (m, t) => ranchValue(m, t) + (ranchLastChance(m) ? RANCH_LAST_BONUS : 0);
-function ranchAuto(k) {
-  const R = ranchOf(k); if (!R || !R.active.length) return;
-  for (const m of R.active.filter(x => x.ranch && x.ranch.how === 'rest')) { const t = T(m.ranch.from); if (t && t.org === k && t.role === 'challenger') ranchHand(k, m.uid, t.id); }
-  returnBannedHome(k);
-  // v194: a banned legendary (or other one-of-a-kind) goes first, to the weakest teammate who can take it
-  for (const m of R.active.filter(x => x.ranch && x.ranch.how === 'banned' && banUnique(x.sp)).sort((a, b) => ranchValue(b) - ranchValue(a))) {
-    const t = ranchTakers(k).filter(x => ranchCanTake(x, m)).sort((a, b) => ovr(a) - ovr(b))[0];
-    if (t) ranchHand(k, m.uid, t.id);
-  }
-  // great Pokémon about to leave the ranch go first, each to the weakest trainer who can use it
-  for (const m of R.active.filter(x => ranchLastChance(x) && ranchGreat(x)).sort((a, b) => (isSpecial(b) ? 1000 : 0) + ranchValue(b) - (isSpecial(a) ? 1000 : 0) - ranchValue(a))) {
-    const t = ranchTakers(k).filter(x => ranchCanTake(x, m) && !x.team.some(y => LINE[y.sp] === LINE[m.sp]) && !(m.ranch.how === 'surplus' && m.ranch.from === x.id)).sort((a, b) => ovr(a) - ovr(b))[0];
-    if (t) ranchHand(k, m.uid, t.id);
-  }
-  for (const t of ranchTakers(k).sort((a, b) => ovr(a) - ovr(b))) {
-    if (!R.active.length) break;
-    const lines = new Set(t.team.map(m => LINE[m.sp]));
-    const m = R.active.filter(x => ranchCanTake(t, x) && !lines.has(LINE[x.sp]) && !(x.ranch && x.ranch.how === 'surplus' && x.ranch.from === t.id)).sort((a, b) => ranchPickValue(b, t) - ranchPickValue(a, t))[0];
-    if (m) ranchHand(k, m.uid, t.id);
-  }
-}
 // ---------- rest (v189) ----------
 // After a season, each of a team's challengers can send one Pokémon to rest at the ranch instead of registering or
 // releasing it. It sits out the whole next season, then comes back in the following offseason's ranch step with better
 // IVs, ready to go back to its trainer (or to anyone on the team). Legendaries and this season's handoffs can't rest.
 const canRest = (t, m) => !!(t && m && t.team.includes(m) && ranchable(m.sp) && !isGift(m) && t.team.length > 1);
-function restMon(t, uidPick) {
-  const k = t && t.org, R = ranchOf(k); if (!R || t.role !== 'challenger' || (S.ranchRested || {})[t.id]) return null;
-  const m = t.team.find(x => x.uid === uidPick); if (!canRest(t, m)) return null;
-  if (m.item) { bagAdd(t, m.item); m.item = null; }
-  if (t.mega && t.mega.uid === m.uid) t.mega.uid = null;
-  t.team = t.team.filter(x => x !== m);
-  m.rest = { from: t.id, fromName: dn(t), season: S.season, back: S.season + 1, org: k };
-  R.resting.push(m);
-  (S.ranchRested = S.ranchRested || {})[t.id] = m.uid;
-  news(`${dn(t)} sent ${m.sp} to rest at the ${orgName(k)} ranch. It sits out Season ${S.season + 1} and comes back stronger.`, k === S.userOrg ? 'you' : 'move', t.id);
-  return m;
-}
-// changed their mind during the same ranch step
-function unrestMon(t) {
-  const u = (S.ranchRested || {})[t.id], R = ranchOf(t.org); if (u == null || !R) return null;
-  const m = R.resting.find(x => x.uid === u && x.rest && x.rest.season === S.season); if (!m) return null;
-  R.resting = R.resting.filter(x => x !== m); delete m.rest; t.team.push(m); delete S.ranchRested[t.id];
-  return m;
-}
 // a season of rest is over: better IVs, and into the active ranch
 function returnRested(k) {
   const R = ranchOf(k); if (!R || !R.resting.length) return;
@@ -1347,32 +1301,6 @@ function returnRested(k) {
     addToRanch(k, m, { how: 'rest', season: curSeason(), from: r.from, fromName: r.fromName });
     m.ranch.ivUp = up;
     news(`${r.fromName}'s ${m.sp} is rested and back at the ${orgName(k)} ranch${up ? `, stronger for it (IVs +${up})` : ''}${lvUp ? `. It spent the time reflecting and is ${lvUp} levels higher` : ''}.`, k === S.userOrg ? 'you' : 'move', r.from);
-  }
-}
-// v192: AI trainers almost always rest the best Pokémon they'd otherwise have to release at registration
-function aiRest(k) {
-  for (const t of org(k).roster.map(T).filter(x => x && x.role === 'challenger')) {
-    if (regular(t).length <= START_TEAM || rand() >= 0.95) continue;
-    const keep = new Set(bestThree(t));
-    const m = regular(t).filter(x => !keep.has(x.uid) && canRest(t, x)).sort((a, b) => ranchValue(b, t) - ranchValue(a, t))[0];
-    if (m) restMon(t, m.uid);
-  }
-}
-// v192: whatever else an AI trainer would release at registration goes into the team's active ranch for a teammate,
-// so the ranch rarely runs dry. Simming runs this for the player's team too.
-function aiStock(k) {
-  const R = ranchOf(k); if (!R) return;
-  for (const t of org(k).roster.map(T).filter(x => x && x.role === 'challenger')) {
-    if (regular(t).length <= START_TEAM) continue;
-    const keep = new Set(bestThree(t));
-    for (const m of regular(t).filter(x => !keep.has(x.uid) && canRest(t, x))) {
-      if (regular(t).length <= START_TEAM) break;
-      if (m.item) { bagAdd(t, m.item); m.item = null; }
-      if (t.mega && t.mega.uid === m.uid) t.mega.uid = null;
-      farewell(t, m, `passed on to ${orgName(k)}'s ranch`);
-      t.team = t.team.filter(x => x !== m);
-      addToRanch(k, m, { how: 'surplus', season: curSeason(), from: t.id, fromName: dn(t) });
-    }
   }
 }
 // v192: a Pokémon nobody takes in RANCH_STEPS offseason ranch steps goes on display in the historical ranch.
@@ -1511,12 +1439,6 @@ function aiBanVote(k, i, c, rank) {
   if (rand() >= p) return 0;
   const q = 0.5 + 0.06 * (BAN_BALLOT - 1 - rank) + (c.leg ? 0.15 : 0) - (liked ? 0.15 : 0);
   let len = 1; while (len < BAN_MAX_SEASONS && rand() < q) len++;
-  return len;
-}
-// v201: a ban's length is the longest one a majority of the voting teams backed (a vote for three seasons backs two and one)
-function banLength(votes, n) {
-  let len = 0;
-  for (let L = 1; L <= BAN_MAX_SEASONS; L++) if (votes.filter(v => v >= L).length * 2 > n) len = L;
   return len;
 }
 // v203: the vote is weighted: half from the teams (GMs), half from the League's trainers (challengers, Gym Leaders, the
@@ -1752,14 +1674,6 @@ function ranchLegendLeaves(k, m, why) {
   releaseLegend({ id: from.from, lg: from.lg }, m, why);
   news(`${m.sp} moved on from the ${orgName(k)} ranch. It will wait in the ${leagueName(m.lgHome ?? 0)} for a new partner.`, k === S.userOrg ? 'you' : 'title');
 }
-// the player moves a ranch Pokémon out of the active ranch: on display, or (a legendary) on its way
-function ranchShelf(k, uidPick) {
-  const R = ranchOf(k), m = R && R.active.find(x => x.uid === uidPick); if (!m) return null;
-  if (isLegendLine(m.sp) && m.partners) { ranchLegendLeaves(k, m, 'let go from the ranch'); return m; }
-  R.active = R.active.filter(x => x !== m);
-  toRetiredRanch(k, ranchRecord(m, { season: curSeason(), from: m.ranch ? m.ranch.from : null, fromName: m.ranch ? m.ranch.fromName : '', why: 'moved to the retired ranch' }));
-  return m;
-}
 
 // Before each season every challenger registers at most three Pokémon.
 // Every trainer keeps their strongest (2.0: the player no longer chooses for their own trainers).
@@ -1769,9 +1683,8 @@ function bestThree(t) { const v = m => (isSpecial(m) ? 10000 : 0) + SP[m.sp].bst
 function beginRegistration() {
   S.ranchStepOn = false;
   // 2.0: the player's trainers register their own three, the way every other trainer does
-  S.registration = {};
-  for (const t of userTrainers().filter(t => t.role === 'challenger' && regular(t).length > START_TEAM)) S.registration[t.id] = bestThree(t);
-  confirmRegistration();
+  for (const t of userTrainers().filter(t => t.role === 'challenger' && regular(t).length > START_TEAM)) applyRegistration(t, bestThree(t));
+  startSeason();
 }
 function applyRegistration(t, uids) {
   const keep = regular(t).filter(m => uids.includes(m.uid)).slice(0, START_TEAM).concat(t.team.filter(isGift));
@@ -1782,11 +1695,6 @@ function applyRegistration(t, uids) {
   if (t.org && ranchOf(t.org)) for (const m of gone) toRetiredRanch(t.org, ranchRecord(m, { season: S.season, from: t.id, fromName: dn(t), why: `not registered by ${dn(t)} for Season ${S.season + 1}` }));
   t.team = keep;
   if (gone.length && t.user) news(`${dn(t)} registered ${keep.map(m => m.sp).join(', ')} for Season ${S.season + 1} and released ${gone.map(m => m.sp).join(', ')}.`, 'you', t.id);
-}
-function confirmRegistration() {
-  for (const [id, uids] of Object.entries(S.registration || {})) { const t = T(+id); if (t && regular(t).length > START_TEAM) applyRegistration(t, uids); }
-  S.registration = null;
-  startSeason();
 }
 // v174: offers that take a trainer off your team (a gym invitation, an Elite Four seat challenge) are settled before
 // offers that bring one back (a former trainer who lost their post). So you know whether a promotion opens a roster
@@ -1819,8 +1727,11 @@ function acceptOffer(accept, releaseId) {
     S.offers.shift(); return;
   }
   S.lastSeatBattle = null;
+  // 2.0.1: a trainer unhappy in a support role may take a League invitation whatever you say
+  if (!accept && (o.kind === 'leader' || o.kind === 'e4') && u && unhappyRole(u) && rand() < INVITE_WALK) { accept = true; addTrust(u, -4); news(`You asked ${dn(u)} to turn the League down. Unhappy in a support role, they went anyway.`, 'you', u.id); }
   if (o.kind === 'rejoin') {
-    if (accept && u && u.role === 'challenger' && !u.org) rejoin(u, o.org, releaseId);
+    if (accept && u && u.role === 'challenger' && !u.org && !homeWilling(u, o.org)) { u.ambKnown = true; news(`${dn(u)} wants the title and turned you down: you have no chaser spot for them. They go on as an independent.`, 'you', u.id); }
+    else if (accept && u && u.role === 'challenger' && !u.org) rejoin(u, o.org, releaseId);
     else if (u) news(`You passed on bringing back ${dn(u)}. They go on as an independent.`, 'you', u.id);
     S.offers.shift(); return;
   }
@@ -1848,15 +1759,14 @@ function startSeason() {
   // 2.0: every party is legal before week 1; a team with someone left over lets them go (never the player's)
   eachParty((k, i) => { for (const t of fixParty(k, i)) if (k !== S.userOrg) release(t, 'with no place left in the party'); });
   partySeasonStart();
-  S.season++; S.week = 0; S.phase = 'season'; S.dexSeason = {}; S.weekOffers = {}; S.changes = null; S.progress = null; S.plans = {}; S.worlds = null;
+  S.season++; S.week = 0; S.phase = 'season'; S.dexSeason = {}; S.weekOffers = {}; S.changes = null; S.progress = null; S.worlds = null;
   eachLeague(() => {
     S.league = null; S.lastBattles = [];
     if (S.season > 1 && featOn('rotation')) rotateGyms();
     enforceBans();
     S.gyms.forEach(g => { g.w = 0; g.l = 0; g.streak = 0; g.foes = []; g.lastSwap = null; });
     for (const t of challengers()) {
-      settleItemOffers(t);
-      if (!t.user || !t.itemsManual) autoEquip(t);
+      autoEquip(t);
       t.badges = []; t.badgeWeek = null; t.weekLog = [];
       for (const m of t.team) m.form = (m.form || 0) * 0.3;
       const base = 10 + Math.min(8, t.seasons * 2);
@@ -1873,7 +1783,7 @@ function startSeason() {
 }
 
 function newWorld(userOrg, cfg = { teams: 4, roster: 3 }) {
-  S = { version: 3, season: 0, week: 0, phase: 'draft', trainers: {}, nextId: 1, nextUid: 1, usedNames: {}, famousUsed: [], dex: {}, dexSeason: {}, userOrg, gyms: [], e4: [], champion: null, challengers: [], freeAgents: [], news: [], history: [], hof: [], stats: { ko: {}, use: {} }, meta: null, offers: [], plans: {}, catchPicks: {}, lastBattles: [], weekOffers: {}, orgs: {} };
+  S = { version: 3, season: 0, week: 0, phase: 'draft', trainers: {}, nextId: 1, nextUid: 1, usedNames: {}, famousUsed: [], dex: {}, dexSeason: {}, userOrg, gyms: [], e4: [], champion: null, challengers: [], freeAgents: [], news: [], history: [], hof: [], stats: { ko: {}, use: {} }, meta: null, offers: [], lastBattles: [], weekOffers: {}, orgs: {} };
   customFor = undefined; useCustom(customLib);
   S.cfg = { teams: cfg.teams, roster: PARTY_SIZE, leagues: [1, 2, 3, 4].includes(cfg.leagues) ? cfg.leagues : 1, growth: !!cfg.growth, god: !!cfg.god, allFamous: !!cfg.allFamous, baseOff: !!cfg.baseOff, packs: (cfg.packs || []).filter(k => FAMOUS_PACKS[k]), off: Object.fromEntries((cfg.off || []).filter(k => FEATURES.some(g => g.items.some(i => i[0] === k))).map(k => [k, true])),
     tourneyRule: cfg.tourneyRule === 'none' || TOURNEY_RULES[cfg.tourneyRule] ? cfg.tourneyRule : 'rotate' };
@@ -1963,7 +1873,7 @@ function beginReassign() {
 }
 function confirmReassign() {
   if (S.phase !== 'reassign') return false;
-  if (S.userOrg) { eachParty((k, i) => { if (k === S.userOrg) fixParty(k, i); }); if (partyProblems().length) return false; settlePromises(); }
+  if (S.userOrg) { eachParty((k, i) => { if (k === S.userOrg) fixParty(k, i); }); if (partyProblems().length) return false; for (const t of askedOut()) answerAskOut(t.id, true); settlePromises(); }
   S.reassign = null;
   beginBanVote();
   return true;
@@ -2115,4 +2025,4 @@ function foundingDraft(userOrg) {
   scheduleLeague();
 }
 
-if (typeof module !== 'undefined') module.exports = { setBlock, tradeProposal, answerTradeOffer, TBC_SIZE, TBC_PTS, cupLineup, setCupLineup, teamBattleCup, tbcPoints, cupEligible, canBorrow, returnLoans, trainerDeposits, ranchBorrow, ranchMidseason, leaveLegendsFor, ranchOf, AMBS, ambOf, ambSeen, ambText, unhappyRole, patienceText, trustOf, addTrust, trustWord, ambitionSeasonEnd, stepBack, tradeSwap, aiDemand, canTrade, tradeOptions, gmTrade, answerRequest, autoRequest, brokenPromises, settlePromises, SITS, sitOn, sitOdds, sitUsed, canSit, sitDown, upSeason, POLICIES, partyState, pickLeader, leaderOf, partyMood, partyWaits, partyHasFly, canFly, setPolicy, canSetPolicy, partySeasonStart, walkingPartner, gymLossesAt, preDraftTrim, MAX_LEAGUES, EXPAND_COOLDOWN, fieldsIn, partyLeagues, orgsIn, totalParties, foundBlock, foundParty, aiSeeds, aiExpansion, openNewLeague, worldGrowth, scheduleLeague, movePartyBlock, moveParty, godOn, godOpenLeague, godFoundParty, godAddTeam, nextRegionName, expandReady, indieCap, PARTY_ROLES, ROLE_KEYS, SLOT_NAMES, PARTY_BONUS, aptOf, slotOf, isChaser, inParty, canApprentice, partyOf, partyMates, fixParty, autoParty, partyProblems, partyBonus, partyGrowth, partyEdge, canEditParty, swapSlots, setPartyRole, roleStr, eachParty, BAN_BALLOT, BAN_CAP, BAN_MAX_NEW, BAN_MAX_SEASONS, banLength, banLengthW, banShare, trainerBanVote, trainerBanVotes, banTrainers, banLen, banLeft, banLast, expireBans, banMembers, bansIn, banOf, bannedIn, buildBanBallot, beginBanVote, autoBanVote, setBanVote, confirmBanVote, enforceBans, ranchCanTake, returnBannedHome, ranchShelf, ageRanch, TOURNEY_RULES, tourneyRule, tourneyRuleKnown, drawTourneyRule, bringThree, startSeason, ranchLastChance, RANCH_STEPS, RANCH_STEPS_PARADOX, restMon, unrestMon, returnRested, aiRest, canRest, ranchChampionRoster, ranchOf, ranchHand, ranchAuto, beginRanch, confirmRanch, answerRanchPick, autoRanchPick, ranchTakers, addToRanch, settleRanchPick, ranchable, runTourney, tourneyPick, aiTourneyChoice, tourneySpecies, tourneySpOk, settleTourneyOffer, seedOrder, TOURNEY_WEEK, applyDex, dexImport, checkDexEntry, dexNorm, dexBaseStats, get dexLib() { return dexLib; }, set dexLib(v) { dexLib = v; }, BASE_STATS, SPECIES_AB, STARTERS, LINE, EVOLVED, GREAT_LEGENDS, makeMon, ROAMERS, STORMS, paradoxRewardPool, settleStorm, stormRank, ABILITIES, SPECIES_AB, abilityOf, rollAbSlot, ITEMS, TYPE_ITEMS, itemScore, autoEquip, eliteItems, gymItemOffer, takeItemOffer, setItem, bagAdd, heldItem, crossroads, reinvent, dryStreak, isGrandSlam, champLeaguesOf, checkGrandSlams, useLeague, inLeague, eachLeague, nLeagues, lgOf, lgRoster, openLeague, moveTrainer, leagueFit, aiLeagueMoves, worldChampionship, cupStandings, leagueName, startLegend, legendBattle, legendWeek, villainLegend, legendOffseason, joinLegend, answerLegend, weald, wantsLegend, recordGreat, GREAT_LEGENDS, REWARD_LEGENDS, FEATURES, featOn, legacyChance, scheduleLegacy, makeLegacy, legacyLine, metaMons, counterTypesFor, metaCounters, AWARDS, seasonAwards, seasonScore, VILLAIN_TEAMS, startVillainEvent, villainWeek, endVillainEvent, eventActive, eventFoe, eventTeam, gymClosed, raidBattle, answerSnag, offerSnag, snag, purify, purifyWeek, makeShadow, openHeart, wantsRaid, circuitLevel, bondBlocked, BOND_ROLES, checkBonds, bondMon, bondName, BOND_ATK, pokerusWeek, pkrsContact, infectPkrs, monGrowth, LUCKY_CHANCE, PKRS_WEEKS, titleOf, titleNameTaken, famName, famBase, chooseFamous, checkCustom, checkPackName, setCustomLib, parsePackText, prepImport, builtinSource, packExportText, uniquePackName, BUILTIN_SOURCES, ensureCustom, useCustom, customSpecies, newCustomKey, get customLib() { return customLib; }, MALE, FEMALE, FAMOUS_PACKS, BASE_FAMOUS, packOn, famousAvailable, TRADE_EVOS, findTrade, doTrade, roadTrades, answerTrade, MEGA, megaFor, hasMega, megaHolder, assignMegaStone, earnMega, rotateGyms, fitGymTeam, isSpecial, monTypes, makeDelta, DELTA_CHANCE, gymLost, adaptGym, activeOutbreak, maybeOutbreak, offerRejoin, rejoinChoice, simOneSeason, autoStep, fixHallOfFame, repairLevels, repairLeagues, homeLeague, backfillLeagueTags, isLegendLine, legendBlocked, pooledLegend, claimLegend, legendDepartures, adoptLegends, curSeason,  eliteSlot, TRAITS, traitOf, h2hOf, isRival, roadBattles, FAMOUS_TAG_LIST, FAMOUS_BY_NAME, ULTRA_BEASTS, BABY_LEGENDS, ownedLegends, freeBabies, PARADOX, DUAL_CLASSES, specTypes, specFit, applyCfg, ALL_ORG_KEYS, get ORG_KEYS() { return ORG_KEYS; }, get ROSTER() { return ROSTER; }, careerSpan, ageRetireChance, leadStyle, LEAD_STYLES, confirmGift, legacyOf, legacyPoints, coverOptions, MOVES, idealMoves, refreshMoves, estimate, battler, natureFx, NATURES, TEMPER, temperOf, temperMul, temperGrowth, moveLv, ensureMon, learnedCov, frTier, formTier, retireChance, trainerRec, blankStat, FAMOUS, confirmReward, confirmReassign, beginReassign, beginGifts, confirmGifts, giftTeammates, confirmGift, autoGift, canMoveNow, LEGENDS, champOrg, confirmRegistration, independents, ORGS, orgStandings, userTrainers, userRelease, draftCurrent, draftAvail, PACE, dn, CLASSES, setupDraft, get S() { return S; }, set S(v) { S = v; }, newWorld, simWeek, runLeague, userDraft, acceptOffer, aiAction, aiCatch, wildOffers, ovr, T, challengers, SP, BASES, battle };
+if (typeof module !== 'undefined') module.exports = { tradeCheck, tradeMany, askStepDown, answerAskOut, askedOut, canAskDown, downOdds, godEdit, godMove, godSlot, godRole, homeWilling, deskValue, setBlock, tradeProposal, answerTradeOffer, TBC_SIZE, TBC_PTS, cupLineup, setCupLineup, teamBattleCup, tbcPoints, cupEligible, canBorrow, returnLoans, trainerDeposits, ranchBorrow, ranchMidseason, leaveLegendsFor, ranchOf, AMBS, ambOf, ambSeen, ambText, unhappyRole, patienceText, trustOf, addTrust, trustWord, ambitionSeasonEnd, stepBack, tradeSwap, aiDemand, canTrade, tradeOptions, gmTrade, answerRequest, autoRequest, brokenPromises, settlePromises, SITS, sitOn, sitOdds, sitUsed, canSit, sitDown, upSeason, POLICIES, partyState, pickLeader, leaderOf, partyMood, partyWaits, partyHasFly, canFly, setPolicy, canSetPolicy, partySeasonStart, walkingPartner, gymLossesAt, preDraftTrim, MAX_LEAGUES, EXPAND_COOLDOWN, fieldsIn, partyLeagues, orgsIn, totalParties, foundBlock, foundParty, aiSeeds, aiExpansion, openNewLeague, worldGrowth, scheduleLeague, movePartyBlock, moveParty, godOn, godOpenLeague, godFoundParty, godAddTeam, nextRegionName, expandReady, indieCap, PARTY_ROLES, ROLE_KEYS, SLOT_NAMES, PARTY_BONUS, aptOf, slotOf, isChaser, inParty, canApprentice, partyOf, partyMates, fixParty, autoParty, partyProblems, partyBonus, partyGrowth, partyEdge, canEditParty, swapSlots, setPartyRole, roleStr, eachParty, BAN_BALLOT, BAN_CAP, BAN_MAX_NEW, BAN_MAX_SEASONS, banLengthW, banShare, trainerBanVote, trainerBanVotes, banTrainers, banLen, banLeft, banLast, expireBans, banMembers, bansIn, banOf, bannedIn, buildBanBallot, beginBanVote, autoBanVote, setBanVote, confirmBanVote, enforceBans, ranchCanTake, returnBannedHome, ageRanch, TOURNEY_RULES, tourneyRule, tourneyRuleKnown, drawTourneyRule, bringThree, startSeason, ranchLastChance, RANCH_STEPS, RANCH_STEPS_PARADOX, returnRested, canRest, ranchChampionRoster, ranchOf, ranchHand, beginRanch, confirmRanch, answerRanchPick, autoRanchPick, ranchTakers, addToRanch, settleRanchPick, ranchable, runTourney, tourneyPick, aiTourneyChoice, tourneySpecies, tourneySpOk, seedOrder, TOURNEY_WEEK, applyDex, dexImport, checkDexEntry, dexNorm, dexBaseStats, get dexLib() { return dexLib; }, set dexLib(v) { dexLib = v; }, BASE_STATS, SPECIES_AB, STARTERS, LINE, EVOLVED, GREAT_LEGENDS, makeMon, ROAMERS, STORMS, paradoxRewardPool, settleStorm, stormRank, ABILITIES, SPECIES_AB, abilityOf, rollAbSlot, ITEMS, TYPE_ITEMS, itemScore, autoEquip, eliteItems, gymItemOffer, bagAdd, heldItem, crossroads, reinvent, dryStreak, isGrandSlam, champLeaguesOf, checkGrandSlams, useLeague, inLeague, eachLeague, nLeagues, lgOf, lgRoster, openLeague, moveTrainer, leagueFit, aiLeagueMoves, worldChampionship, cupStandings, leagueName, startLegend, legendBattle, legendWeek, villainLegend, legendOffseason, joinLegend, weald, wantsLegend, recordGreat, GREAT_LEGENDS, REWARD_LEGENDS, FEATURES, featOn, legacyChance, scheduleLegacy, makeLegacy, legacyLine, metaMons, counterTypesFor, metaCounters, AWARDS, seasonAwards, seasonScore, VILLAIN_TEAMS, startVillainEvent, villainWeek, endVillainEvent, eventActive, eventFoe, eventTeam, gymClosed, raidBattle, offerSnag, snag, purify, purifyWeek, makeShadow, openHeart, wantsRaid, circuitLevel, bondBlocked, BOND_ROLES, checkBonds, bondMon, bondName, BOND_ATK, pokerusWeek, pkrsContact, infectPkrs, monGrowth, LUCKY_CHANCE, PKRS_WEEKS, titleOf, titleNameTaken, famName, famBase, chooseFamous, checkCustom, checkPackName, setCustomLib, parsePackText, prepImport, builtinSource, packExportText, uniquePackName, BUILTIN_SOURCES, ensureCustom, useCustom, customSpecies, newCustomKey, get customLib() { return customLib; }, MALE, FEMALE, FAMOUS_PACKS, BASE_FAMOUS, packOn, famousAvailable, TRADE_EVOS, findTrade, doTrade, roadTrades, MEGA, megaFor, hasMega, megaHolder, assignMegaStone, earnMega, rotateGyms, fitGymTeam, isSpecial, monTypes, makeDelta, DELTA_CHANCE, gymLost, adaptGym, activeOutbreak, maybeOutbreak, offerRejoin, rejoinChoice, simOneSeason, autoStep, fixHallOfFame, repairLevels, repairLeagues, homeLeague, backfillLeagueTags, isLegendLine, legendBlocked, pooledLegend, claimLegend, legendDepartures, adoptLegends, curSeason, eliteSlot, TRAITS, traitOf, h2hOf, isRival, roadBattles, FAMOUS_TAG_LIST, FAMOUS_BY_NAME, ULTRA_BEASTS, BABY_LEGENDS, ownedLegends, freeBabies, PARADOX, DUAL_CLASSES, specTypes, specFit, applyCfg, ALL_ORG_KEYS, get ORG_KEYS() { return ORG_KEYS; }, get ROSTER() { return ROSTER; }, careerSpan, ageRetireChance, leadStyle, LEAD_STYLES, confirmGift, legacyOf, legacyPoints, coverOptions, MOVES, idealMoves, refreshMoves, estimate, battler, natureFx, NATURES, TEMPER, temperOf, temperMul, temperGrowth, moveLv, ensureMon, learnedCov, frTier, formTier, trainerRec, blankStat, FAMOUS, confirmReward, confirmReassign, beginReassign, beginGifts, confirmGifts, confirmGift, autoGift, canMoveNow, LEGENDS, champOrg, independents, ORGS, orgStandings, userTrainers, userRelease, draftCurrent, draftAvail, PACE, dn, CLASSES, setupDraft, get S() { return S; }, set S(v) { S = v; }, newWorld, simWeek, runLeague, userDraft, acceptOffer, aiAction, aiCatch, wildOffers, ovr, T, challengers, SP, BASES, battle };

@@ -70,8 +70,6 @@ const orgLabel = k => `<span class="orgl">${orgMark(k)}<span>${k ? ORGS[k].name 
 // asOrg: show the team the trainer represented at that moment (history rows), not their current team; null = no team
 const tname = (id, asOrg) => { const t = T(id); if (!t) return '—'; const mk = asOrg !== undefined ? asOrg : t.org || (t.role === 'champion' && t.champOrg) || null; return `<button class="tlink${t.user ? ' you' : ''}" data-act="profile" data-id="${id}">${mk ? orgMark(mk) : ''}${dn(t)}${t.famous ? '<span class="star" title="Famous trainer">★</span>' : ''}</button>`; };
 const babyTag = s => s.baby ? ` <span class="tag legend">${s.label}</span>` : s.ub ? ' <span class="tag ub">Ultra Beast</span>' : '';
-// "into Cosmoem at Lv 43, then Solgaleo or Lunala at Lv 53"
-function babyChain(sp) { const out = []; let s = sp; while (s.evos) { out.push(`${s.evos.map(e => e.to).join(' or ')} at Lv ${s.evos[0].lvl}`); s = SP[s.evos[0].to]; } return 'into ' + out.join(', then '); }
 // Lucky Pokémon and Pokérus
 const condTags = m => `${m.shadow ? ` <span class="tag shadow" title="Shadow Pokémon: hits 15% harder but sometimes ignores orders (Hyper Mode). It can't level up until purified (heart ${Math.round(100 - m.shadow.heart)}% open, +${Math.round(m.shadow.stored)} levels stored).">Shadow</span>` : m.purified ? ' <span class="tag purified" title="A purified Shadow Pokémon">Purified</span>' : ''}${m.bond && T(m.bond) && T(m.bond).team.includes(m) && BOND_ROLES.includes(T(m.bond).role) ? ` <span class="tag bond" title="Battle Bond with ${esc(T(m.bond).name)}: in League battles, its first knockout turns it into ${esc(bondName(T(m.bond), m))} (+35% attack, +8% speed)">Battle Bond</span>` : ''}${m.lucky ? ' <span class="tag lucky" title="Lucky Pokémon: arrived in a trade with boosted IVs, and levels 10% faster">★ Lucky</span>' : ''}${m.pkrs > 0 ? ` <span class="tag pkrs" title="Pokérus: levels 25% faster for ${m.pkrs} more week${m.pkrs === 1 ? '' : 's'}, and it can spread">Pokérus</span>` : m.pkrs < 0 ? ' <span class="tag pkrs-cured" title="Had Pokérus and is now immune">☺</span>' : ''}`;
 // ---------- moves ----------
@@ -127,15 +125,6 @@ const gymWeatherTag = L => abOn() && L && GYM_WEATHER[L.specialty] ? ` <span cla
 // ---------- held items ----------
 const itemTag = m => itemsOn() && m && m.item && ITEMS[m.item] ? ` <span class="tag item" title="${esc(ITEMS[m.item].desc)}">◆ ${ITEMS[m.item].name}</span>` : '';
 const itemChip = k => `<span class="itemchip t${ITEMS[k].tier}" title="${esc(ITEMS[k].desc)}">${ITEMS[k].name}</span>`;
-// a gym reward waiting for the player's pick
-function itemOfferPanel(t) {
-  const o = (t.itemOffers || [])[0]; if (!o || !itemsOn()) return '';
-  const adv = offerAdvice(t, o.opts);
-  return `<div class="itembox"><span class="it-k">Gym reward</span> For beating ${o.from}, ${t.name} can take one item${t.itemOffers.length > 1 ? ` (${t.itemOffers.length} rewards waiting)` : ''}:
-    <div class="it-opts">${o.opts.map((k, i) => { const a = adv[i]; return `<button class="it-opt${a.best ? ' best' : ''}${a.useless ? ' nouse' : ''}" data-act="itemtake" data-id="${t.id}" data-i="${i}">${a.best ? '<span class="it-best">★ Best pick</span>' : ''}<b>${ITEMS[k].name}</b><span class="muted small">${ITEMS[k].desc}</span><span class="it-why">${a.note}</span>${ITEMS[k].tier === 3 ? '<span class="tag gold">Rare</span>' : ITEMS[k].tier === 2 ? '<span class="tag">Uncommon</span>' : ''}</button>`; }).join('')}</div>
-    <div class="small muted">It goes in the bag${t.itemsManual ? '' : ' and the team is re-equipped automatically'}. If you don't choose, the best fit is taken when the League starts.</div></div>`;
-}
-let itemOpen = null; // uid of the Pokémon whose item chooser is open
 function itemsPanel(t) {
   if (!itemsOn() || !t.user) return '';
   const bag = t.bag || [], mh = hasMega(t) ? megaHolder(t) : null;
@@ -145,27 +134,15 @@ function itemsPanel(t) {
     ${bag.length ? `<div class="eyebrow">In the bag</div><div class="it-bag">${bag.map(itemChip).join(' ')}</div>` : ''}
     <p class="fine">${t.name} picks their own gym rewards and equips the team: before each gym and each League battle the best items for that opponent go on, then the everyday set comes back.${mh ? ` ${mh.sp} holds the Mega Stone this season, so its own item sits out League battles.` : ''}</p></section>`;
 }
-// a trade another challenger offered this week
-function tradePanel(t) {
-  const o = S.tradeOffers && S.tradeOffers[t.id]; if (!o) return '';
-  const them = T(o.with), give = t.team.find(m => m.uid === o.give), get = them && them.team.find(m => m.uid === o.get);
-  if (!them || !give || !get) return '';
-  const card = (m, who) => `<div class="tr-mon"><div class="eyebrow">${who}</div><b>${m.sp}</b> ${chips(monTypes(m))}<div class="small muted">Lv ${Math.floor(m.lvl)} · BST ${SP[m.sp].bst}${TRADE_EVOS[m.sp] ? ` · <b>evolves into ${TRADE_EVOS[m.sp]} when traded</b>` : ''}</div></div>`;
-  return `<div class="tradebox"><span class="tr-k">Trade offer</span> ${tname(them.id)} ${traitChip(them)} ran into ${t.name} on the road and wants to swap.
-    <div class="tr-row">${card(give, `${t.name} gives`)}<span class="tr-arrow">⇄</span>${card(get, `${t.name} gets`)}</div>
-    <div class="confirm-row"><button class="btn primary" data-act="tradeans" data-id="${t.id}" data-v="1">Accept the trade</button><button class="btn" data-act="tradeans" data-id="${t.id}" data-v="0">Decline</button><span class="muted small">The offer stands until the end of this week. Each Pokémon has a ${Math.round(LUCKY_CHANCE * 100)}% chance to arrive Lucky.</span></div></div>`;
-}
 // holds this season's Mega Stone
 const megaTag = m => { if (!m || !m.uid) return ''; const t = Object.values(S.trainers).find(x => hasMega(x) && x.mega.uid === m.uid); return t && megaFor(t, m) ? ` <span class="tag mega" title="Can become ${megaFor(t, m).name} in League battles this season">Mega Stone</span>` : ''; };
 // the Key Stone and Mega Stone a trainer earned by completing the circuit (this season only)
 function megaPanel(t) {
   if (!hasMega(t)) return '';
-  const h = megaHolder(t), cands = t.team.filter(m => megaForms(m).length);
-  const opts = cands.flatMap(m => MEGA[m.sp].map(f => `<button class="rel${h === m && megaFor(t, m).v === f.v ? ' on' : ''}" data-act="megaset" data-id="${t.id}" data-u="${m.uid}" data-v="${f.v}">${m.sp}${f.v ? ' → ' + f.v : ''} <span class="muted">${f.name} · ${f.types.join('/')} · BST ${SP[m.sp].bst} → ${f.bst}</span></button>`)).join('');
+  const h = megaHolder(t);
   return `<div class="megabox"><span class="mega-k">Key Stone</span> ${h ? `<b>${h.sp}</b> holds the Mega Stone and can become <b>${megaFor(t, h).name}</b> (${megaFor(t, h).types.join('/')}) once per League battle.` : `${t.name} has a Key Stone, but no Pokémon that can Mega Evolve yet. Catch or evolve one before the League and the stone goes to it.`}
     <div class="small muted">Earned for completing the badge circuit. It's handed back when the next season starts.</div></div>`;
 }
-// this week's mass outbreak, if there is one
 // balance notes shown under a feature's switch (from headless sims)
 const FEATURE_NOTES = {
   bond: 'Off: titles change hands more often (about 57% of seasons in sims, vs about 51% with everything on), since veteran Elite Four and Champions lose their bonds.',
@@ -199,7 +176,7 @@ function roamBanner(t) {
   if (t && t.role === 'challenger') {
     const found = (S.weekOffers[t.id] || []).some(o => o.roam);
     if (legendBlocked(t, R.sp)) mine = `<p class="warn">${R.sp} has already been with ${t.name} and won't go back to them.</p>`;
-    else if (found) mine = `<p class="good"><b>${t.name} has found ${R.sp}!</b> It's among this week's wild Pokémon. Explore and pick it to catch it before it moves on.</p>`;
+    else if (found) mine = `<p class="good"><b>${t.name} has found ${R.sp}!</b> It's among this week's wild Pokémon, and they'll go after it if they explore before it moves on.</p>`;
     else { const c = roamChance(t); mine = c ? `<p class="small"><b>${t.name}</b> is close enough to find it while exploring: about ${Math.round(c * 100)}% a week.</p>` : `<p class="small muted">${t.name} is heading for ${TOWNS[nearTown(t)]}, too far away to find it this week.</p>`; }
   }
   return `<div class="roambox"><span class="rm-k">Roaming</span> <b>${R.sp}</b> ${chips(SP[R.sp].types)} was last seen near <b>${TOWNS[R.town]}</b>. It leaves the region after week ${R.until}.
@@ -221,13 +198,6 @@ function skyPanel() {
   const log = (S.skyLog || []).slice(0, 6); if (!log.length) return '';
   return `<section class="panel"><div class="ph"><h3>Legendary sightings</h3><span class="muted">Roamers and storms</span></div><ul class="mini">${log.map(l => `<li><span>${l.text}</span><span class="num muted">S${l.season} · W${l.week}</span></li>`).join('')}</ul></section>`;
 }
-// a legendary chose one of your trainers, but the team is full
-function legendOfferPanel(t) {
-  const o = S.legendOffers && S.legendOffers[t.id]; if (!o) return '';
-  return `<div class="tradebox"><span class="tr-k">Legendary</span> ${o.why} <b>${o.sp}</b> ${chips(SP[o.sp].types)} wants to join ${t.name}. The team is full: choose who makes room, or let it go.
-    <div class="release">${t.team.map(m => `<button class="rel" data-act="legrel" data-id="${t.id}" data-u="${m.uid}">${m.sp} <span class="muted">Lv ${Math.floor(m.lvl)}</span></button>`).join('')}</div>
-    <div class="confirm-row"><button class="btn" data-act="legno" data-id="${t.id}">Let ${o.sp} go</button></div></div>`;
-}
 // a villain team in the region this season
 function villainBanner(t) {
   if (S.phase !== 'season' || !eventActive()) return '';
@@ -236,15 +206,6 @@ function villainBanner(t) {
   const mine = t && e.stolen.filter(s => s.from === t.id).map(s => s.sp);
   return `<div class="villain"><span class="vl-k">${v.name}</span> has a hideout near <b>${e.town}</b> until week ${e.until}. Their plan: ${v.plan}.${e.gym != null ? ` <b>${TOWNS[e.gym]} Gym is closed</b> while they hold it.` : ''}${mine && mine.length ? ` <b>They stole ${t.name}'s ${mine.join(', ')}.</b>` : ''}
     <div class="vl-ladder">${steps}</div><div class="small muted">Any challenger can spend a week confronting them. Beating the Boss drives them out${v.scheme === 'theft' ? ' and returns what they stole' : ''}.${v.scheme === 'shadow' ? ' Beat any Cipher trainer to snag one of their Shadow Pokémon.' : ''}</div></div>`;
-}
-// after beating a Cipher trainer: pick a Shadow Pokémon to snag, or let them go
-function snagPanel(t) {
-  const o = S.snagOffers && S.snagOffers[t.id]; if (!o) return '';
-  const pk = (S.snagPick || {})[t.id] || {}; const full = t.team.length >= 6;
-  return `<div class="tradebox snag"><span class="tr-k">Snag</span> ${t.name} beat ${o.from}. Snag one of their Shadow Pokémon, or let them go.
-    <div class="offers">${o.mons.map((m, i) => `<button class="offer-card${pk.i === i ? ' on' : ''}" data-act="snagsel" data-id="${t.id}" data-i="${i}"><div class="mon-name">${m.sp} <span class="tag shadow">Shadow</span></div><div>${chips(monTypes(m))}</div><div class="muted">Lv ${Math.floor(m.lvl)} · BST ${SP[m.sp].bst}</div><div class="small">IVs: <b>${ivGrade(m)}</b></div></button>`).join('')}</div>
-    ${pk.i != null && full ? `<h3 class="rel-h">The team is full. Replace one:</h3><div class="release">${t.team.map(m => `<button class="rel${pk.release === m.uid ? ' on' : ''}" data-act="snagrel" data-id="${t.id}" data-u="${m.uid}">${m.sp} <span class="muted">Lv ${Math.floor(m.lvl)}</span></button>`).join('')}</div>` : ''}
-    <div class="confirm-row"><button class="btn primary" data-act="snaggo" data-id="${t.id}" ${pk.i == null || (full && pk.release == null) ? 'disabled' : ''}>Snag it</button><button class="btn" data-act="snagno" data-id="${t.id}">Let them go</button><span class="muted small">Shadow Pokémon hit 20% harder but sometimes ignore orders, and can't level up until purified. The offer lasts until the end of this week.</span></div></div>`;
 }
 function outbreakBanner(t) {
   const ob = S.phase === 'season' && activeOutbreak(); if (!ob) return '';
@@ -341,7 +302,6 @@ function newsList(items) {
   if (!items.length) return '<p class="muted">Nothing yet.</p>';
   return `<ul class="news">${items.map(n => `<li class="n-${n.tag}${n.cat ? ' n-' + n.cat : ''}"><span class="n-when">S${n.season}${n.week ? ' · W' + n.week : ''}${n.lg != null && nLeagues() > 1 ? ' · ' + lgShort(n.lg) : ''}</span><span>${n.text}</span></li>`).join('')}</ul>`;
 }
-function liveStandings() { return orgStandings(S.phase === 'offseason' || S.phase === 'draft' ? null : null); }
 
 // ---------- header & nav ----------
 function header() {
@@ -351,7 +311,6 @@ function header() {
   if (S.phase === 'banvote') { status = `Season ${S.season + 1} · Banlist vote`; btn = view !== 'banvote' ? `<button class="btn primary" data-act="nav" data-v="banvote">Vote on the banlist</button>` : ''; }
   if (S.phase === 'reward') { status = `Season ${S.season + 1} · Champion's reward`; btn = view !== 'reward' ? `<button class="btn primary" data-act="nav" data-v="reward">Choose the Paradox Pokémon</button>` : ''; }
   if (S.phase === 'ranch') { status = `Season ${S.season + 1} · Team ranch`; btn = view !== 'ranch' ? `<button class="btn primary" data-act="nav" data-v="ranch">Go to the ranch</button>` : ''; }
-  if (S.phase === 'register') { status = `Season ${S.season + 1} · Registration`; btn = view !== 'register' ? `<button class="btn primary" data-act="nav" data-v="register">Register teams</button>` : ''; }
   if (S.phase === 'season' && tourneyPaused()) { status = `Season ${S.season} · Midseason Tournament`; btn = `<button class="btn primary" data-act="tourneydone">Continue to week ${S.week + 1}</button>${view !== 'tourney' ? '<button class="btn ghost" data-act="nav" data-v="tourney">See the tournament</button>' : ''}<button class="btn ghost" data-act="autoseasonask">Play to League</button>`; }
   else if (S.phase === 'season') { status = `Season ${S.season} · Week ${S.week + 1} of ${SEASON_WEEKS}${tourneyNext() ? ' · Midseason Tournament after this week' : ''}`; btn = `<button class="btn primary" data-act="playweek"${tourneyNext() ? ` title="Plays week ${S.week + 1}, then the Midseason Tournament"` : ''}>${playLabel()}</button><button class="btn ghost" data-act="autoseasonask">Play to League</button>`; }
   if (S.phase === 'league') { status = `Season ${S.season} · Pokémon League`; btn = `<button class="btn primary" data-act="runleague">Run the Pokémon League</button>`; }
@@ -367,21 +326,19 @@ let navOpen = null;
 function navGroups() {
   const office = [['office', 'Office']];
   if (S.phase === 'draft') office.push(['draft', 'Draft']);
-  if (S.phase === 'reassign') office.push(['reassign', 'League reassignment']);
+  if (S.phase === 'reassign') office.push(['reassign', nLeagues() > 1 ? 'Parties and Leagues' : 'Set your party']);
   if (S.phase === 'banvote') office.push(['banvote', 'Banlist vote']);
-  if (S.phase === 'register') office.push(['register', 'Registration']);
   if (S.phase === 'reward') office.push(['reward', "Champion's reward"]);
   if (S.phase === 'offseason') { office.push(['recap', 'Season recap']); if (S.offers.length) office.push(['offers', 'League offers']); }
   if (S.phase === 'gifts') office.push(['gifts', 'Farewell gifts']);
-  office.push(['ranch', S.phase === 'ranch' ? 'Team ranch (handoffs)' : 'Team ranch']);
+  office.push(['ranch', 'Team ranch']);
   office.push(['news', 'News']);
   const mine = userTrainers().map(t => {
-    const plan = S.phase === 'season' ? planFor(t) : null;
-    const pip = (plan && plan !== 'auto' ? `<span class="tab-plan">${PLAN_SHORT[plan]}</span>` : '') + (plan && plan !== 'explore' && exploreSpecials(t).length ? '<span class="tab-spot" title="Something special in the wild this week">✦</span>' : '');
+    const pip = exploreSpecials(t).length ? '<span class="tab-spot" title="Something special in the wild this week">✦</span>' : '';
     return ['t' + t.id, `${orgMark(t.org)}<span class="ttab-n">${t.cls} ${t.name}</span>${pip}`];
   });
   return [
-    { k: 'office', label: 'Office', items: [...office, ['party', nLeagues() > 1 ? 'Parties' : 'Party'], ...(godOn() ? [['god', 'God mode']] : [])] },
+    { k: 'office', label: 'Office', items: [...office, ['party', nLeagues() > 1 ? 'Parties' : 'Party'], ...(canTrade() ? [['trade', 'Trade desk']] : []), ...(godOn() ? [['god', 'God mode']] : [])] },
     { k: 'trainers', label: 'Trainers', items: mine.length ? [...mine, null, ['trainers', 'All trainers']] : [['trainers', 'All trainers']] },
     { k: 'league', label: 'League', items: [['circuit', 'Standings'], ['gyms', 'Gyms & Elite'], ...(featOn('tourney') || (S.tourneyHist || []).length ? [['tourney', 'Midseason Tournament']] : []), ['history', 'History']] },
     { k: 'stats', label: 'Stats', items: [['records', 'Records'], ['dex', 'Pokémon'], ['hof', 'Hall of Fame']] },
@@ -401,8 +358,6 @@ function nav() {
       <div class="navmenu navmenu-r" role="menu"><button class="navitem" role="menuitem" data-act="glossary">Glossary</button><button class="navitem${view === 'updates' ? ' on' : ''}" role="menuitem" data-act="updates">Updates${dot}</button></div></div>`;
   return `<nav class="tabs" aria-label="Pages"><div class="tabs-in">${groups.map(grp).join('')}<button class="tab navgloss" data-act="glossary">Glossary</button><button class="tab navgloss${view === 'updates' ? ' on' : ''}" data-act="updates">Updates${dot}</button>${more}</div></nav>`;
 }
-const PLAN_LABEL = { auto: 'Let them decide', challenge: 'Challenge the gym', train: 'Train', explore: 'Explore', raid: 'Confront villains', purify: 'Purify', seek: 'Seek the legendary' };
-const PLAN_SHORT = { challenge: 'Gym', train: 'Train', explore: 'Explore' };
 // v193: the week whose end brings the Midseason Tournament, and the play button's label for it
 const tourneyNext = () => !!(S && S.phase === 'season' && featOn('tourney') && S.week === TOURNEY_WEEK - 1 && !tourneyNow());
 const playLabel = () => tourneyNext() ? 'Play Midseason Tournament' : `Play week ${S.week + 1}`;
@@ -411,11 +366,11 @@ let simStopTourney = false;
 const tourneyAhead = () => !!(S && S.phase === 'season' && featOn('tourney') && S.week < TOURNEY_WEEK - 1 && !tourneyNow());
 const stopTourneyOpt = () => `<button class="adv-opt${simStopTourney ? ' on' : ''}" data-act="simstoptourney" role="switch" aria-checked="${simStopTourney}"><span class="adv-switch" aria-hidden="true"><i></i></span><span class="adv-text"><b>Stop before the Midseason Tournament</b><span class="muted small">The sim stops at the start of week ${TOURNEY_WEEK}, so you can set your plans and play the week that ends with the tournament yourself.</span></span></button>`;
 // sim weeks up to the start of the tournament week
-function simToTourney() { let g = 0; while (S.phase === 'season' && S.week < TOURNEY_WEEK - 1 && g++ < 60) simWeek({}, {}); }
+function simToTourney() { let g = 0; while (S.phase === 'season' && S.week < TOURNEY_WEEK - 1 && g++ < 60) simWeek(); }
 
 // ---------- setup ----------
 let setupParties = 1, setupGrowth = true, setupGod = false;
-let setupLeagues = 1, setupTeams = 4, setupRoster = 6, setupPage = 'main', setupAdv = { allFamous: false }, setupBaseOff = false, setupPacks = {}, setupPackOpen = {}, setupOff = {}, setupTourneyRule = 'rotate';
+let setupLeagues = 1, setupTeams = 4, setupPage = 'main', setupAdv = { allFamous: false }, setupBaseOff = false, setupPacks = {}, setupPackOpen = {}, setupOff = {}, setupTourneyRule = 'rotate';
 // every section on the Advanced page folds; folded sections show a one-line summary
 let setupFold = {};
 function foldSec(key, title, sub, summary, body, extra = '') {
@@ -844,7 +799,7 @@ function viewSetup() {
   const advOn = Object.entries(setupAdv).filter(([, v]) => v).map(([k]) => ({ allFamous: 'All-famous league' }[k])).concat(setupBaseOff ? ['Pokémon famous trainers off'] : []).concat(Object.keys(setupPacks).filter(k => setupPacks[k] && FAMOUS_PACKS[k]).map(k => FAMOUS_PACKS[k].name)).concat(offNames.length ? [`${offNames.length} feature${offNames.length === 1 ? '' : 's'} off`] : []).concat(dexLib.on && dexHas(dexLib) ? ['My Pokédex'] : []).concat(setupTourneyRule !== 'rotate' ? ['Tournament rule: ' + tourneyRuleLabel(setupTourneyRule)] : []);
   const keys = ALL_ORG_KEYS;
   const opt = (act, v, cur, label) => `<button class="seg${cur === v ? ' on' : ''}" data-act="${act}" data-v="${v}" aria-pressed="${cur === v}">${label}</button>`;
-  const total = setupTeams * setupRoster;
+  const total = setupTeams * PARTY_SIZE;
   return `<main class="wrap setup"><section class="panel callout"><div class="eyebrow">New league</div><h1>Set up your league</h1>
     <p>Teams draft trainers and send them through the badge circuit. Every badge, League win and title earns points toward the Team Cup.</p>
     ${oldSaveFound ? '<p class="warn">Your earlier single-trainer league can\'t carry over to the team format, so this starts a fresh league.</p>' : ''}
@@ -877,7 +832,7 @@ function viewOffice() {
   else if (S.phase === 'gifts') main = `<section class="panel callout"><h2>Farewell gifts</h2><p>The draft is done. Teams that lost a trainer to a post hand over their farewell gifts.</p><button class="btn primary" data-act="nav" data-v="gifts">See the farewell gifts</button></section>`;
   else if (S.phase === 'reassign') main = `<section class="panel callout"><h2>Set your ${nLeagues() > 1 ? 'parties' : 'party'}</h2><p>The draft is done. Decide who chases the title, who travels as a companion and who is the apprentice${nLeagues() > 1 ? ', and which League each trainer is in' : ''}.</p><button class="btn primary" data-act="nav" data-v="reassign">Set your ${nLeagues() > 1 ? 'parties' : 'party'}</button></section>`;
   else if (S.phase === 'banvote') main = `<section class="panel callout"><h2>Banlist vote</h2><p>The teams vote on banning last season's top performers before the Champion's reward and the ranch.</p><button class="btn primary" data-act="nav" data-v="banvote">Vote on the banlist</button></section>`;
-  else if (S.phase === 'ranch') main = `<section class="panel callout"><h2>Team ranch</h2><p>Hand Pokémon from your ranch to your trainers before registration${(S.ranchPicks || []).some(p => p.org === S.userOrg) ? ', and choose what to keep from a retiring trainer' : ''}.</p><button class="btn primary" data-act="nav" data-v="ranch">Go to the ranch</button></section>`;
+  else if (S.phase === 'ranch') main = `<section class="panel callout"><h2>Team ranch</h2><p>A trainer of yours has retired. Choose which of their Pokémon to keep in the ranch, where your other trainers can borrow it.</p><button class="btn primary" data-act="nav" data-v="ranch">Go to the ranch</button></section>`;
   else if (S.phase === 'draft') main = `<section class="panel callout"><h2>Draft day</h2><p>The four teams are picking.</p><button class="btn primary" data-act="nav" data-v="draft">Go to the draft</button></section>`;
   return `<div class="grid-office">
     <div class="col">${main}</div>
