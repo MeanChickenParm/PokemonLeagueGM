@@ -762,7 +762,7 @@ function viewRanch() {
     ${champs.length ? `<p class="muted small">The roster of each of your trainers who won the title. Tap a season to open it.</p><div class="histlist">${champs.slice().sort((a, b) => b.season - a.season).map(c => `<details class="hist"><summary><b>Season ${c.season}</b>${nLeagues() > 1 ? ` <span class="tag lg">${(c.lgName || leagueName(c.lg)).replace(/ League$/, '')}</span>` : ''} · <b>${c.name}</b> <span class="muted">won the title · ${c.mons.length} Pokémon</span></summary><div class="it-bag">${c.mons.map(monBit).join('')}</div></details>`).join('')}</div>` : '<p class="muted">None of your trainers has won the title yet.</p>'}</section>`;
   const retired = `<section class="panel"><div class="ph"><h3>Retired ranch</h3><span class="muted">${ret.length} Pokémon</span></div>
     ${ret.length ? `<p class="muted small">Your top ${Math.min(RANCH_TOP, ret.length)} by knockouts, then wins.</p>${ranchHistTable(ranchTopRetired(ret))}<div class="confirm-row"><button class="btn" data-act="nav" data-v="ranchhist">See all ${ret.length} retired Pokémon</button></div>` : '<p class="muted">Nobody has retired from your team yet.</p>'}</section>`;
-  const done = live ? `<section class="panel"><div class="confirm-row"><button class="btn primary" data-act="ranchdone" ${picks.length ? 'disabled' : ''}>Continue to registration</button>${picks.length ? '<span class="warn">Settle the retirement first.</span>' : ''}</div></section>` : '';
+  const done = live ? `<section class="panel"><div class="confirm-row"><button class="btn primary" data-act="ranchdone" ${picks.length ? 'disabled' : ''}>Continue to the new season</button>${picks.length ? '<span class="warn">Settle the retirement first.</span>' : ''}</div></section>` : '';
   return head + pickHtml + active + restPanel + hist + retired + done;
 }
 
@@ -851,10 +851,10 @@ function renderModal() {
   root.hidden = false;
   let body = '';
   if (modal.kind === 'mon') body = monBody();
-  if (modal.kind === 'confirmsim') { const left = SEASON_WEEKS - S.week; body = `<div class="mh"><h2>Sim to the League?</h2><button class="btn icon" data-act="close" aria-label="Close">×</button></div>
-    <p>This plays the remaining <b>${left} week${left === 1 ? '' : 's'}</b> of Season ${S.season} in one go. Your trainers ignore the plans you've set and make their own calls, including what to catch. You can't undo it.</p>
+  if (modal.kind === 'confirmsim') { const left = SEASON_WEEKS - S.week; body = `<div class="mh"><h2>Play to the League?</h2><button class="btn icon" data-act="close" aria-label="Close">×</button></div>
+    <p>This plays the remaining <b>${left} week${left === 1 ? '' : 's'}</b> of Season ${S.season} in one go. You can't undo it.</p>
     ${tourneyAhead() ? `<div class="adv-list">${stopTourneyOpt()}</div>` : ''}
-    <div class="confirm-row"><button class="btn primary" data-act="autoseason">${tourneyAhead() && simStopTourney ? `Sim to week ${TOURNEY_WEEK}` : `Sim ${left} week${left === 1 ? '' : 's'}`}</button><button class="btn" data-act="close">Cancel</button></div>`; }
+    <div class="confirm-row"><button class="btn primary" data-act="autoseason">${tourneyAhead() && simStopTourney ? `Play to week ${TOURNEY_WEEK}` : `Play ${left} week${left === 1 ? '' : 's'}`}</button><button class="btn" data-act="close">Cancel</button></div>`; }
   if (modal.kind === 'profile') body = `<div class="mh"><h2>Trainer profile</h2><button class="btn icon" data-act="close" aria-label="Close">×</button></div>${profileBody(T(modal.id), false)}`;
   if (modal.kind === 'battle') body = battleShell();
   if (modal.kind === 'img') body = imgBody();
@@ -991,11 +991,11 @@ const GLOSS_TERMS = {
   plans: [
     ['Challenge', 'Battle the next Gym Leader for a badge.'],
     ['Train', 'Every Pokémon gains levels; ones far behind the strongest catch up faster.'],
-    ['Explore', 'Meet wild Pokémon and pick one to catch. Sometimes turns up a held item.'],
-    ['Seek', 'Battle a legendary that has appeared, at full strength every time. Your damage adds up across weeks, and when it is worn down or its five weeks are up it goes to the trainer who did the most (ties are fought out). Luck swings each attempt hard, and a failed attempt still earns experience.'],
+    ['Explore', 'Meet wild Pokémon and try to catch one. Sometimes turns up a held item.'],
+    ['Seek', 'Battle a legendary that has appeared, at full strength every time. The damage adds up across weeks, and when it is worn down or its five weeks are up it goes to the trainer who did the most (ties are fought out). Luck swings each attempt hard, and a failed attempt still earns experience.'],
     ['Confront', "Fight a villain team's Grunts, Admins and Boss while they're in the region."],
     ['Purification', "Shadow Pokémon's hearts open during training (most), exploring and gym challenges, and with every battle. One whose heart opens fully is purified at the end of that week."],
-    ['Auto', 'The trainer decides for themselves, as AI trainers do.'],
+    ['Who decides', 'Every trainer chooses their own week, yours included. As the GM you shape the team around them.'],
   ],
   battle: [
     ['Same-type attack', "A move that matches one of the user's types hits 50% harder."],
@@ -1073,7 +1073,7 @@ const GLOSS_TERMS = {
     ['Season awards', Object.values(AWARDS).map(a => a.name).join(', ') + '.'],
   ],
 };
-const GLOSS_SECS = [['all', 'All'], ['abilities', 'Abilities'], ['moves', 'Moves'], ['items', 'Items'], ['traits', 'Trainer traits'], ['tempers', 'Temperaments'], ['ratings', 'Ratings'], ['plans', 'Weekly plans'], ['battle', 'Battle terms'], ['mons', 'Pokémon terms'], ['league', 'League & careers']];
+const GLOSS_SECS = [['all', 'All'], ['abilities', 'Abilities'], ['moves', 'Moves'], ['items', 'Items'], ['traits', 'Trainer traits'], ['tempers', 'Temperaments'], ['ratings', 'Ratings'], ['plans', 'What trainers do'], ['battle', 'Battle terms'], ['mons', 'Pokémon terms'], ['league', 'League & careers']];
 let glossCache = null;
 function glossEntries() {
   if (glossCache) return glossCache;

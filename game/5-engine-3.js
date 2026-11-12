@@ -1753,17 +1753,16 @@ function ranchShelf(k, uidPick) {
 }
 
 // Before each season every challenger registers at most three Pokémon.
-// AI trainers keep their strongest; the player decides for their own trainers.
+// Every trainer keeps their strongest (2.0: the player no longer chooses for their own trainers).
 const isGift = m => m.gift === S.season + 1 || m.gift === S.season && S.phase === 'season';
 function regular(t) { return t.team.filter(m => !isGift(m)); }
 function bestThree(t) { const v = m => (isSpecial(m) ? 10000 : 0) + SP[m.sp].bst * (1 + (onSpec(t, m.sp) ? 0.1 : 0)); return regular(t).slice().sort((a, b) => v(b) - v(a)).slice(0, START_TEAM).map(m => m.uid); }
 function beginRegistration() {
   S.ranchStepOn = false;
-  const mine = userTrainers().filter(t => t.role === 'challenger' && regular(t).length > START_TEAM);
-  if (!mine.length) return startSeason();
-  S.phase = 'register';
+  // 2.0: the player's trainers register their own three, the way every other trainer does
   S.registration = {};
-  for (const t of mine) S.registration[t.id] = bestThree(t);
+  for (const t of userTrainers().filter(t => t.role === 'challenger' && regular(t).length > START_TEAM)) S.registration[t.id] = bestThree(t);
+  confirmRegistration();
 }
 function applyRegistration(t, uids) {
   const keep = regular(t).filter(m => uids.includes(m.uid)).slice(0, START_TEAM).concat(t.team.filter(isGift));

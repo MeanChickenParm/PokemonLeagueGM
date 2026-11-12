@@ -515,7 +515,6 @@ function raidBattle(t, entry) {
 function offerSnag(t, foe) {
   const mons = foe.team.filter(m => m.shadow && !legendBlocked(t, m.sp) && !(isLegendLine(m.sp) && legendFull(t))).map(m => { const c = JSON.parse(JSON.stringify(m)); c.uid = uid(); c.shadow = { heart: 100, stored: 0 }; c.st = undefined; c.ss = undefined; return c; });
   if (!mons.length) return;
-  if (t.user) { S.snagOffers = S.snagOffers || {}; S.snagOffers[t.id] = { from: dn(foe), mons }; news(`${dn(t)} can snag one of ${dn(foe)}'s Shadow Pokémon.`, 'you', t.id); return; }
   const best = mons.slice().sort((a, b) => monPower(b) - monPower(a))[0];
   const weakest = t.team.filter(m => !isSpecial(m) && !(t.mega && t.mega.uid === m.uid) && m.bond !== t.id).sort((a, b) => monPower(a) - monPower(b))[0];
   if (t.team.length < 6) snag(t, best, null);
@@ -746,7 +745,6 @@ function legendMon(t, sp) {
 // a legendary joins a trainer: if the team is full, an AI trainer lets their weakest ordinary Pokémon go; you choose
 function joinLegend(t, sp, how, why) {
   if (!greatFree(sp) || legendBlocked(t, sp) || legendFull(t)) return null;
-  if (t.user && t.team.length >= 6) { (S.legendOffers = S.legendOffers || {})[t.id] = { sp, how, why }; news(`${sp} has chosen ${dn(t)}! The team is full, so choose who makes room.`, 'you', t.id); return null; }
   if (t.team.length >= 6) {
     const keep = m => (t.mega && t.mega.uid === m.uid) || m.bond === t.id;
     const out = t.team.filter(m => !isSpecial(m) && !keep(m)).sort((a, b) => monPower(a) - monPower(b))[0] || t.team.filter(m => !SP[m.sp].legend && !keep(m)).sort((a, b) => monPower(a) - monPower(b))[0];
@@ -848,8 +846,6 @@ function settleLegend(reason, force) {
   return w;
 }
 function awardLegend(t, sp, why, force) {
-  // your own trainer with a full team chooses who makes room, unless there's no time left to choose
-  if (t.user && t.team.length >= 6 && !force) return joinLegend(t, sp, 'caught', why);
   if (t.team.length >= 6) { const out = t.team.filter(x => !isSpecial(x) && !(t.mega && t.mega.uid === x.uid) && x.bond !== t.id).sort((a, b) => monPower(a) - monPower(b))[0] || t.team.filter(x => !SP[x.sp].legend).sort((a, b) => monPower(a) - monPower(b))[0] || t.team[0]; farewell(t, out, `released to make room for ${sp}`); t.team = t.team.filter(x => x !== out); }
   const m = legendMon(t, sp); t.team.push(m); recordGreat(t, m, 'caught');
   news(`${why} ${sp} joined ${dn(t)}!`, t.user ? 'you' : 'title', t.id);
@@ -1116,7 +1112,6 @@ function roamWeek() {
 // a legendary from a wild event joins t: an AI trainer makes room themselves; you choose, unless the season's ending
 function giveWildLegend(t, sp, how, why, force) {
   if (!greatFree(sp) || legendBlocked(t, sp) || legendFull(t)) { news(`${sp} slipped away. It may return one day.`, 'title'); return null; }
-  if (t.user && t.team.length >= 6 && !force) return joinLegend(t, sp, how, why.replace(/[.!]$/, ':'));
   if (t.team.length >= 6) {
     const keep = m => (t.mega && t.mega.uid === m.uid) || m.bond === t.id;
     const out = t.team.filter(m => !isSpecial(m) && !keep(m)).sort((a, b) => monPower(a) - monPower(b))[0] || t.team.filter(m => !SP[m.sp].legend && !keep(m)).sort((a, b) => monPower(a) - monPower(b))[0] || t.team[0];
@@ -1322,8 +1317,7 @@ function runTourney() {
   if (S.tourneyHist.length > 200) S.tourneyHist.shift();
   const mine = W.user || (R && R.user) || field.some(t => t.user && T0.semis.includes(t.id));
   inLeague(lgOf(W), () => news(`${dn(W)} won the Season ${S.season} Midseason Tournament${T0.rule ? ` (${TOURNEY_RULES[T0.rule].name})` : ''}, beating ${R ? dn(R) : 'the field'} in the final (${field.length} challengers${nLeagues() > 1 ? ' from every League' : ''}). The prize: an alpha of their choice.`, mine ? 'you' : 'title', W.id));
-  if (W.user) { S.tourneyOffer = { id: W.id, lvl }; news(`${dn(W)} won the Midseason Tournament! Choose the alpha Pokémon they receive.`, 'you', W.id); }
-  else tourneyPick(W.id, aiTourneyChoice(W));
+  tourneyPick(W.id, aiTourneyChoice(W));
   return T0;
 }
 // what an AI winner asks for: a strong Pokémon of their type, from a line they don't already have
@@ -1339,7 +1333,7 @@ function tourneyPick(id, sp, releaseUid) {
   if (t.role === 'retired' || !t.team) { T0.reward.sp = '—'; S.tourneyOffer = null; return null; }
   if (t.team.length >= 6) {
     let out = releaseUid != null ? t.team.find(m => m.uid === releaseUid) : null;
-    if (!out && !t.user) out = t.team.filter(m => !isSpecial(m) && !(t.mega && t.mega.uid === m.uid) && m.bond !== t.id).sort((a, b) => monPower(a) - monPower(b))[0] || t.team.filter(m => !isLegendLine(m.sp)).sort((a, b) => monPower(a) - monPower(b))[0];
+    if (!out) out = t.team.filter(m => !isSpecial(m) && !(t.mega && t.mega.uid === m.uid) && m.bond !== t.id).sort((a, b) => monPower(a) - monPower(b))[0] || t.team.filter(m => !isLegendLine(m.sp)).sort((a, b) => monPower(a) - monPower(b))[0];
     if (!out) return null;
     farewell(t, out, `released to make room for the tournament prize`); t.team = t.team.filter(m => m !== out);
   }

@@ -1,4 +1,13 @@
+const verName = u => u.ver || u.id;
 const UPDATES = [
+  { id: 204, ver: '2.0.0', date: 'November 11, 2026', time: '10:45 PM ET', title: '2.0 begins: trainers run themselves', items: [
+    "This is the first step of Pokémon League GM 2.0, a rework where you manage the team and your trainers make their own decisions.",
+    "Your trainers now choose their own week: when to challenge a gym, train, explore, seek a legendary, confront villains or purify. There are no weekly plans to set.",
+    "They also decide what to catch and who makes room, which gym reward to take, which items to hold, where the Mega Stone goes, whether to accept a road trade or snag a Shadow Pokémon, their Midseason Tournament prize, and which three Pokémon to register for the new season.",
+    "One play control: Play week, or Play to League. The Office shows what each trainer did last week and how their season is going.",
+    "You still run the draft, releases, League invitations, farewell gifts, League reassignment, the banlist vote, the Champion's reward and the team ranch.",
+    "2.0 keeps its own save, separate from worlds made in earlier versions. Version numbers restart at 2.0.0.",
+  ] },
   { id: 203, date: 'November 8, 2026', time: '11:28 AM ET', title: 'Trainers vote on bans', items: [
     "Banlist votes are now weighted: half from the teams (GMs) and half from the League's trainers (challengers, Gym Leaders, the Elite Four and the Champion). A Pokémon is banned when over 50% of the weighted vote backs a ban, for the longest length that still has over 50%.",
     "Trainers vote with their grudges. They push to ban Pokémon that beat them this season (more for each knockout and each loss it was part of), that hit their type or half their team super effectively, or that their rival uses. They never vote to ban a Pokémon on their own team and go easy on ones of their own type. Angrier trainers vote for longer bans.",
@@ -407,7 +416,7 @@ const updatesSeen = () => { try { return +(localStorage.getItem(UPDATES_SEEN_KEY
 const updatesNew = () => UPDATES.length && UPDATES[0].id > updatesSeen();
 function markUpdatesSeen() { try { localStorage.setItem(UPDATES_SEEN_KEY, String(UPDATES[0].id)); } catch (e) {} }
 const UPDATES_RULE = 'Every version is numbered, and from v179 on each one is dated and timestamped (Eastern Time). All the changes made in one round of work are listed together under that one version.';
-function updStamp(u) { return `v${u.id} · ${u.date}${u.time ? ` · ${u.time}` : ''}`; }
+function updStamp(u) { return `v${verName(u)} · ${u.date}${u.time ? ` · ${u.time}` : ''}`; }
 function viewUpdates() {
   const back = S ? '' : '<button class="btn small" data-act="nav" data-v="office">← Back to setup</button>';
   return `<section class="panel callout"><div class="ph"><h1>Updates</h1>${back}</div>
@@ -552,7 +561,7 @@ function render() {
   ensureCustom();
   const app = $('#app');
   if (S) fixView();
-  if (!S) { app.innerHTML = `<header class="top"><div class="top-in"><div class="mark"><span class="mark-ball" aria-hidden="true"></span><div><div class="mark-name">Pokémon League GM <span class="mark-ver">v${UPDATES[0].id}</span></div><div class="mark-sub">New league</div></div></div><div class="top-act"><button class="btn ghost" data-act="glossary">Glossary</button><button class="btn ghost" data-act="updates">Updates${updatesNew() ? '<span class="newdot"></span>' : ''}</button></div></div></header>` + embedNote() + (view === 'updates' ? `<main class="wrap" id="main">${viewUpdates()}</main>` : viewSetup()); if (view === 'updates') applyFolds(app, 'updates'); return; }
+  if (!S) { app.innerHTML = `<header class="top"><div class="top-in"><div class="mark"><span class="mark-ball" aria-hidden="true"></span><div><div class="mark-name">Pokémon League GM <span class="mark-ver">v${verName(UPDATES[0])}</span></div><div class="mark-sub">New league</div></div></div><div class="top-act"><button class="btn ghost" data-act="glossary">Glossary</button><button class="btn ghost" data-act="updates">Updates${updatesNew() ? '<span class="newdot"></span>' : ''}</button></div></div></header>` + embedNote() + (view === 'updates' ? `<main class="wrap" id="main">${viewUpdates()}</main>` : viewSetup()); if (view === 'updates') applyFolds(app, 'updates'); return; }
   bindView();
   let v = '';
   if (view === 'office') v = viewOffice();
@@ -644,15 +653,7 @@ function afterDraft() { if (S.phase === 'gifts') go('gifts'); else if (S.phase =
 function planFor(t) { let p = S.plans[t.id] || 'auto'; if (p === 'challenge' && (t.role === 'champion' || t.badges.length >= 8 || gymClosed(t.badges.length))) p = 'auto'; if (p === 'raid' && (t.role !== 'challenger' || !eventFoe())) p = 'auto'; if (p === 'purify') p = 'auto'; if (p === 'seek' && (t.role !== 'challenger' || !S.legend || legendBlocked(t, S.legend.sp))) p = 'auto'; return p; }
 function playWeek() {
   if (S.phase !== 'season') return;
-  const choices = {};
-  for (const t of userTrainers()) {
-    const pk = S.catchPicks[t.id];
-    if (planFor(t) !== 'explore' || !pk) continue;
-    // a pick with a full team and no release chosen is skipped
-    if (t.team.length >= 6 && pk.release == null) choices[t.id] = null;
-    else choices[t.id] = { offer: S.weekOffers[t.id][pk.i], release: pk.release };
-  }
-  finishWeek(choices);
+  finishWeek({}, true);
 }
 // auto: Sim week. Your trainers decide for themselves (AI plans and catches), ignoring this week's plans and picks
 function finishWeek(choices, auto) {
@@ -663,7 +664,6 @@ function finishWeek(choices, auto) {
   save();
   render();
   const found = userTrainers().map(t => t.weekLog[t.weekLog.length - 1]).filter(e => e && e.found && ITEMS[e.found]).map(e => ITEMS[e.found].name);
-  const rewards = userTrainers().reduce((a, t) => a + (t.itemOffers || []).length, 0);
   const caught = userTrainers().map(t => t.weekLog[t.weekLog.length - 1]).filter(e => e && e.caught).map(e => (e.radiant ? 'a Radiant ' + (e.alpha ? 'alpha ' : '') : e.shiny ? 'a shiny ' + (e.alpha ? 'alpha ' : '') : e.alpha ? 'an alpha ' : '') + e.caught);
   // gym battles and road battles are reported separately; in a road battle your trainer may be either side
   const lb = eachLeague(() => S.lastBattles || []).flat();
@@ -673,9 +673,9 @@ function finishWeek(choices, auto) {
   const roadMsg = roads.length ? `${roads.filter(roadWon).length} of ${roads.length} road battle${roads.length === 1 ? '' : 's'} won.` : '';
   const legs = lb.filter(r => r.legend); const legMsg = legs.length ? (legs.some(r => r.legendCaught) ? `Caught ${legs[0].title.split(' · ')[0]}!` : `${legs.length} attempt${legs.length === 1 ? '' : 's'} at ${legs[0].title.split(' · ')[0]}.`) : '';
   const raidMsg = raids.length ? `${raids.filter(r => r.winner === 0).length} of ${raids.length} villain battle${raids.length === 1 ? '' : 's'} won.` : '';
-  toast([gymMsg, roadMsg, raidMsg, legMsg, caught.length ? `Caught ${caught.join(', ')}.` : '', found.length ? `Found ${found.join(', ')}.` : '', rewards ? `${rewards} gym reward${rewards > 1 ? 's' : ''} to choose.` : ''].filter(Boolean).join(' ') || `Week ${S.week} complete.`);
+  toast([gymMsg, roadMsg, raidMsg, legMsg, caught.length ? `Caught ${caught.join(', ')}.` : '', found.length ? `Found ${found.join(', ')}.` : ''].filter(Boolean).join(' ') || `Week ${S.week} complete.`);
   if (tourneyPaused()) { view = 'tourney'; render(); window.scrollTo(0, 0); }
-  if (S.week === TOURNEY_WEEK && S.tourney && S.tourney.season === S.season) { const w = T(S.tourney.winner); toast(`Midseason Tournament: ${w ? dn(w) : 'someone'} won it!${S.tourneyOffer ? ' Choose their alpha prize.' : ''}`); }
+  if (S.week === TOURNEY_WEEK && S.tourney && S.tourney.season === S.season) { const w = T(S.tourney.winner); toast(`Midseason Tournament: ${w ? dn(w) : 'someone'} won it!`); }
   if (S.phase === 'league') toast('The regular season is over. Time for the Pokémon League.');
 }
 
@@ -796,7 +796,7 @@ document.addEventListener('click', ev => {
     case 'autoseasonask': modal = { kind: 'confirmsim' }; renderModal(); setTimeout(() => { const b = document.querySelector('[data-act="autoseason"]'); if (b && b.focus) b.focus(); }, 0); break;
     case 'autoseason': { const stop = tourneyAhead() && simStopTourney; modal = null; renderModal(); S.tourneyPause = false;
       if (stop) simToTourney(); else while (S.phase === 'season') simWeek({}, {});
-      save(); go('office'); toast(stop ? `Simulated to week ${TOURNEY_WEEK}. Your trainers made their own calls. The Midseason Tournament is played after this week.` : 'Simulated to the end of the regular season. Your trainers made their own calls.'); break; }
+      save(); go('office'); toast(stop ? `Played to week ${TOURNEY_WEEK}. The Midseason Tournament is played after this week.` : 'Played to the end of the regular season.'); break; }
     case 'runleague': runLeague(); save(); go('recap'); break;
     case 'giftpick': giftPick = +el.dataset.u; render(); break;
     case 'giftgo': if (giftPick == null) break; confirmGift(giftPick); giftPick = null; save(); render(); toast('Farewell gift left in the ranch.'); break;

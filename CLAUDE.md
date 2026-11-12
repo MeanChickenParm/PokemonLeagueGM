@@ -1,5 +1,16 @@
 # Pokémon League GM: how to work on this repo
 
+## This is the `v2` branch (Pokémon League GM 2.0)
+
+2.0 is a full rework, built here until it is ready to replace the live game. The plan is the Project doc `claude/game-design-v2.md`. On this branch these rules replace the matching ones below:
+
+- **Work on `v2`, never `main`.** Clone, then `git checkout v2`. Pull, commit and push `v2` only. `main` and the live GitHub Pages site stay at the last 1.x version (v203) until the user says 2.0 goes live.
+- **Don't copy the built HTML to the repo root** on this branch. The root `Pokémon League GM.html` and `index.html` are the live 1.x game.
+- **Version numbers:** each `UPDATES` entry keeps a whole-number `id` that goes up by one per chat (it orders the changelog and drives the "new updates" dot), plus a `ver` string that players see: `2.0.0`, `2.0.1`… One new `ver` per chat. The build names its files from `ver`.
+- **Saves:** 2.0 uses its own save key (`plgm2-save`) and never reads or writes 1.x saves.
+- **Build stages** (see the design doc): 1 hands-off trainers (done in 2.0.0), 2 parties and world structure, 3 ambition, 4 influence and the ranch rework, 5 full trading, 6 team cups and multi battles.
+- **Left over from stage 1:** the engine no longer asks the player anything for a trainer, but the old screens and handlers for those choices (registration view, snag/trade/legendary-room/item-reward/tournament-prize panels, the catch picker) are still in the UI files, unreachable. Delete them when stage 2 rewrites those screens.
+
 This repo is the only master copy of the game. Every chat works the same way: clone, build, change, test, push.
 
 ## Layout

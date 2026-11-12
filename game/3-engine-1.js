@@ -1912,7 +1912,6 @@ function gymItemOffer(t, g, leader) {
   const opts = [];
   const ty = leader && leader.specialty; if (ty && TYPE_ITEMS[ty]) opts.push('tb' + ty);
   let guard = 0; while (opts.length < 3 && guard++ < 30) { const k = rollItem(tier, ty); if (!opts.includes(k)) opts.push(k); }
-  if (t.user) { (t.itemOffers = t.itemOffers || []).push({ opts, from: `${TOWNS[g]} Gym`, season: S.season }); return; }
   const best = opts.slice().sort((a, b) => itemGain(t, b) - itemGain(t, a))[0];
   bagAdd(t, best); autoEquip(t);
 }
@@ -2069,11 +2068,7 @@ function roadTrades() {
     for (const o of others.slice(0, 6)) {
       const tr = findTrade(t, o); if (!tr) continue;
       done.add(t.id); done.add(o.id);
-      if (t.user || o.user) {
-        const me = t.user ? t : o, them = t.user ? o : t;
-        S.tradeOffers[me.id] = { with: them.id, give: t.user ? tr.give : tr.get, get: t.user ? tr.get : tr.give };
-        news(`${dn(them)} ran into ${dn(me)} on the road and offered a trade.`, 'you', me.id);
-      } else doTrade(t, o, tr.give, tr.get);
+      doTrade(t, o, tr.give, tr.get);
       break;
     }
   }

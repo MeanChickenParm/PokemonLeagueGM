@@ -28,7 +28,8 @@ def read(name):
 page, data, end = read(PAGE), read(DATA), read(END)
 engine = '\n'.join(read(f) for f in ENGINE)
 ui = '\n'.join(read(f) for f in UI)
-ver = re.search(r'const UPDATES = \[\s*\{ id: (\d+)', ui).group(1)
+_m = re.search(r"const UPDATES = \[\s*\{ id: (\d+)(?:, ver: '([^']+)')?", ui)
+ver = _m.group(2) or _m.group(1)
 
 def html(data_tag):
     return f'{page}\n{data_tag}\n<script>\n{engine}\n</script>\n<script>\n{ui}\n</script>\n{end}'
